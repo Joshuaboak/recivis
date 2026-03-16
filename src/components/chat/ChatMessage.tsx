@@ -5,6 +5,7 @@ import { Bot, User, ExternalLink, CheckCircle, Pencil, X } from 'lucide-react';
 import type { ChatMessage } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
 import LineItemForm from './LineItemForm';
+import DataForm, { parseFieldList } from './DataForm';
 
 type PromptType = 'confirm_create' | 'yes_no_proceed' | 'yes_no' | null;
 
@@ -233,12 +234,22 @@ function renderMarkdown(content: string, onOptionClick?: (text: string) => void)
         i++;
       }
 
-      if (looksLikeOptions(listItems) && onOptionClick) {
+      // Check if it's a data collection form (field labels)
+      const formFields = onOptionClick ? parseFieldList(listItems) : null;
+      if (formFields && onOptionClick) {
+        // Render as editable form
+        elements.push(
+          <DataForm
+            key={key++}
+            fields={formFields}
+            onSubmit={onOptionClick}
+          />
+        );
+      } else if (looksLikeOptions(listItems) && onOptionClick) {
         // Render as clickable buttons
         elements.push(
           <div key={key++} className="flex flex-wrap gap-2 my-3">
             {listItems.map((item, li) => {
-              // Strip markdown bold markers for the button label
               const cleanLabel = item.replace(/\*\*/g, '');
               return (
                 <button
