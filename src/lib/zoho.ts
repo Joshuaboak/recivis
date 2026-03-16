@@ -1,9 +1,9 @@
 /**
  * Zoho CRM MCP Client
- * Uses MCP Streamable HTTP transport with OAuth 2.0 bearer tokens.
+ * Preauthorized MCP endpoint — no OAuth needed.
  */
 
-import { getAccessToken, getMcpEndpoint } from './zoho-mcp-auth';
+import { getMcpEndpoint } from './zoho-mcp-auth';
 
 let sessionId: string | null = null;
 let initialized = false;
@@ -14,7 +14,6 @@ async function mcpRequest(
   params?: Record<string, unknown>,
   isNotification = false
 ): Promise<unknown> {
-  const token = await getAccessToken();
   const endpoint = getMcpEndpoint();
 
   const body: Record<string, unknown> = {
@@ -28,7 +27,6 @@ async function mcpRequest(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json, text/event-stream',
-    Authorization: `Bearer ${token}`,
   };
 
   if (sessionId) {
