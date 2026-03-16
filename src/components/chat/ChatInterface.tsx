@@ -2,17 +2,24 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, RotateCcw, Sparkles } from 'lucide-react';
+import { Send, RotateCcw, Sparkles, LucideIcon } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import type { ChatMessage } from '@/lib/types';
 import ChatMessageComponent from './ChatMessage';
 
+interface QuickAction {
+  label: string;
+  icon: LucideIcon;
+  message: string;
+}
+
 interface ChatInterfaceProps {
   initialMessage?: string;
   placeholder?: string;
+  quickActions?: QuickAction[];
 }
 
-export default function ChatInterface({ initialMessage, placeholder }: ChatInterfaceProps) {
+export default function ChatInterface({ initialMessage, placeholder, quickActions }: ChatInterfaceProps) {
   const { messages, addMessage, updateMessage, clearMessages, user, isLoading, setIsLoading } = useAppStore();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -41,7 +48,7 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
     }
   }, [initialMessage, messages.length, addMessage]);
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return;
 
     const userMessage: ChatMessage = {
@@ -54,7 +61,6 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
     setInput('');
     setIsLoading(true);
 
-    // Create placeholder for assistant response
     const assistantId = crypto.randomUUID();
     const assistantMessage: ChatMessage = {
       id: assistantId,
@@ -66,7 +72,6 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
     addMessage(assistantMessage);
 
     try {
-      // Build conversation history for API
       const apiMessages = [...messages, userMessage]
         .filter((m) => m.role !== 'system')
         .map((m) => ({
@@ -98,7 +103,7 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isLoading, messages, user, addMessage, updateMessage, setIsLoading]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -107,7 +112,7 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
     }
   };
 
-  // Listen for option clicks from ChatMessage components
+  // Listen for option clicks from ChatMessage components and InvoiceView
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -117,12 +122,15 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
     };
     window.addEventListener('recivis-send-message', handler);
     return () => window.removeEventListener('recivis-send-message', handler);
-  });
+  }, [sendMessage]);
 
   const handleNewConversation = () => {
     clearMessages();
     hasInitialized.current = false;
   };
+
+  // Show quick actions only when there's just the initial greeting (1 message, from assistant)
+  const showQuickActions = quickActions && messages.length === 1 && messages[0]?.role === 'assistant' && !isLoading;
 
   return (
     <div className="flex flex-col h-full">
@@ -139,6 +147,30 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
             ))}
           </AnimatePresence>
 
+          {/* Quick action buttons — shown after initial greeting */}
+          <AnimatePresence>
+            {showQuickActions && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.3, delay: 0.2 }}
+                className="flex gap-3 py-4 pl-11"
+              >
+                {quickActions.map((action) => (
+                  <button
+                    key={action.label}
+                    onClick={() => sendMessage(action.message)}
+                    className="flex items-center gap-2.5 px-5 py-3 bg-surface-raised border-2 border-border-subtle rounded-xl hover:border-csa-accent hover:bg-csa-accent/10 text-text-secondary hover:text-csa-accent transition-all duration-150 group"
+                  >
+                    <action.icon size={18} className="text-text-muted group-hover:text-csa-accent transition-colors" />
+                    <span className="text-sm font-semibold">{action.label}</span>
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Typing indicator */}
           <AnimatePresence>
             {isLoading && messages[messages.length - 1]?.isStreaming && !messages[messages.length - 1]?.content && (
@@ -149,9 +181,9 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
                 className="flex items-center gap-2 py-4 px-4"
               >
                 <div className="flex items-center gap-1.5 bg-surface-raised px-4 py-3 border-l-4 border-csa-accent rounded-r-lg">
-                  <div className="typing-dot w-2 h-2 bg-csa-accent" />
-                  <div className="typing-dot w-2 h-2 bg-csa-accent" />
-                  <div className="typing-dot w-2 h-2 bg-csa-accent" />
+                  <div className="typing-dot w-2 h-2 bg-csa-accent rounded-full" />
+                  <div className="typing-dot w-2 h-2 bg-csa-accent rounded-full" />
+                  <div className="typing-dot w-2 h-2 bg-csa-accent rounded-full" />
                 </div>
               </motion.div>
             )}
@@ -203,7 +235,7 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
 
           <div className="flex items-center justify-between mt-2">
             <p className="text-[11px] text-text-muted">
-              Press <kbd className="px-1 py-0.5 bg-surface-raised text-text-secondary text-[10px] font-mono">Enter</kbd> to send, <kbd className="px-1 py-0.5 bg-surface-raised text-text-secondary text-[10px] font-mono">Shift+Enter</kbd> for new line
+              Press <kbd className="px-1 py-0.5 bg-surface-raised text-text-secondary text-[10px] font-mono rounded">Enter</kbd> to send, <kbd className="px-1 py-0.5 bg-surface-raised text-text-secondary text-[10px] font-mono rounded">Shift+Enter</kbd> for new line
             </p>
             <div className="flex items-center gap-1 text-[11px] text-text-muted">
               <Sparkles size={12} className="text-csa-purple" />

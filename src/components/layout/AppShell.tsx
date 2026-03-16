@@ -5,7 +5,6 @@ import Sidebar from './Sidebar';
 import DashboardView from '../views/DashboardView';
 import InvoiceView from '../views/InvoiceView';
 import ReportsView from '../views/ReportsView';
-import UploadView from '../views/UploadView';
 import LoginView from '../views/LoginView';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -24,7 +23,7 @@ export default function AppShell() {
         <header className="h-16 border-b-4 border-border bg-csa-dark flex items-center px-6 flex-shrink-0">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-bold text-text-primary capitalize">
-              {currentView === 'invoice' ? 'Invoice Assistant' : currentView === 'upload' ? 'Upload Purchase Order' : currentView}
+              {currentView === 'invoice' ? 'Invoice Assistant' : currentView}
             </h2>
             <span className="h-4 w-px bg-border-subtle" />
             <span className="text-xs text-text-muted">
@@ -70,18 +69,6 @@ export default function AppShell() {
                 className="h-full"
               >
                 <ReportsView />
-              </motion.div>
-            )}
-            {currentView === 'upload' && (
-              <motion.div
-                key="upload"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.2 }}
-                className="h-full"
-              >
-                <UploadView />
               </motion.div>
             )}
           </AnimatePresence>

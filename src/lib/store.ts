@@ -14,8 +14,8 @@ interface AppState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 
-  currentView: 'dashboard' | 'invoice' | 'reports' | 'upload';
-  setCurrentView: (view: 'dashboard' | 'invoice' | 'reports' | 'upload') => void;
+  currentView: 'dashboard' | 'invoice' | 'reports';
+  setCurrentView: (view: 'dashboard' | 'invoice' | 'reports') => void;
 
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
