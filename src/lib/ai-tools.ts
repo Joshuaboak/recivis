@@ -207,15 +207,28 @@ After account + contact confirmed:
 1. Fetch reseller record (Region, Currency, Direct_Customer_Contact)
 2. Fetch account billing address and Owner
 3. Fetch org variables (Latest_Product_Version)
-4. Guide SKU building:
-   - Q1: Product (CSD, CSP, STR, CEZ)
-   - CSP: skip Q2/Q3, always SU-CB, version from org var
-   - Q2: User Type (SU or MU)
-   - Q3: Licensing (CL, or CB if SU+Traditional, OP if MU+Traditional)
-   - Q4: License Model (INF or SUB)
-   - Auto: COM, 1YR, Region from reseller
-   - SKU format: {PRODUCT}-{USERTYPE}-{LICENSING}-COM-1YR-{MODEL}-{REGION}
-   - CSP format: CSP-{VER}-SU-CB-COM-1YR-{MODEL}-{REGION}
+4. Guide SKU building with numbered choices:
+   - **Q1: Product** — present these exact options:
+     1. Civil Site Design (CSD)
+     2. Civil Site Design Plus (CSP)
+     3. Stringer (STR)
+     4. Corridor EZ (CEZ)
+   - If CSP: skip Q2/Q3. CSP is always Single User, Computer Bound. Version auto-set from org variable Latest_Product_Version. SKU so far: CSP-{VER}-SU-CB-
+   - If CSD, STR, or CEZ → continue:
+   - **Q2: User Type** — present these exact options:
+     1. Single User (SU)
+     2. Multi User (MU)
+   - **Q3: Licensing** — present these exact options:
+     1. Cloud (CL)
+     2. Traditional
+     - If Single User + Traditional → CB (Computer Bound)
+     - If Multi User + Traditional → OP (On Premise)
+   - **Q4: License Model** — present these exact options:
+     1. Perpetual (INF)
+     2. Subscription (SUB)
+   - Auto-set: COM (Commercial), 1YR (Term), Region from reseller
+   - Final SKU: {PRODUCT}-{USERTYPE}-{LICENSING}-COM-1YR-{MODEL}-{REGION}
+   - CSP SKU: CSP-{VER}-SU-CB-COM-1YR-{MODEL}-{REGION}
 5. Search Products by Product_Code = built SKU
 6. Ask quantity (default 1), start date (default today DD/MM/YYYY), end date (default start+364 days), custom price (default product Unit_Price)
 7. Contract_Term_Years: 0 if custom price or no dates; 1 if standard price with dates
@@ -246,7 +259,9 @@ After invoice created:
 - Account Summary: search Accounts by Reseller with counts
 
 ## Invoice Header Fields (auto-set, don't prompt)
-Account_Name, Contact_Name, Invoice_Date (today), Due_Date (today+30), Status (Draft), Invoice_Type (New Product), Reseller (from account), Reseller_Region, Reseller_Direct_Purchase (true if reseller's Direct_Customer_Contact is false), Currency (from reseller), Billing address fields (from account), Owner (from account), Send_Invoice (true), Don_t_Make_Keys (false), Automatically_Send_Email (false), Subject ({Account Name} - Invoice - {DD/MM/YYYY}).
+Account_Name, Contact_Name, Invoice_Date (today), Due_Date (today+30), Status (Draft), Invoice_Type (New Product), Reseller (from account), Reseller_Region, Reseller_Direct_Purchase (true if reseller's Direct_Customer_Contact is false), Currency (from reseller), Billing address fields (from account), Owner (from account), Don_t_Make_Keys (false), Automatically_Send_Email (false), Subject ({Account Name} - Invoice - {DD/MM/YYYY}).
+
+**CRITICAL: Send_Invoice MUST be false. Status MUST be Draft.** NEVER set Send_Invoice to true or Status to Sent/Approved unless the user EXPLICITLY chooses Send or Approve in Phase 4. The invoice must always be created as a safe Draft first.
 
 ## Region Restrictions (AS region)
 - Cannot modify prices — always use product Unit_Price

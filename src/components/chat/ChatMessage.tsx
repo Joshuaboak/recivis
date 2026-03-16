@@ -1,9 +1,27 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Bot, User, ExternalLink } from 'lucide-react';
+import { Bot, User, ExternalLink, CheckCircle, Pencil } from 'lucide-react';
 import type { ChatMessage } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
+
+/** Check if message ends with a confirmation question */
+function hasConfirmationPrompt(content: string): boolean {
+  const lower = content.toLowerCase();
+  const lastLines = lower.slice(-200);
+  return (
+    lastLines.includes('does this look correct') ||
+    lastLines.includes('confirm to create') ||
+    lastLines.includes('create this invoice') ||
+    lastLines.includes('shall i create') ||
+    lastLines.includes('shall i proceed') ||
+    lastLines.includes('is this correct') ||
+    lastLines.includes('ready to create') ||
+    lastLines.includes('would you like to proceed') ||
+    lastLines.includes('confirm?') ||
+    (lastLines.includes('(y/n)'))
+  );
+}
 
 interface ChatMessageProps {
   message: ChatMessage;
@@ -304,6 +322,26 @@ export default function ChatMessageComponent({ message, index }: ChatMessageProp
         ) : (
           <div className="space-y-1">
             {renderMarkdown(message.content, handleOptionClick)}
+          </div>
+        )}
+
+        {/* Confirmation buttons — shown when Claude asks to confirm */}
+        {!isUser && !isLoading && hasConfirmationPrompt(message.content) && (
+          <div className="flex gap-3 mt-4">
+            <button
+              onClick={() => handleOptionClick('Yes, create the invoice')}
+              className="flex items-center gap-2 px-5 py-2.5 bg-success/15 border-2 border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/25 hover:border-success/50 transition-all cursor-pointer"
+            >
+              <CheckCircle size={16} />
+              Confirm
+            </button>
+            <button
+              onClick={() => handleOptionClick('I need to make some changes')}
+              className="flex items-center gap-2 px-5 py-2.5 bg-surface-raised border-2 border-border-subtle rounded-xl text-text-secondary text-sm font-semibold hover:border-csa-accent hover:text-csa-accent transition-all cursor-pointer"
+            >
+              <Pencil size={16} />
+              Edit
+            </button>
           </div>
         )}
 
