@@ -1,16 +1,22 @@
 /**
  * Zoho CRM MCP Client
- * Calls the Zoho MCP endpoint directly — no OAuth required.
+ * Uses MCP Streamable HTTP transport with OAuth 2.0 bearer tokens.
  */
 
-const MCP_ENDPOINT = process.env.ZOHO_MCP_URL ||
-  'https://civilsurveyapplicationszohomcp-7006508204.zohomcp.com.au/mcp/message?key=ed4cf1a7840312505eceea4d452670f1';
+import { getAccessToken, getMcpEndpoint } from './zoho-mcp-auth';
 
 let sessionId: string | null = null;
 let initialized = false;
 let initPromise: Promise<void> | null = null;
 
-async function mcpRequest(method: string, params?: Record<string, unknown>, isNotification = false): Promise<unknown> {
+async function mcpRequest(
+  method: string,
+  params?: Record<string, unknown>,
+  isNotification = false
+): Promise<unknown> {
+  const token = await getAccessToken();
+  const endpoint = getMcpEndpoint();
+
   const body: Record<string, unknown> = {
     jsonrpc: '2.0',
     method,
@@ -22,13 +28,14 @@ async function mcpRequest(method: string, params?: Record<string, unknown>, isNo
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json, text/event-stream',
+    Authorization: `Bearer ${token}`,
   };
 
   if (sessionId) {
     headers['Mcp-Session-Id'] = sessionId;
   }
 
-  const res = await fetch(MCP_ENDPOINT, {
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -98,7 +105,10 @@ async function ensureInitialized(): Promise<void> {
 /**
  * Call a Zoho MCP tool by name with arguments.
  */
-export async function callMcpTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
+export async function callMcpTool(
+  toolName: string,
+  args: Record<string, unknown>
+): Promise<unknown> {
   await ensureInitialized();
 
   const result = await mcpRequest('tools/call', {
@@ -110,7 +120,7 @@ export async function callMcpTool(toolName: string, args: Record<string, unknown
 }
 
 /**
- * Reset the MCP session (useful if session expires).
+ * Reset the MCP session (e.g. on auth refresh).
  */
 export function resetSession(): void {
   sessionId = null;
@@ -193,9 +203,12 @@ export async function executeZohoTool(
     case 'call_renewal_function': {
       const assetIds = args.asset_ids as string[];
       const assetIDString = assetIds.join('|||');
-      const zapikey = process.env.ZOHO_API_KEY ||
+      const zapikey =
+        process.env.ZOHO_API_KEY ||
         '1003.c34f94ef513dd69ce6eada9d6d97dc31.35c2e6e02fc62c21dfcfb5c3391e8e6d';
-      const url = `https://www.zohoapis.com.au/crm/v2/functions/generaterenewalinvoicesforassets/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${encodeURIComponent(JSON.stringify({ buttonPusher: 'claude', assetIDString }))}`;
+      const url = `https://www.zohoapis.com.au/crm/v2/functions/generaterenewalinvoicesforassets/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${encodeURIComponent(
+        JSON.stringify({ buttonPusher: 'claude', assetIDString })
+      )}`;
       const res = await fetch(url, { method: 'POST' });
       return res.json();
     }

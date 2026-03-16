@@ -120,8 +120,10 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           console.error(`Tool ${toolCall.function.name} failed:`, error);
 
-          // If MCP session expired, reset and retry once
-          if (error instanceof Error && error.message.includes('session')) {
+          // If not authenticated, return friendly error
+          if (error instanceof Error && error.message === 'NOT_AUTHENTICATED') {
+            result = { error: 'Zoho CRM is not connected. Please click "Connect CRM" in the sidebar first.' };
+          } else if (error instanceof Error && error.message.includes('session')) {
             resetSession();
             try {
               result = await executeZohoTool(toolCall.function.name, args);

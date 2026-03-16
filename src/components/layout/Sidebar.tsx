@@ -1,15 +1,17 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   FilePlus,
-  RefreshCw,
   BarChart3,
-  Upload,
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Plug,
+  Check,
+  Loader2,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 
@@ -21,6 +23,53 @@ const navItems = [
 
 export default function Sidebar() {
   const { user, setUser, currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
+  const [mcpConnected, setMcpConnected] = useState(false);
+  const [mcpLoading, setMcpLoading] = useState(false);
+
+  // Check MCP status on mount and after redirect
+  useEffect(() => {
+    checkMcpStatus();
+
+    // Check for callback params
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mcp_connected') === 'true') {
+      setMcpConnected(true);
+      window.history.replaceState({}, '', '/');
+    }
+    if (params.get('mcp_error')) {
+      console.error('MCP auth error:', params.get('mcp_error'));
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
+
+  const checkMcpStatus = async () => {
+    try {
+      const res = await fetch('/api/auth/mcp-status');
+      const data = await res.json();
+      setMcpConnected(data.connected);
+    } catch {
+      setMcpConnected(false);
+    }
+  };
+
+  const connectMcp = async () => {
+    setMcpLoading(true);
+    try {
+      const res = await fetch('/api/auth/mcp-connect');
+      const data = await res.json();
+
+      if (data.status === 'connected') {
+        setMcpConnected(true);
+      } else if (data.authUrl) {
+        // Redirect to Zoho OAuth
+        window.location.href = data.authUrl;
+        return; // Don't reset loading — we're navigating away
+      }
+    } catch (err) {
+      console.error('MCP connect failed:', err);
+    }
+    setMcpLoading(false);
+  };
 
   const handleNavClick = (id: 'dashboard' | 'invoice' | 'reports') => {
     if (id !== currentView) {
@@ -103,6 +152,42 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      {/* CRM Connection */}
+      <div className="px-3 pb-2">
+        <button
+          onClick={connectMcp}
+          disabled={mcpConnected || mcpLoading}
+          className={`
+            w-full flex items-center gap-3 px-3 py-2 text-xs font-semibold transition-all
+            ${mcpConnected
+              ? 'text-success'
+              : 'text-warning hover:bg-surface-raised cursor-pointer'
+            }
+            ${mcpLoading ? 'opacity-60 cursor-wait' : ''}
+          `}
+        >
+          {mcpLoading ? (
+            <Loader2 size={16} className="flex-shrink-0 animate-spin" />
+          ) : mcpConnected ? (
+            <Check size={16} className="flex-shrink-0" />
+          ) : (
+            <Plug size={16} className="flex-shrink-0" />
+          )}
+          <AnimatePresence>
+            {sidebarOpen && (
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="overflow-hidden whitespace-nowrap"
+              >
+                {mcpConnected ? 'CRM Connected' : mcpLoading ? 'Connecting...' : 'Connect CRM'}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </button>
+      </div>
 
       {/* User section */}
       <div className="px-3 pb-4 space-y-2">
