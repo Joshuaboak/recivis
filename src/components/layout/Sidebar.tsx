@@ -41,7 +41,7 @@ export default function Sidebar() {
           className="flex items-center gap-3 overflow-hidden"
           animate={{ opacity: 1 }}
         >
-          <div className="w-10 h-10 bg-csa-accent flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 bg-csa-accent flex items-center justify-center flex-shrink-0 rounded-xl">
             <span className="text-white font-bold text-lg">R</span>
           </div>
           <AnimatePresence>
@@ -71,7 +71,7 @@ export default function Sidebar() {
               onClick={() => handleNavClick(item.id)}
               className={`
                 w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
-                transition-all duration-150 relative group
+                transition-all duration-150 relative group rounded-xl cursor-pointer
                 ${isActive
                   ? 'bg-csa-accent/15 text-csa-accent'
                   : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
@@ -150,7 +150,7 @@ export default function Sidebar() {
       {/* Collapse toggle */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="absolute -right-3 top-20 w-6 h-6 bg-surface-raised border-2 border-border flex items-center justify-center text-text-muted hover:text-csa-accent hover:border-csa-accent transition-colors z-30"
+        className="absolute -right-3 top-20 w-6 h-6 bg-surface-raised border-2 border-border flex items-center justify-center text-text-muted hover:text-csa-accent hover:border-csa-accent transition-colors z-30 rounded-full cursor-pointer"
       >
         {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
       </button>

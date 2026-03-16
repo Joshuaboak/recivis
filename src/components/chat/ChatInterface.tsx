@@ -148,38 +148,17 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
 
       const parsed = await parseRes.json();
 
-      // Step 2: Build the message for Claude
-      let apiMessages;
-
-      if (parsed.type === 'text') {
-        // PDF → extracted text. Send as a regular text message with the PO content.
-        const poMessage = `I have a purchase order to process. Here is the extracted text from the document "${fileName}" (${parsed.pageCount} pages):\n\n---\n${parsed.content}\n---\n\nPlease extract all the information and process this PO. Look for: account/company name, contact details, products, quantities, pricing, PO number, dates. Then match against CRM records and build the invoice.`;
-
-        apiMessages = [
-          ...messages.map((m) => ({ role: m.role, content: m.content })),
-          { role: 'user', content: poMessage },
-        ].filter((m) => m.role !== 'system');
-      } else {
-        // Image → send as multimodal
-        apiMessages = [
-          ...messages.map((m) => ({ role: m.role, content: m.content })),
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${parsed.mediaType};base64,${parsed.base64}`,
-                },
-              },
-              {
-                type: 'text',
-                text: `This is a purchase order image (${fileName}). Please extract all the information and process this PO. Look for: account/company name, contact details, products, quantities, pricing, PO number, dates. Then match against CRM records and build the invoice.`,
-              },
-            ],
-          },
-        ].filter((m) => m.role !== 'system');
+      if (parsed.error) {
+        throw new Error(parsed.error);
       }
+
+      // Step 2: Send extracted PO data to Claude for CRM processing
+      const poMessage = `I have a purchase order to process. The document "${fileName}" has been analysed and here is the extracted data:\n\n---\n${parsed.content}\n---\n\nPlease process this PO: look up the account in CRM, match contacts, identify the products, build the SKU(s), and create the invoice. Follow the PO upload flow.`;
+
+      const apiMessages = [
+        ...messages.map((m) => ({ role: m.role, content: m.content })),
+        { role: 'user', content: poMessage },
+      ].filter((m) => m.role !== 'system');
 
       // Step 3: Send to Claude
       const res = await fetch('/api/chat', {

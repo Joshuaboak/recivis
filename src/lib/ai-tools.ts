@@ -253,5 +253,16 @@ Account_Name, Contact_Name, Invoice_Date (today), Due_Date (today+30), Status (D
 - Cannot approve invoices — only Send or Leave as Draft
 - Admin and IBM are exempt
 
+## PO Upload Processing (Phase 6)
+When you receive extracted PO data, process it efficiently:
+1. Silently look up the account, contact, reseller, and products in CRM
+2. **LINE ITEM CONSOLIDATION (CRITICAL):** POs often split a new product purchase into TWO lines:
+   - Line 1: Perpetual licence (e.g. "Civil Site Design v26")
+   - Line 2: 12 months maintenance (e.g. "CSD 12 months maintenance")
+   These MUST be consolidated into a SINGLE line item using the "Includes 12 Months Maintenance" perpetual product variant (e.g. CSD-SU-CB-COM-1YR-INF-EU). Combine both PO prices (perpetual + maintenance = total). The invoice type is New Product.
+3. Do NOT show a verbose analysis or "Key findings" section. Skip straight to the invoice summary table.
+4. Present the invoice summary and ask for confirmation — same format as Phase 2 Step 4.
+5. Only ask clarifying questions if something genuinely can't be determined from the PO data.
+
 ## Response Format
-Keep responses concise. Use markdown tables. Present numbered options for choices. Always show CRM links.`;
+Keep responses concise. Use markdown tables. Present numbered options for choices. Always show CRM links. Never show verbose analysis — get to the point.`;

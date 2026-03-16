@@ -115,7 +115,7 @@ export default function LoginView() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@company.com"
                 autoFocus
-                className="w-full bg-surface border-2 border-border-subtle px-4 py-3 text-sm text-text-primary placeholder-text-muted outline-none focus:border-csa-accent transition-colors rounded-lg"
+                className="w-full bg-surface border-2 border-border-subtle px-4 py-3 text-sm text-text-primary placeholder-text-muted outline-none focus:border-csa-accent transition-colors rounded-xl"
               />
             </div>
 
@@ -133,7 +133,7 @@ export default function LoginView() {
             <button
               type="submit"
               disabled={loading || !email.trim()}
-              className="w-full flex items-center justify-center gap-2 bg-csa-accent text-white px-6 py-3 text-sm font-bold uppercase tracking-wider hover:bg-csa-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed rounded-lg"
+              className="w-full flex items-center justify-center gap-2 bg-csa-accent text-white px-6 py-3 text-sm font-bold uppercase tracking-wider hover:bg-csa-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed rounded-xl"
             >
               {loading ? (
                 <Loader2 size={18} className="animate-spin" />

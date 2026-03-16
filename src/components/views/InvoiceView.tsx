@@ -104,7 +104,7 @@ export default function InvoiceView() {
 
             {uploadedFile ? (
               <>
-                <div className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-success/20 flex items-center justify-center flex-shrink-0">
                   <FileText size={20} className="text-success" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -113,14 +113,14 @@ export default function InvoiceView() {
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); clearFile(); }}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-error hover:bg-error/10 transition-colors"
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-text-muted hover:text-error hover:bg-error/10 transition-colors"
                 >
                   <X size={16} />
                 </button>
               </>
             ) : (
               <>
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${dragOver ? 'bg-csa-accent/20' : 'bg-surface-raised'}`}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${dragOver ? 'bg-csa-accent/20' : 'bg-surface-raised'}`}>
                   <Upload size={20} className={dragOver ? 'text-csa-accent' : 'text-text-muted'} />
                 </div>
                 <div className="flex-1">

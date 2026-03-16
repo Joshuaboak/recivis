@@ -121,7 +121,7 @@ function renderMarkdown(content: string, onOptionClick?: (text: string) => void)
                 <button
                   key={li}
                   onClick={() => onOptionClick(cleanLabel)}
-                  className="px-4 py-2.5 text-sm font-semibold text-left bg-surface-raised border border-border-subtle rounded-lg hover:border-csa-accent hover:bg-csa-accent/10 text-text-secondary hover:text-csa-accent transition-all duration-150 group"
+                  className="px-4 py-2.5 text-sm font-semibold text-left bg-surface-raised border border-border-subtle rounded-xl hover:border-csa-accent hover:bg-csa-accent/10 text-text-secondary hover:text-csa-accent transition-all duration-150 group"
                 >
                   <span className="text-csa-accent mr-2 opacity-60 group-hover:opacity-100">
                     {li + 1}.
@@ -232,7 +232,7 @@ function renderTable(lines: string[], key: number) {
   );
 
   return (
-    <div key={key} className="my-3 overflow-x-auto border border-border-subtle rounded-lg">
+    <div key={key} className="my-3 overflow-x-auto border border-border-subtle rounded-xl">
       <table>
         <thead>
           <tr className="bg-surface-raised">
@@ -280,7 +280,7 @@ export default function ChatMessageComponent({ message, index }: ChatMessageProp
     >
       {/* Avatar */}
       <div
-        className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+        className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
           isUser ? 'bg-csa-purple' : 'bg-csa-accent'
         }`}
       >

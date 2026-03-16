@@ -40,7 +40,11 @@
   --font-encode: 'Encode Sans Semi Condensed', sans-serif;
 }
 
-/* Soft rounded corners throughout */
+/* Pointer cursor on all interactive elements */
+button, a, [role="button"], input[type="submit"], input[type="button"],
+label[for], select, summary, [tabindex]:not([tabindex="-1"]) {
+  cursor: pointer;
+}
 
 body {
   font-family: var(--font-encode);
@@ -60,6 +64,7 @@ body {
 }
 ::-webkit-scrollbar-thumb {
   background: #1A5A7A;
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #0077B7;
