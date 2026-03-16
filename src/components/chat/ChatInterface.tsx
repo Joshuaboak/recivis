@@ -77,7 +77,7 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
         .filter((m) => m.role !== 'system')
         .map((m) => ({
           role: m.role,
-          content: m.content,
+          content: m.apiContent || m.content,
         }));
 
       await fetchSSE('/api/chat', { messages: apiMessages, user }, assistantId);
@@ -154,14 +154,42 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
   const sendFileMessage = useCallback(async (fileName: string, base64: string, mediaType: string, isPdf: boolean) => {
     if (isLoading) return;
 
+    setIsLoading(true);
+
+    // Step 1: Parse the file
+    let poMessage: string;
+    try {
+      const parseRes = await fetch('/api/parse-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64, mediaType, fileName }),
+      });
+
+      if (!parseRes.ok) throw new Error('Failed to parse file');
+      const parsed = await parseRes.json();
+      if (parsed.error) throw new Error(parsed.error);
+
+      poMessage = `I have a purchase order to process. The document "${fileName}" has been analysed and here is the extracted data:\n\n---\n${parsed.content}\n---\n\nPlease process this PO: look up the account in CRM, match contacts, identify the products, build the SKU(s), and create the invoice. Follow the PO upload flow.`;
+    } catch (error) {
+      setIsLoading(false);
+      addMessage({
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `Failed to process the file: ${error instanceof Error ? error.message : 'Unknown error'}. You can paste the PO details as text instead.`,
+        timestamp: new Date(),
+      });
+      return;
+    }
+
+    // Step 2: Add user message with apiContent storing the full PO data
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
       content: `Uploaded: ${fileName} — Processing purchase order...`,
+      apiContent: poMessage,
       timestamp: new Date(),
     };
     addMessage(userMessage);
-    setIsLoading(true);
 
     const assistantId = crypto.randomUUID();
     addMessage({
@@ -173,32 +201,12 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
     });
 
     try {
-      // Step 1: Parse the file server-side (extract text from PDF, or keep image)
-      const parseRes = await fetch('/api/parse-file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64, mediaType, fileName }),
-      });
-
-      if (!parseRes.ok) {
-        throw new Error('Failed to parse file');
-      }
-
-      const parsed = await parseRes.json();
-
-      if (parsed.error) {
-        throw new Error(parsed.error);
-      }
-
-      // Step 2: Send extracted PO data to Claude for CRM processing
-      const poMessage = `I have a purchase order to process. The document "${fileName}" has been analysed and here is the extracted data:\n\n---\n${parsed.content}\n---\n\nPlease process this PO: look up the account in CRM, match contacts, identify the products, build the SKU(s), and create the invoice. Follow the PO upload flow.`;
-
+      // Step 3: Build API messages using apiContent when available
       const apiMessages = [
-        ...messages.map((m) => ({ role: m.role, content: m.content })),
+        ...messages.map((m) => ({ role: m.role, content: m.apiContent || m.content })),
         { role: 'user', content: poMessage },
       ].filter((m) => m.role !== 'system');
 
-      // Step 3: Send to Claude via SSE
       await fetchSSE('/api/chat', { messages: apiMessages, user }, assistantId);
     } catch (error) {
       updateMessage(assistantId, {

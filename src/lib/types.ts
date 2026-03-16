@@ -13,6 +13,7 @@ export interface User {
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
+  apiContent?: string; // Full content sent to API (may differ from display content, e.g. PO data)
   content: string;
   timestamp: Date;
   components?: MessageComponent[];
