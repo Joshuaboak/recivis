@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { executeZohoTool, resetSession } from '@/lib/zoho';
-import { toolDefinitions, SYSTEM_PROMPT } from '@/lib/ai-tools';
+import { toolDefinitions, getSystemPrompt } from '@/lib/ai-tools';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
         const systemMessage = {
           role: 'system',
-          content: SYSTEM_PROMPT + userContext,
+          content: getSystemPrompt() + userContext,
         };
 
         const conversationMessages = [systemMessage, ...messages];

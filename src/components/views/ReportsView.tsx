@@ -1,12 +1,20 @@
 'use client';
 
+import { Clock, FileText, FileClock } from 'lucide-react';
 import ChatInterface from '../chat/ChatInterface';
+
+const quickActions = [
+  { label: 'Expiring Assets (30 days)', icon: Clock, message: 'Show assets expiring in the next 30 days' },
+  { label: 'Approved Invoices', icon: FileText, message: 'Show approved invoices from the last 30 days' },
+  { label: 'Draft Invoices', icon: FileClock, message: 'Show all draft invoices' },
+];
 
 export default function ReportsView() {
   return (
     <ChatInterface
-      initialMessage={`**Reports**\n\nWhat would you like to see?\n\n**1.** Expiring assets — show assets due for renewal\n**2.** Recent invoices — view invoice history\n**3.** Account summary — overview of your customers\n\nPick a number or describe what you're looking for.`}
-      placeholder="Ask about expiring assets, recent invoices, or account summaries..."
+      initialMessage="Select a report or describe what you're looking for."
+      placeholder="Ask about expiring assets, invoices, or accounts..."
+      quickActions={quickActions}
     />
   );
 }

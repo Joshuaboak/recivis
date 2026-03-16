@@ -39,21 +39,18 @@ function detectPromptType(content: string): PromptType {
     return 'yes_no_proceed';
   }
 
-  // Generic yes/no questions at the end
+  // Generic yes/no questions — must be specific binary questions, not open-ended
   if (
     tail.includes('is this correct?') ||
     tail.includes('is that correct?') ||
     tail.includes('is that right?') ||
-    tail.includes('correct contact') ||
-    tail.includes('the correct') ||
+    tail.includes('correct contact for') ||
     tail.includes('does that look right') ||
     tail.includes('sound right?') ||
     tail.includes('look good?') ||
     tail.includes('are you sure') ||
-    tail.includes('would you like to') ||
-    tail.includes('do you want to') ||
-    tail.includes('shall i') ||
-    tail.includes('add another')
+    tail.includes('add another line item') ||
+    tail.includes('add another?')
   ) {
     return 'yes_no';
   }
