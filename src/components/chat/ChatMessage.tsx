@@ -1,26 +1,128 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Bot, User, ExternalLink, CheckCircle, Pencil } from 'lucide-react';
+import { Bot, User, ExternalLink, CheckCircle, Pencil, X } from 'lucide-react';
 import type { ChatMessage } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
+import LineItemForm from './LineItemForm';
 
-/** Check if message ends with a confirmation question */
-function hasConfirmationPrompt(content: string): boolean {
+type PromptType = 'confirm_create' | 'yes_no_proceed' | 'yes_no' | null;
+
+/** Detect what kind of actionable prompt is at the end of the message */
+function detectPromptType(content: string): PromptType {
   const lower = content.toLowerCase();
-  const lastLines = lower.slice(-200);
-  return (
-    lastLines.includes('does this look correct') ||
-    lastLines.includes('confirm to create') ||
-    lastLines.includes('create this invoice') ||
-    lastLines.includes('shall i create') ||
-    lastLines.includes('shall i proceed') ||
-    lastLines.includes('is this correct') ||
-    lastLines.includes('ready to create') ||
-    lastLines.includes('would you like to proceed') ||
-    lastLines.includes('confirm?') ||
-    (lastLines.includes('(y/n)'))
-  );
+  const tail = lower.slice(-300);
+
+  // Invoice creation confirmation
+  if (
+    tail.includes('does this look correct') ||
+    tail.includes('confirm to create') ||
+    tail.includes('create this invoice') ||
+    tail.includes('ready to create') ||
+    tail.includes('confirm?') ||
+    tail.includes('(y/n)')
+  ) {
+    return 'confirm_create';
+  }
+
+  // Proceed / continue type questions
+  if (
+    tail.includes('shall we proceed') ||
+    tail.includes('shall i proceed') ||
+    tail.includes('would you like to proceed') ||
+    tail.includes('proceed with') ||
+    tail.includes('shall i continue') ||
+    tail.includes('want to continue') ||
+    tail.includes('move on to') ||
+    tail.includes('go ahead')
+  ) {
+    return 'yes_no_proceed';
+  }
+
+  // Generic yes/no questions at the end
+  if (
+    tail.includes('is this correct?') ||
+    tail.includes('is that correct?') ||
+    tail.includes('is that right?') ||
+    tail.includes('correct contact') ||
+    tail.includes('the correct') ||
+    tail.includes('does that look right') ||
+    tail.includes('sound right?') ||
+    tail.includes('look good?') ||
+    tail.includes('are you sure') ||
+    tail.includes('would you like to') ||
+    tail.includes('do you want to') ||
+    tail.includes('shall i') ||
+    tail.includes('add another')
+  ) {
+    return 'yes_no';
+  }
+
+  return null;
+}
+
+/** Detect if message contains a line item details prompt and extract defaults */
+function detectLineItemPrompt(content: string): { quantity: number; startDate: string; endDate: string; price: string; currency: string } | null {
+  const lower = content.toLowerCase();
+  if (!(lower.includes('quantity') && lower.includes('start date') && lower.includes('price'))) {
+    return null;
+  }
+
+  // Extract defaults from the message text
+  const qtyMatch = content.match(/(?:default[:\s]*|Quantity[?:]*\s*\(default[:\s]*)\s*(\d+)/i);
+  const startMatch = content.match(/(?:Start date|start)[?:]*\s*\(default[^)]*?(\d{1,2}\/\d{1,2}\/\d{4})/i);
+  const endMatch = content.match(/(?:End date|end)[?:]*\s*\(default[^)]*?(\d{1,2}\/\d{1,2}\/\d{4})/i);
+  const priceMatch = content.match(/(?:price|Price)[?:]*\s*\(default[:\s]*[€$£]?([\d,]+\.?\d*)/i);
+  const currMatch = content.match(/([€$£]|EUR|USD|AUD|GBP|NZD)/i);
+
+  // Also try: "Unit Price: €2,550.00" format
+  const unitPriceMatch = content.match(/Unit Price[:\s]*[€$£]?([\d,]+\.?\d*)/i);
+
+  const today = new Date();
+  const todayStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+  const endDefault = new Date(today.getTime() + 364 * 24 * 60 * 60 * 1000);
+  const endStr = `${String(endDefault.getDate()).padStart(2, '0')}/${String(endDefault.getMonth() + 1).padStart(2, '0')}/${endDefault.getFullYear()}`;
+
+  const priceVal = priceMatch?.[1]?.replace(/,/g, '') || unitPriceMatch?.[1]?.replace(/,/g, '') || '0';
+
+  let currSymbol = '€';
+  if (currMatch) {
+    const c = currMatch[1];
+    if (c === '$' || c === 'USD' || c === 'AUD' || c === 'NZD') currSymbol = '$';
+    else if (c === '£' || c === 'GBP') currSymbol = '£';
+    else currSymbol = '€';
+  }
+
+  return {
+    quantity: parseInt(qtyMatch?.[1] || '1'),
+    startDate: startMatch?.[1] || todayStr,
+    endDate: endMatch?.[1] || endStr,
+    price: priceVal,
+    currency: currSymbol,
+  };
+}
+
+/** Get button config for each prompt type */
+function getPromptButtons(type: PromptType): { primary: { label: string; message: string; icon: string }; secondary: { label: string; message: string; icon: string } } | null {
+  switch (type) {
+    case 'confirm_create':
+      return {
+        primary: { label: 'Confirm', message: 'Yes, create the invoice', icon: 'check' },
+        secondary: { label: 'Edit', message: 'I need to make some changes', icon: 'edit' },
+      };
+    case 'yes_no_proceed':
+      return {
+        primary: { label: 'Yes, proceed', message: 'Yes, proceed', icon: 'check' },
+        secondary: { label: 'No', message: 'No', icon: 'x' },
+      };
+    case 'yes_no':
+      return {
+        primary: { label: 'Yes', message: 'Yes', icon: 'check' },
+        secondary: { label: 'No', message: 'No', icon: 'x' },
+      };
+    default:
+      return null;
+  }
 }
 
 interface ChatMessageProps {
@@ -325,25 +427,43 @@ export default function ChatMessageComponent({ message, index }: ChatMessageProp
           </div>
         )}
 
-        {/* Confirmation buttons — shown when Claude asks to confirm */}
-        {!isUser && !isLoading && hasConfirmationPrompt(message.content) && (
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={() => handleOptionClick('Yes, create the invoice')}
-              className="flex items-center gap-2 px-5 py-2.5 bg-success/15 border-2 border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/25 hover:border-success/50 transition-all cursor-pointer"
-            >
-              <CheckCircle size={16} />
-              Confirm
-            </button>
-            <button
-              onClick={() => handleOptionClick('I need to make some changes')}
-              className="flex items-center gap-2 px-5 py-2.5 bg-surface-raised border-2 border-border-subtle rounded-xl text-text-secondary text-sm font-semibold hover:border-csa-accent hover:text-csa-accent transition-all cursor-pointer"
-            >
-              <Pencil size={16} />
-              Edit
-            </button>
-          </div>
-        )}
+        {/* Line item form — shown when Claude asks for quantity/dates/price */}
+        {!isUser && !isLoading && (() => {
+          const lineItemDefaults = detectLineItemPrompt(message.content);
+          if (!lineItemDefaults) return null;
+          return (
+            <LineItemForm
+              defaults={lineItemDefaults}
+              onSubmit={handleOptionClick}
+              disabled={isLoading}
+            />
+          );
+        })()}
+
+        {/* Action buttons — shown when Claude asks yes/no or confirmation questions */}
+        {!isUser && !isLoading && (() => {
+          const promptType = detectPromptType(message.content);
+          const buttons = getPromptButtons(promptType);
+          if (!buttons) return null;
+          return (
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => handleOptionClick(buttons.primary.message)}
+                className="flex items-center gap-2 px-5 py-2.5 bg-success/15 border-2 border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/25 hover:border-success/50 transition-all cursor-pointer"
+              >
+                <CheckCircle size={16} />
+                {buttons.primary.label}
+              </button>
+              <button
+                onClick={() => handleOptionClick(buttons.secondary.message)}
+                className="flex items-center gap-2 px-5 py-2.5 bg-surface-raised border-2 border-border-subtle rounded-xl text-text-secondary text-sm font-semibold hover:border-csa-accent hover:text-csa-accent transition-all cursor-pointer"
+              >
+                {buttons.secondary.icon === 'edit' ? <Pencil size={16} /> : <X size={16} />}
+                {buttons.secondary.label}
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Timestamp */}
         <p className={`text-[10px] text-text-muted mt-2 ${isUser ? 'text-right' : ''}`}>

@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
           'X-Title': 'ReCivis',
         },
         body: JSON.stringify({
-          model: 'anthropic/claude-sonnet-4-6',
+          model: 'anthropic/claude-opus-4.6:exacto',
           messages: conversationMessages,
           tools,
           max_tokens: 4096,
