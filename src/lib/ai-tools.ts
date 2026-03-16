@@ -259,13 +259,14 @@ When account selected, fetch Primary_Contact, Secondary_Contact, and all related
 - New Account requires: Account_Name, Billing_Country, Reseller (lookup — default to "Civil Survey Applications" if none provided), Email_Domain (from email if provided)
 - New Contact requires: First_Name, Last_Name, Email, Account_Name (lookup)
 - After creating a new contact on a new account, SET them as Primary_Contact on the account record.
+- When the user provides the required details (account name, country, etc.), create the records immediately. Do NOT ask for confirmation a second time — the user already confirmed by submitting the data.
 
 ### Phase 2: Build Invoice (New Product)
 After account + contact confirmed:
 1. Fetch reseller record (Region, Currency, Direct_Customer_Contact)
 2. Fetch account billing address and Owner
 3. Fetch org variables (Latest_Product_Version)
-4. Guide SKU building with numbered choices:
+4. Guide SKU building. IMPORTANT: Present each question as a simple NUMBERED LIST (1. 2. 3.) — NOT as a markdown table. Numbered lists render as clickable buttons in the UI.
    - **Q1: Product** — present these exact options:
      1. Civil Site Design (CSD)
      2. Civil Site Design Plus (CSP)

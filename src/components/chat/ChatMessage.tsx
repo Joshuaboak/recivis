@@ -380,7 +380,7 @@ function renderTable(lines: string[], key: number) {
   );
 
   // Tables with 4+ rows get the export button (report-like tables)
-  const showExport = rows.length >= 4;
+  const showExport = rows.length >= 6;
 
   return (
     <div key={key} className="my-3 -mx-1 sm:-mx-4 md:-mx-8 lg:-mx-16">
