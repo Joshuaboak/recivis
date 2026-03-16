@@ -132,10 +132,16 @@ interface ChatMessageProps {
  * (short lines, typically choices like "1. Civil Site Design (CSD)")
  */
 function looksLikeOptions(items: string[]): boolean {
-  if (items.length < 2 || items.length > 8) return false;
-  // Average line length < 80 chars = likely options, not prose
+  if (items.length < 2 || items.length > 6) return false;
   const avgLen = items.reduce((s, l) => s + l.length, 0) / items.length;
-  return avgLen < 80;
+  if (avgLen > 60) return false;
+
+  // If items look like form field labels (data collection), NOT selectable options
+  const fieldIndicators = /\b(name|email|address|country|phone|number|date|price|details|notes|account|contact|company|quantity)\b/i;
+  const fieldCount = items.filter((item) => fieldIndicators.test(item)).length;
+  if (fieldCount >= items.length * 0.5) return false; // 50%+ are field-like = not options
+
+  return true;
 }
 
 function renderMarkdown(content: string, onOptionClick?: (text: string) => void) {
