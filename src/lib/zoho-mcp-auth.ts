@@ -1,14 +1,20 @@
 /**
  * Zoho MCP OAuth 2.0 Client
  * Handles dynamic client registration, authorization, and token management
- * for the Zoho MCP endpoint.
+ * for the Zoho MCP endpoint. Persists tokens to disk so they survive
+ * server restarts and HMR.
  */
 
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const MCP_BASE = 'https://civilsurveyapplicationszohomcp-7006508204.zohomcp.com.au';
 const OAUTH_BASE = 'https://mcp.zoho.com.au/baas/mcp/v1/oauth/edf972cb1c51996df4e9d66549c6b595/2522000000011035';
 const AUTH_ENDPOINT = 'https://mcp.zoho.com.au/mcp-client/edf972cb1c51996df4e9d66549c6b595/2522000000011035/oauth';
+
+// Persist tokens to a file in the project root (gitignored via .env* pattern)
+const TOKEN_FILE = path.join(process.cwd(), '.mcp-tokens.json');
 
 interface OAuthClient {
   clientId: string;
@@ -21,10 +27,44 @@ interface TokenData {
   expiresAt: number;
 }
 
-// In-memory storage (will persist across requests in the same server instance)
+interface PersistedData {
+  client?: OAuthClient;
+  tokens?: TokenData;
+}
+
+// In-memory cache
 let oauthClient: OAuthClient | null = null;
 let tokenData: TokenData | null = null;
-let pendingVerifiers: Map<string, string> = new Map(); // state -> code_verifier
+let pendingVerifiers: Map<string, string> = new Map();
+
+/** Load persisted tokens from disk. */
+function loadFromDisk(): void {
+  try {
+    if (fs.existsSync(TOKEN_FILE)) {
+      const raw = fs.readFileSync(TOKEN_FILE, 'utf-8');
+      const data: PersistedData = JSON.parse(raw);
+      if (data.client) oauthClient = data.client;
+      if (data.tokens) tokenData = data.tokens;
+    }
+  } catch {
+    // Ignore — file may not exist or be corrupt
+  }
+}
+
+/** Save current state to disk. */
+function saveToDisk(): void {
+  try {
+    const data: PersistedData = {};
+    if (oauthClient) data.client = oauthClient;
+    if (tokenData) data.tokens = tokenData;
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2));
+  } catch {
+    // Non-critical — tokens still work in memory
+  }
+}
+
+// Load on module init
+loadFromDisk();
 
 /**
  * Register a dynamic OAuth client with the MCP server.
@@ -56,6 +96,7 @@ export async function registerClient(redirectUri: string): Promise<OAuthClient> 
     redirectUri: redirectUri,
   };
 
+  saveToDisk();
   return oauthClient;
 }
 
@@ -81,10 +122,8 @@ export async function getAuthorizationUrl(appBaseUrl: string): Promise<string> {
   const { verifier, challenge } = generatePKCE();
   const state = crypto.randomBytes(16).toString('hex');
 
-  // Store verifier for later token exchange
   pendingVerifiers.set(state, verifier);
 
-  // Build all required scopes
   const scopes = [
     'ZohoCRM.modules.ALL',
     'ZohoCRM.settings.ALL',
@@ -144,6 +183,7 @@ export async function exchangeCode(code: string, state: string, appBaseUrl: stri
     expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
   };
 
+  saveToDisk();
   return tokenData;
 }
 
@@ -152,7 +192,7 @@ export async function exchangeCode(code: string, state: string, appBaseUrl: stri
  */
 async function refreshAccessToken(): Promise<string> {
   if (!tokenData?.refreshToken || !oauthClient) {
-    throw new Error('No refresh token available — authorization required');
+    throw new Error('NOT_AUTHENTICATED');
   }
 
   const res = await fetch(`${OAUTH_BASE}/token`, {
@@ -167,8 +207,8 @@ async function refreshAccessToken(): Promise<string> {
 
   if (!res.ok) {
     const errText = await res.text();
-    // If refresh fails, clear tokens to force re-auth
     tokenData = null;
+    saveToDisk();
     throw new Error(`Token refresh failed: ${res.status} — ${errText}`);
   }
 
@@ -179,6 +219,7 @@ async function refreshAccessToken(): Promise<string> {
     expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
   };
 
+  saveToDisk();
   return tokenData.accessToken;
 }
 
@@ -186,6 +227,9 @@ async function refreshAccessToken(): Promise<string> {
  * Get a valid access token, refreshing if needed.
  */
 export async function getAccessToken(): Promise<string> {
+  // Reload from disk in case another process updated tokens
+  if (!tokenData) loadFromDisk();
+
   if (!tokenData) {
     throw new Error('NOT_AUTHENTICATED');
   }
@@ -202,12 +246,14 @@ export async function getAccessToken(): Promise<string> {
  * Check if we have valid tokens.
  */
 export function isAuthenticated(): boolean {
+  if (!tokenData) loadFromDisk();
   return tokenData !== null;
 }
 
 /**
- * Get the MCP endpoint URL.
+ * Get the MCP endpoint URL (includes the connection key).
  */
 export function getMcpEndpoint(): string {
-  return `${MCP_BASE}/mcp/message`;
+  const key = process.env.ZOHO_MCP_KEY || 'ed4cf1a7840312505eceea4d452670f1';
+  return `${MCP_BASE}/mcp/message?key=${key}`;
 }
