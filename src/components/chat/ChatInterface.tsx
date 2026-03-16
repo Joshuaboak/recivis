@@ -112,15 +112,14 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
     }
   };
 
-  // Send a multimodal message with a file attachment
+  // Send a file — parse server-side first, then send content to Claude
   const sendFileMessage = useCallback(async (fileName: string, base64: string, mediaType: string, isPdf: boolean) => {
     if (isLoading) return;
 
-    // Show a user message with the file name
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: `📄 Uploaded: ${fileName}\nPlease process this purchase order.`,
+      content: `Uploaded: ${fileName} — Processing purchase order...`,
       timestamp: new Date(),
     };
     addMessage(userMessage);
@@ -136,44 +135,53 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
     });
 
     try {
-      // Build multimodal content for the API
-      const contentBlocks: unknown[] = [];
-
-      if (isPdf) {
-        contentBlocks.push({
-          type: 'document',
-          source: {
-            type: 'base64',
-            media_type: 'application/pdf',
-            data: base64,
-          },
-        });
-      } else {
-        contentBlocks.push({
-          type: 'image_url',
-          image_url: {
-            url: `data:${mediaType};base64,${base64}`,
-          },
-        });
-      }
-
-      contentBlocks.push({
-        type: 'text',
-        text: `This is a purchase order document (${fileName}). Please extract all the information from it and process it according to the PO upload flow. Extract: account/company name, contact details, products, quantities, pricing, PO number, and any dates.`,
+      // Step 1: Parse the file server-side (extract text from PDF, or keep image)
+      const parseRes = await fetch('/api/parse-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64, mediaType, fileName }),
       });
 
-      // Build conversation with multimodal user message
-      const apiMessages = [
-        ...messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-        {
-          role: 'user',
-          content: contentBlocks,
-        },
-      ].filter((m) => m.role !== 'system');
+      if (!parseRes.ok) {
+        throw new Error('Failed to parse file');
+      }
 
+      const parsed = await parseRes.json();
+
+      // Step 2: Build the message for Claude
+      let apiMessages;
+
+      if (parsed.type === 'text') {
+        // PDF → extracted text. Send as a regular text message with the PO content.
+        const poMessage = `I have a purchase order to process. Here is the extracted text from the document "${fileName}" (${parsed.pageCount} pages):\n\n---\n${parsed.content}\n---\n\nPlease extract all the information and process this PO. Look for: account/company name, contact details, products, quantities, pricing, PO number, dates. Then match against CRM records and build the invoice.`;
+
+        apiMessages = [
+          ...messages.map((m) => ({ role: m.role, content: m.content })),
+          { role: 'user', content: poMessage },
+        ].filter((m) => m.role !== 'system');
+      } else {
+        // Image → send as multimodal
+        apiMessages = [
+          ...messages.map((m) => ({ role: m.role, content: m.content })),
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${parsed.mediaType};base64,${parsed.base64}`,
+                },
+              },
+              {
+                type: 'text',
+                text: `This is a purchase order image (${fileName}). Please extract all the information and process this PO. Look for: account/company name, contact details, products, quantities, pricing, PO number, dates. Then match against CRM records and build the invoice.`,
+              },
+            ],
+          },
+        ].filter((m) => m.role !== 'system');
+      }
+
+      // Step 3: Send to Claude
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -192,7 +200,7 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
       });
     } catch (error) {
       updateMessage(assistantId, {
-        content: `Something went wrong processing the file: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again or paste the PO details as text.`,
+        content: `Failed to process the file: ${error instanceof Error ? error.message : 'Unknown error'}. You can paste the PO details as text instead.`,
         isStreaming: false,
       });
     } finally {
