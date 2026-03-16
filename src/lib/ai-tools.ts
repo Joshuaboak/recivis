@@ -275,7 +275,8 @@ When you receive extracted PO data, process it efficiently:
    - Line 1: Perpetual licence (e.g. "Civil Site Design v26")
    - Line 2: 12 months maintenance (e.g. "CSD 12 months maintenance")
    These MUST be consolidated into a SINGLE line item using the "Includes 12 Months Maintenance" perpetual product variant (e.g. CSD-SU-CB-COM-1YR-INF-EU). Combine both PO prices (perpetual + maintenance = total). The invoice type is New Product.
-3. Do NOT show a verbose analysis or "Key findings" section. Skip straight to the invoice summary table.
+3. **PRICING: ALWAYS use the price from the PO.** The PO price is the agreed price — never question it, never compare to list price, never ask which price to use. If consolidating two lines (perpetual + maintenance), add both prices. Set Contract_Term_Years=0 when PO price differs from Unit_Price. Do NOT show notes about discounts or price comparisons.
+4. Do NOT show a verbose analysis or "Key findings" section. Skip straight to the invoice summary table.
 4. Present the invoice summary and ask for confirmation — same format as Phase 2 Step 4.
 5. Only ask clarifying questions if something genuinely can't be determined from the PO data.
 

@@ -22,6 +22,7 @@ interface ChatInterfaceProps {
 export default function ChatInterface({ initialMessage, placeholder, quickActions }: ChatInterfaceProps) {
   const { messages, addMessage, updateMessage, clearMessages, user, isLoading, setIsLoading } = useAppStore();
   const [input, setInput] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hasInitialized = useRef(false);
@@ -79,22 +80,7 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
           content: m.content,
         }));
 
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages, user }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to get response');
-      }
-
-      const data = await res.json();
-      updateMessage(assistantId, {
-        content: data.content,
-        isStreaming: false,
-      });
+      await fetchSSE('/api/chat', { messages: apiMessages, user }, assistantId);
     } catch (error) {
       updateMessage(assistantId, {
         content: `Something went wrong: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
@@ -102,8 +88,60 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
       });
     } finally {
       setIsLoading(false);
+      setStatusMessage('');
     }
   }, [isLoading, messages, user, addMessage, updateMessage, setIsLoading]);
+
+  /** Stream SSE from the chat API, updating status and final content */
+  const fetchSSE = useCallback(async (url: string, body: unknown, assistantId: string) => {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok || !res.body) {
+      throw new Error(`Request failed: ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+
+          if (event.type === 'status') {
+            setStatusMessage(event.message);
+          } else if (event.type === 'done') {
+            updateMessage(assistantId, {
+              content: event.content,
+              isStreaming: false,
+            });
+            setStatusMessage('');
+          } else if (event.type === 'error') {
+            updateMessage(assistantId, {
+              content: `Error: ${event.error}`,
+              isStreaming: false,
+            });
+            setStatusMessage('');
+          }
+        } catch {
+          // skip malformed events
+        }
+      }
+    }
+  }, [updateMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -160,23 +198,8 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
         { role: 'user', content: poMessage },
       ].filter((m) => m.role !== 'system');
 
-      // Step 3: Send to Claude
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages, user }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to get response');
-      }
-
-      const data = await res.json();
-      updateMessage(assistantId, {
-        content: data.content,
-        isStreaming: false,
-      });
+      // Step 3: Send to Claude via SSE
+      await fetchSSE('/api/chat', { messages: apiMessages, user }, assistantId);
     } catch (error) {
       updateMessage(assistantId, {
         content: `Failed to process the file: ${error instanceof Error ? error.message : 'Unknown error'}. You can paste the PO details as text instead.`,
@@ -185,7 +208,7 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, messages, user, addMessage, updateMessage, setIsLoading]);
+  }, [isLoading, messages, user, addMessage, updateMessage, setIsLoading, fetchSSE]);
 
   // Listen for option clicks from ChatMessage components
   useEffect(() => {
@@ -256,19 +279,34 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
             )}
           </AnimatePresence>
 
-          {/* Typing indicator */}
+          {/* Typing indicator with status */}
           <AnimatePresence>
             {isLoading && messages[messages.length - 1]?.isStreaming && !messages[messages.length - 1]?.content && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="flex items-center gap-2 py-4 px-4"
+                className="flex items-center gap-3 py-4 pl-11"
               >
-                <div className="flex items-center gap-1.5 bg-surface-raised px-4 py-3 border-l-4 border-csa-accent rounded-r-lg">
-                  <div className="typing-dot w-2 h-2 bg-csa-accent rounded-full" />
-                  <div className="typing-dot w-2 h-2 bg-csa-accent rounded-full" />
-                  <div className="typing-dot w-2 h-2 bg-csa-accent rounded-full" />
+                <div className="flex items-center gap-3 bg-surface-raised px-4 py-3 border-l-4 border-csa-accent rounded-r-xl">
+                  <div className="flex items-center gap-1.5">
+                    <div className="typing-dot w-1.5 h-1.5 bg-csa-accent rounded-full" />
+                    <div className="typing-dot w-1.5 h-1.5 bg-csa-accent rounded-full" />
+                    <div className="typing-dot w-1.5 h-1.5 bg-csa-accent rounded-full" />
+                  </div>
+                  <AnimatePresence mode="wait">
+                    {statusMessage && (
+                      <motion.span
+                        key={statusMessage}
+                        initial={{ opacity: 0, x: -4 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 4 }}
+                        className="text-xs text-text-muted"
+                      >
+                        {statusMessage}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </div>
               </motion.div>
             )}
