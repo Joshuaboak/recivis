@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { zohoTools } from '@/lib/zoho';
+import { executeZohoTool } from '@/lib/zoho';
 import type { User, UserRole } from '@/lib/types';
 
 const ADMIN_EMAILS: Record<string, { name: string; role: UserRole }> = {
@@ -28,37 +28,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ user });
     }
 
-    // Check if Zoho is configured
-    if (!process.env.ZOHO_CLIENT_ID) {
-      // In demo mode, allow login without Zoho
-      return NextResponse.json({
-        user: {
-          email: normalizedEmail,
-          name: normalizedEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
-          role: 'admin' as UserRole,
-        },
-        demo: true,
-      });
-    }
-
-    // Search Resellers module by email
+    // Search Resellers module by email via MCP
     try {
-      const result = await zohoTools.searchRecords(
-        'Resellers',
-        `Email:equals:${normalizedEmail}`,
-        ['Name', 'Email', 'Region', 'Currency', 'Partner_Category', 'Direct_Customer_Contact', 'Distributor', 'Record_Status__s']
-      ) as { data?: Array<Record<string, unknown>> };
+      const result = await executeZohoTool('search_records', {
+        module: 'Resellers',
+        criteria: `(Email:equals:${normalizedEmail})`,
+        fields: 'Name,Email,Region,Currency,Partner_Category,Direct_Customer_Contact,Distributor,Record_Status__s',
+      }) as { content?: Array<{ text?: string }> };
 
-      if (!result?.data || result.data.length === 0) {
+      // MCP returns results in content array with text field containing JSON
+      let records: Array<Record<string, unknown>> = [];
+      if (result?.content) {
+        for (const item of result.content) {
+          if (item.text) {
+            try {
+              const parsed = JSON.parse(item.text);
+              if (parsed.data) records = parsed.data;
+            } catch {
+              // not JSON, skip
+            }
+          }
+        }
+      }
+
+      if (records.length === 0) {
         return NextResponse.json(
           { error: 'Your email address is not linked to a reseller account. Please contact CSA for access.' },
           { status: 403 }
         );
       }
 
-      const reseller = result.data[0];
+      const reseller = records[0];
 
-      // Check Record_Status__s
       if (reseller.Record_Status__s === 'Trash') {
         return NextResponse.json(
           { error: 'Your reseller account is no longer active. Please contact CSA.' },
@@ -70,27 +71,36 @@ export async function POST(request: NextRequest) {
       const isDistributor = partnerCategory === 'Distributor' || partnerCategory === 'Distributor/Reseller';
       const role: UserRole = isDistributor ? 'distributor' : 'reseller';
 
-      // Build allowed reseller IDs
       const allowedResellerIds: string[] = [reseller.id as string];
 
       if (isDistributor) {
-        // Find child resellers
         try {
-          const children = await zohoTools.searchRecords(
-            'Resellers',
-            `Distributor:equals:${reseller.id}`,
-            ['id', 'Name', 'Record_Status__s']
-          ) as { data?: Array<Record<string, unknown>> };
+          const children = await executeZohoTool('search_records', {
+            module: 'Resellers',
+            criteria: `(Distributor:equals:${reseller.id})`,
+            fields: 'id,Name,Record_Status__s',
+          }) as { content?: Array<{ text?: string }> };
 
-          if (children?.data) {
-            for (const child of children.data) {
-              if (child.Record_Status__s !== 'Trash') {
-                allowedResellerIds.push(child.id as string);
+          if (children?.content) {
+            for (const item of children.content) {
+              if (item.text) {
+                try {
+                  const parsed = JSON.parse(item.text);
+                  if (parsed.data) {
+                    for (const child of parsed.data) {
+                      if (child.Record_Status__s !== 'Trash') {
+                        allowedResellerIds.push(child.id as string);
+                      }
+                    }
+                  }
+                } catch {
+                  // skip
+                }
               }
             }
           }
         } catch {
-          // If child lookup fails, continue with just the distributor's own ID
+          // continue with just own ID
         }
       }
 
@@ -106,11 +116,19 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ user });
     } catch (zohoError) {
-      console.error('Zoho auth error:', zohoError);
-      return NextResponse.json(
-        { error: 'Unable to verify your account. Please try again later.' },
-        { status: 500 }
-      );
+      console.error('Zoho MCP auth error:', zohoError);
+      // Fall back to demo mode if MCP is unavailable
+      return NextResponse.json({
+        user: {
+          email: normalizedEmail,
+          name: normalizedEmail
+            .split('@')[0]
+            .replace(/[._]/g, ' ')
+            .replace(/\b\w/g, (c: string) => c.toUpperCase()),
+          role: 'reseller' as UserRole,
+        },
+        demo: true,
+      });
     }
   } catch (error) {
     console.error('Auth error:', error);
