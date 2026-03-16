@@ -107,6 +107,18 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
     }
   };
 
+  // Listen for option clicks from ChatMessage components
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && typeof detail === 'string') {
+        sendMessage(detail);
+      }
+    };
+    window.addEventListener('recivis-send-message', handler);
+    return () => window.removeEventListener('recivis-send-message', handler);
+  });
+
   const handleNewConversation = () => {
     clearMessages();
     hasInitialized.current = false;
@@ -136,7 +148,7 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
                 exit={{ opacity: 0 }}
                 className="flex items-center gap-2 py-4 px-4"
               >
-                <div className="flex items-center gap-1.5 bg-surface-raised px-4 py-3 border-l-4 border-csa-accent">
+                <div className="flex items-center gap-1.5 bg-surface-raised px-4 py-3 border-l-4 border-csa-accent rounded-r-lg">
                   <div className="typing-dot w-2 h-2 bg-csa-accent" />
                   <div className="typing-dot w-2 h-2 bg-csa-accent" />
                   <div className="typing-dot w-2 h-2 bg-csa-accent" />
@@ -153,7 +165,7 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
       <div className="border-t-4 border-border bg-csa-dark px-6 py-4">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-end gap-3">
-            <div className="flex-1 relative bg-surface border-2 border-border-subtle focus-within:border-csa-accent transition-colors">
+            <div className="flex-1 relative bg-surface border-2 border-border-subtle focus-within:border-csa-accent transition-colors rounded-xl">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -175,14 +187,14 @@ export default function ChatInterface({ initialMessage, placeholder }: ChatInter
             <button
               onClick={() => sendMessage(input)}
               disabled={!input.trim() || isLoading}
-              className="h-12 w-12 flex items-center justify-center bg-csa-accent text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-csa-primary transition-colors flex-shrink-0"
+              className="h-12 w-12 flex items-center justify-center bg-csa-accent text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-csa-primary transition-colors flex-shrink-0 rounded-xl"
             >
               <Send size={18} />
             </button>
 
             <button
               onClick={handleNewConversation}
-              className="h-12 w-12 flex items-center justify-center border-2 border-border-subtle text-text-muted hover:text-csa-accent hover:border-csa-accent transition-colors flex-shrink-0"
+              className="h-12 w-12 flex items-center justify-center border-2 border-border-subtle text-text-muted hover:text-csa-accent hover:border-csa-accent transition-colors flex-shrink-0 rounded-xl"
               title="New conversation"
             >
               <RotateCcw size={18} />

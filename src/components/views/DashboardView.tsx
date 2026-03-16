@@ -116,12 +116,12 @@ export default function DashboardView() {
               key={action.id}
               variants={item}
               onClick={() => handleAction(action)}
-              className="group bg-csa-dark border-2 border-border-subtle hover:border-csa-accent p-6 text-left transition-all duration-200 relative overflow-hidden"
+              className="group bg-csa-dark border-2 border-border-subtle hover:border-csa-accent p-6 text-left transition-all duration-200 relative overflow-hidden rounded-xl"
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.98 }}
             >
               {/* Hover accent bar */}
-              <div className="absolute top-0 left-0 right-0 h-1 bg-csa-accent scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-200" />
+              <div className="absolute top-0 left-0 right-0 h-1 bg-csa-accent scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-200 rounded-b" />
 
               <div className={`w-10 h-10 ${action.color} flex items-center justify-center mb-4`}>
                 <action.icon size={20} className="text-white" />
@@ -147,7 +147,7 @@ export default function DashboardView() {
           transition={{ delay: 0.4, duration: 0.4 }}
           className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10"
         >
-          <div className="bg-csa-dark border-2 border-border-subtle p-5">
+          <div className="bg-csa-dark border-2 border-border-subtle p-5 rounded-xl">
             <div className="flex items-center gap-2 mb-3">
               <FileText size={16} className="text-csa-accent" />
               <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
@@ -159,7 +159,7 @@ export default function DashboardView() {
             </p>
           </div>
 
-          <div className="bg-csa-dark border-2 border-border-subtle p-5">
+          <div className="bg-csa-dark border-2 border-border-subtle p-5 rounded-xl">
             <div className="flex items-center gap-2 mb-3">
               <Clock size={16} className="text-csa-purple" />
               <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
@@ -171,7 +171,7 @@ export default function DashboardView() {
             </p>
           </div>
 
-          <div className="bg-csa-dark border-2 border-border-subtle p-5">
+          <div className="bg-csa-dark border-2 border-border-subtle p-5 rounded-xl">
             <div className="flex items-center gap-2 mb-3">
               <TrendingUp size={16} className="text-emerald-500" />
               <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">

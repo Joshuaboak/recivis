@@ -81,7 +81,7 @@ export default function LoginView() {
           transition={{ delay: 0.1, duration: 0.5 }}
           className="text-center mb-10"
         >
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-csa-accent mb-6">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-csa-accent mb-6 rounded-2xl">
             <span className="text-white text-4xl font-bold">R</span>
           </div>
           <h1 className="text-4xl font-bold text-text-primary tracking-tight mb-2">
@@ -97,7 +97,7 @@ export default function LoginView() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.5 }}
-          className="bg-csa-dark border-4 border-border p-8"
+          className="bg-csa-dark border-4 border-border p-8 rounded-2xl"
         >
           <div className="flex items-center gap-2 mb-6">
             <Shield size={18} className="text-csa-accent" />
@@ -115,7 +115,7 @@ export default function LoginView() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@company.com"
                 autoFocus
-                className="w-full bg-surface border-2 border-border-subtle px-4 py-3 text-sm text-text-primary placeholder-text-muted outline-none focus:border-csa-accent transition-colors"
+                className="w-full bg-surface border-2 border-border-subtle px-4 py-3 text-sm text-text-primary placeholder-text-muted outline-none focus:border-csa-accent transition-colors rounded-lg"
               />
             </div>
 
@@ -123,7 +123,7 @@ export default function LoginView() {
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
-                className="flex items-start gap-2 px-3 py-2 bg-error/10 border-l-4 border-error"
+                className="flex items-start gap-2 px-3 py-2 bg-error/10 border-l-4 border-error rounded-r-lg"
               >
                 <AlertCircle size={16} className="text-error flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-error">{error}</p>
@@ -133,7 +133,7 @@ export default function LoginView() {
             <button
               type="submit"
               disabled={loading || !email.trim()}
-              className="w-full flex items-center justify-center gap-2 bg-csa-accent text-white px-6 py-3 text-sm font-bold uppercase tracking-wider hover:bg-csa-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-2 bg-csa-accent text-white px-6 py-3 text-sm font-bold uppercase tracking-wider hover:bg-csa-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed rounded-lg"
             >
               {loading ? (
                 <Loader2 size={18} className="animate-spin" />

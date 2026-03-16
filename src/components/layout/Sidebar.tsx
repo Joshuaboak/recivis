@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   FilePlus,
   BarChart3,
+  Upload,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -15,13 +16,14 @@ import { useAppStore } from '@/lib/store';
 const navItems = [
   { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
   { id: 'invoice' as const, label: 'Invoices', icon: FilePlus },
+  { id: 'upload' as const, label: 'Upload PO', icon: Upload },
   { id: 'reports' as const, label: 'Reports', icon: BarChart3 },
 ];
 
 export default function Sidebar() {
   const { user, setUser, currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
 
-  const handleNavClick = (id: 'dashboard' | 'invoice' | 'reports') => {
+  const handleNavClick = (id: 'dashboard' | 'invoice' | 'reports' | 'upload') => {
     if (id !== currentView) {
       clearMessages();
     }

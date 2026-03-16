@@ -40,9 +40,7 @@
   --font-encode: 'Encode Sans Semi Condensed', sans-serif;
 }
 
-* {
-  border-radius: 0 !important;
-}
+/* Soft rounded corners throughout */
 
 body {
   font-family: var(--font-encode);

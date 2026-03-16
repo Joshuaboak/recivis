@@ -3,14 +3,25 @@
 import { motion } from 'framer-motion';
 import { Bot, User, ExternalLink } from 'lucide-react';
 import type { ChatMessage } from '@/lib/types';
+import { useAppStore } from '@/lib/store';
 
 interface ChatMessageProps {
   message: ChatMessage;
   index: number;
 }
 
-// Simple markdown-to-JSX renderer for tables, bold, links, lists, and code
-function renderMarkdown(content: string) {
+/**
+ * Detect if a block of numbered lines looks like selectable options
+ * (short lines, typically choices like "1. Civil Site Design (CSD)")
+ */
+function looksLikeOptions(items: string[]): boolean {
+  if (items.length < 2 || items.length > 8) return false;
+  // Average line length < 80 chars = likely options, not prose
+  const avgLen = items.reduce((s, l) => s + l.length, 0) / items.length;
+  return avgLen < 80;
+}
+
+function renderMarkdown(content: string, onOptionClick?: (text: string) => void) {
   const lines = content.split('\n');
   const elements: React.ReactElement[] = [];
   let i = 0;
@@ -58,7 +69,7 @@ function renderMarkdown(content: string) {
         i++;
       }
       elements.push(
-        <div key={key++} className="border-l-4 border-csa-accent pl-4 py-2 my-2 bg-csa-accent/5">
+        <div key={key++} className="border-l-4 border-csa-accent rounded-r-lg pl-4 py-2 my-2 bg-csa-accent/5">
           {quoteLines.map((ql, qi) => (
             <p key={qi} className="text-sm text-text-secondary">
               {renderInline(ql)}
@@ -80,7 +91,7 @@ function renderMarkdown(content: string) {
         <ul key={key++} className="space-y-1 my-2">
           {listItems.map((item, li) => (
             <li key={li} className="flex items-start gap-2 text-sm text-text-secondary">
-              <span className="text-csa-accent mt-1.5 w-1.5 h-1.5 bg-csa-accent flex-shrink-0" />
+              <span className="text-csa-accent mt-1.5 w-1.5 h-1.5 rounded-full bg-csa-accent flex-shrink-0" />
               {renderInline(item)}
             </li>
           ))}
@@ -89,25 +100,53 @@ function renderMarkdown(content: string) {
       continue;
     }
 
-    // Numbered list
+    // Numbered list — detect if these are clickable options
     if (line.match(/^\d+\.\s/)) {
       const listItems: string[] = [];
+      const rawLines: string[] = [];
       while (i < lines.length && lines[i].match(/^\d+\.\s/)) {
+        rawLines.push(lines[i]);
         listItems.push(lines[i].replace(/^\d+\.\s/, ''));
         i++;
       }
-      elements.push(
-        <ol key={key++} className="space-y-1 my-2">
-          {listItems.map((item, li) => (
-            <li key={li} className="flex items-start gap-3 text-sm text-text-secondary">
-              <span className="text-csa-accent font-bold text-xs mt-0.5 flex-shrink-0 w-5 text-right">
-                {li + 1}.
-              </span>
-              {renderInline(item)}
-            </li>
-          ))}
-        </ol>
-      );
+
+      if (looksLikeOptions(listItems) && onOptionClick) {
+        // Render as clickable buttons
+        elements.push(
+          <div key={key++} className="flex flex-wrap gap-2 my-3">
+            {listItems.map((item, li) => {
+              // Strip markdown bold markers for the button label
+              const cleanLabel = item.replace(/\*\*/g, '');
+              return (
+                <button
+                  key={li}
+                  onClick={() => onOptionClick(cleanLabel)}
+                  className="px-4 py-2.5 text-sm font-semibold text-left bg-surface-raised border border-border-subtle rounded-lg hover:border-csa-accent hover:bg-csa-accent/10 text-text-secondary hover:text-csa-accent transition-all duration-150 group"
+                >
+                  <span className="text-csa-accent mr-2 opacity-60 group-hover:opacity-100">
+                    {li + 1}.
+                  </span>
+                  {renderInline(item)}
+                </button>
+              );
+            })}
+          </div>
+        );
+      } else {
+        // Regular numbered list
+        elements.push(
+          <ol key={key++} className="space-y-1 my-2">
+            {listItems.map((item, li) => (
+              <li key={li} className="flex items-start gap-3 text-sm text-text-secondary">
+                <span className="text-csa-accent font-bold text-xs mt-0.5 flex-shrink-0 w-5 text-right">
+                  {li + 1}.
+                </span>
+                {renderInline(item)}
+              </li>
+            ))}
+          </ol>
+        );
+      }
       continue;
     }
 
@@ -132,7 +171,6 @@ function renderMarkdown(content: string) {
 
 function renderInline(text: string): (string | React.ReactElement)[] {
   const parts: (string | React.ReactElement)[] = [];
-  // Process bold, links, code, and inline formatting
   const regex = /(\*\*(.+?)\*\*)|(\[(.+?)\]\((.+?)\))|(`(.+?)`)/g;
   let lastIndex = 0;
   let match;
@@ -144,14 +182,12 @@ function renderInline(text: string): (string | React.ReactElement)[] {
     }
 
     if (match[1]) {
-      // Bold
       parts.push(
         <strong key={partKey++} className="font-bold text-text-primary">
           {match[2]}
         </strong>
       );
     } else if (match[3]) {
-      // Link
       parts.push(
         <a
           key={partKey++}
@@ -165,9 +201,8 @@ function renderInline(text: string): (string | React.ReactElement)[] {
         </a>
       );
     } else if (match[6]) {
-      // Code
       parts.push(
-        <code key={partKey++} className="px-1.5 py-0.5 bg-surface-raised text-csa-highlight text-xs font-mono">
+        <code key={partKey++} className="px-1.5 py-0.5 bg-surface-raised text-csa-highlight text-xs font-mono rounded">
           {match[7]}
         </code>
       );
@@ -197,12 +232,12 @@ function renderTable(lines: string[], key: number) {
   );
 
   return (
-    <div key={key} className="my-3 overflow-x-auto border-2 border-border-subtle">
+    <div key={key} className="my-3 overflow-x-auto border border-border-subtle rounded-lg">
       <table>
         <thead>
           <tr className="bg-surface-raised">
             {headers.map((h, hi) => (
-              <th key={hi}>{h}</th>
+              <th key={hi} className="whitespace-nowrap">{h}</th>
             ))}
           </tr>
         </thead>
@@ -223,10 +258,18 @@ function renderTable(lines: string[], key: number) {
 }
 
 export default function ChatMessageComponent({ message, index }: ChatMessageProps) {
+  const { addMessage, isLoading } = useAppStore();
   const isUser = message.role === 'user';
   const isStreaming = message.isStreaming && !message.content;
 
-  if (isStreaming) return null; // Handled by typing indicator
+  if (isStreaming) return null;
+
+  const handleOptionClick = (text: string) => {
+    if (isLoading) return;
+    // Simulate clicking an option — send it as a user message
+    const event = new CustomEvent('recivis-send-message', { detail: text });
+    window.dispatchEvent(event);
+  };
 
   return (
     <motion.div
@@ -237,7 +280,7 @@ export default function ChatMessageComponent({ message, index }: ChatMessageProp
     >
       {/* Avatar */}
       <div
-        className={`w-8 h-8 flex items-center justify-center flex-shrink-0 ${
+        className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
           isUser ? 'bg-csa-purple' : 'bg-csa-accent'
         }`}
       >
@@ -252,14 +295,16 @@ export default function ChatMessageComponent({ message, index }: ChatMessageProp
       <div
         className={`flex-1 max-w-[85%] ${
           isUser
-            ? 'bg-csa-primary/30 border-r-4 border-csa-accent px-4 py-3'
+            ? 'bg-csa-primary/30 border-r-4 border-csa-accent rounded-l-lg px-4 py-3'
             : 'px-1 py-1'
         }`}
       >
         {isUser ? (
           <p className="text-sm text-text-primary">{message.content}</p>
         ) : (
-          <div className="space-y-1">{renderMarkdown(message.content)}</div>
+          <div className="space-y-1">
+            {renderMarkdown(message.content, handleOptionClick)}
+          </div>
         )}
 
         {/* Timestamp */}
