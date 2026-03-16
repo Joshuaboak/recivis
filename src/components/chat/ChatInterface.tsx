@@ -112,7 +112,95 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
     }
   };
 
-  // Listen for option clicks from ChatMessage components and InvoiceView
+  // Send a multimodal message with a file attachment
+  const sendFileMessage = useCallback(async (fileName: string, base64: string, mediaType: string, isPdf: boolean) => {
+    if (isLoading) return;
+
+    // Show a user message with the file name
+    const userMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: `📄 Uploaded: ${fileName}\nPlease process this purchase order.`,
+      timestamp: new Date(),
+    };
+    addMessage(userMessage);
+    setIsLoading(true);
+
+    const assistantId = crypto.randomUUID();
+    addMessage({
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true,
+    });
+
+    try {
+      // Build multimodal content for the API
+      const contentBlocks: unknown[] = [];
+
+      if (isPdf) {
+        contentBlocks.push({
+          type: 'document',
+          source: {
+            type: 'base64',
+            media_type: 'application/pdf',
+            data: base64,
+          },
+        });
+      } else {
+        contentBlocks.push({
+          type: 'image_url',
+          image_url: {
+            url: `data:${mediaType};base64,${base64}`,
+          },
+        });
+      }
+
+      contentBlocks.push({
+        type: 'text',
+        text: `This is a purchase order document (${fileName}). Please extract all the information from it and process it according to the PO upload flow. Extract: account/company name, contact details, products, quantities, pricing, PO number, and any dates.`,
+      });
+
+      // Build conversation with multimodal user message
+      const apiMessages = [
+        ...messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+        {
+          role: 'user',
+          content: contentBlocks,
+        },
+      ].filter((m) => m.role !== 'system');
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMessages, user }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to get response');
+      }
+
+      const data = await res.json();
+      updateMessage(assistantId, {
+        content: data.content,
+        isStreaming: false,
+      });
+    } catch (error) {
+      updateMessage(assistantId, {
+        content: `Something went wrong processing the file: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again or paste the PO details as text.`,
+        isStreaming: false,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, messages, user, addMessage, updateMessage, setIsLoading]);
+
+  // Listen for option clicks from ChatMessage components
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -123,6 +211,16 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
     window.addEventListener('recivis-send-message', handler);
     return () => window.removeEventListener('recivis-send-message', handler);
   }, [sendMessage]);
+
+  // Listen for file uploads from InvoiceView
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { fileName, base64, mediaType, isPdf } = (e as CustomEvent).detail;
+      sendFileMessage(fileName, base64, mediaType, isPdf);
+    };
+    window.addEventListener('recivis-send-file', handler);
+    return () => window.removeEventListener('recivis-send-file', handler);
+  }, [sendFileMessage]);
 
   const handleNewConversation = () => {
     clearMessages();

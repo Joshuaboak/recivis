@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, FileText, X, FilePlus, RefreshCw } from 'lucide-react';
 import ChatInterface from '../chat/ChatInterface';
 
@@ -44,13 +43,24 @@ export default function InvoiceView() {
     const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
     setUploadedFile({ name: file.name, size: `${sizeMB} MB` });
 
-    // Send a message to the chat about the uploaded PO
-    setTimeout(() => {
-      const event = new CustomEvent('recivis-send-message', {
-        detail: `I've uploaded a purchase order: ${file.name}. Please process it.`,
+    // Read file as base64 and dispatch with the file data
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1]; // Strip data:... prefix
+      const isPdf = file.type === 'application/pdf';
+      const mediaType = isPdf ? 'application/pdf' : file.type;
+
+      const event = new CustomEvent('recivis-send-file', {
+        detail: {
+          fileName: file.name,
+          base64,
+          mediaType,
+          isPdf,
+        },
       });
       window.dispatchEvent(event);
-    }, 300);
+    };
+    reader.readAsDataURL(file);
   };
 
   const clearFile = () => {
