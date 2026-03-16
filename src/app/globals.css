@@ -1,26 +1,166 @@
 @import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@import url('https://fonts.googleapis.com/css2?family=Encode+Sans+Semi+Condensed:wght@300;400;500;600;700&display=swap');
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* CSA Brand Colors */
+  --color-csa-primary: #0A4C6E;
+  --color-csa-accent: #0077B7;
+  --color-csa-purple: #5B52B7;
+  --color-csa-highlight: #B1E0F1;
+  --color-csa-dark: #042637;
+  --color-csa-deep: #021A26;
+
+  /* Greys */
+  --color-csa-grey-100: #CECECF;
+  --color-csa-grey-200: #878888;
+  --color-csa-grey-300: #474848;
+  --color-csa-grey-400: #333333;
+
+  /* Semantic */
+  --color-surface: #06293B;
+  --color-surface-raised: #0A3A52;
+  --color-surface-overlay: #0D4968;
+  --color-border: #1A5A7A;
+  --color-border-subtle: #0E3E58;
+  --color-text-primary: #F0F7FA;
+  --color-text-secondary: #8BB8CF;
+  --color-text-muted: #5A8EA8;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+
+  /* Font */
+  --font-brand: var(--font-encode);
+
+  /* Spacing */
+  --spacing-px: 1px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --font-encode: 'Encode Sans Semi Condensed', sans-serif;
+}
+
+* {
+  border-radius: 0 !important;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-encode);
+  background: #021A26;
+  color: #F0F7FA;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #042637;
+}
+::-webkit-scrollbar-thumb {
+  background: #1A5A7A;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0077B7;
+}
+
+/* Selection */
+::selection {
+  background: #0077B7;
+  color: #F0F7FA;
+}
+
+/* Focus */
+*:focus-visible {
+  outline: 2px solid #0077B7;
+  outline-offset: 2px;
+}
+
+/* Animations */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: #0077B7; }
+  50% { border-color: #B1E0F1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+.animate-slide-left {
+  animation: slide-in-left 0.3s ease-out forwards;
+}
+
+.animate-slide-right {
+  animation: slide-in-right 0.3s ease-out forwards;
+}
+
+.shimmer {
+  background: linear-gradient(90deg, transparent, rgba(177, 224, 241, 0.08), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Typing indicator */
+@keyframes bounce-dot {
+  0%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-6px); }
+}
+
+.typing-dot {
+  animation: bounce-dot 1.4s infinite ease-in-out;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.16s; }
+.typing-dot:nth-child(3) { animation-delay: 0.32s; }
+
+/* Table styles */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8BB8CF;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid #1A5A7A;
+}
+td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #0E3E58;
+  font-size: 0.875rem;
+}
+tr:hover td {
+  background: rgba(0, 119, 183, 0.06);
+}
+
+/* Sharp border utility */
+.border-sharp {
+  border-width: 4px;
+  border-style: solid;
 }
