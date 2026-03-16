@@ -4,6 +4,7 @@
  */
 
 import { getMcpEndpoint } from './zoho-mcp-auth';
+import { log } from './logger';
 
 let sessionId: string | null = null;
 let initialized = false;
@@ -69,11 +70,15 @@ async function mcpRequest(
 
   if (!res.ok) {
     const errText = await res.text();
+    log('error', 'mcp', `MCP ${method} error ${res.status}`, { error: errText.slice(0, 200) });
     throw new Error(`MCP error ${res.status}: ${errText}`);
   }
 
   const data = await res.json();
-  if (data.error) throw new Error(JSON.stringify(data.error));
+  if (data.error) {
+    log('error', 'mcp', `MCP ${method} returned error`, { error: JSON.stringify(data.error).slice(0, 200) });
+    throw new Error(JSON.stringify(data.error));
+  }
   return data.result;
 }
 

@@ -244,7 +244,7 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
     <div className="flex flex-col h-full">
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
-        <div className="max-w-3xl mx-auto space-y-1">
+        <div className="max-w-5xl mx-auto space-y-1">
           <AnimatePresence initial={false}>
             {messages.map((message, index) => (
               <ChatMessageComponent
@@ -318,7 +318,7 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
 
       {/* Input area */}
       <div className="border-t-4 border-border bg-csa-dark px-6 py-4">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <div className="flex items-end gap-3">
             <div className="flex-1 relative bg-surface border-2 border-border-subtle focus-within:border-csa-accent transition-colors rounded-xl">
               <textarea

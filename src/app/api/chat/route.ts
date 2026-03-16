@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { executeZohoTool, resetSession } from '@/lib/zoho';
 import { toolDefinitions, getSystemPrompt } from '@/lib/ai-tools';
+import { log } from '@/lib/logger';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -13,7 +14,6 @@ interface ToolCall {
   };
 }
 
-// Human-friendly status messages for each tool
 const TOOL_STATUS: Record<string, string> = {
   search_records: 'Searching CRM records...',
   get_record: 'Fetching record details...',
@@ -37,6 +37,7 @@ function convertTools() {
 
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
+  const requestStart = Date.now();
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -49,8 +50,20 @@ export async function POST(request: NextRequest) {
       try {
         const { messages, user } = await request.json();
 
+        const lastUserMsg = messages.filter((m: { role: string }) => m.role === 'user').pop();
+        const userInput = typeof lastUserMsg?.content === 'string'
+          ? lastUserMsg.content.slice(0, 100)
+          : '[multimodal]';
+
+        log('info', 'api', `Chat request from ${user?.name || 'unknown'}`, {
+          userInput,
+          messageCount: messages.length,
+          role: user?.role,
+        });
+
         const apiKey = process.env.OPENROUTER_API_KEY;
         if (!apiKey) {
+          log('error', 'api', 'OpenRouter API key not configured');
           sendEvent('error', { error: 'OpenRouter API key not configured' });
           controller.close();
           return;
@@ -67,13 +80,16 @@ export async function POST(request: NextRequest) {
 
         const conversationMessages = [systemMessage, ...messages];
         const tools = convertTools();
-
+        let iteration = 0;
         let maxIterations = 15;
+
         while (maxIterations > 0) {
           maxIterations--;
+          iteration++;
 
           sendEvent('status', { message: 'Thinking...' });
 
+          const aiStart = Date.now();
           const response = await fetch(OPENROUTER_URL, {
             method: 'POST',
             headers: {
@@ -90,10 +106,11 @@ export async function POST(request: NextRequest) {
               temperature: 0.2,
             }),
           });
+          const aiDuration = Date.now() - aiStart;
 
           if (!response.ok) {
             const errText = await response.text();
-            console.error('OpenRouter error:', errText);
+            log('error', 'ai', `OpenRouter error ${response.status}`, { error: errText.slice(0, 300) }, aiDuration);
             sendEvent('error', { error: `AI service error: ${response.status}` });
             controller.close();
             return;
@@ -101,8 +118,19 @@ export async function POST(request: NextRequest) {
 
           const data = await response.json();
           const choice = data.choices?.[0];
+          const usage = data.usage;
+
+          log('info', 'ai', `AI response (iteration ${iteration})`, {
+            hasToolCalls: !!choice?.message?.tool_calls?.length,
+            toolCallCount: choice?.message?.tool_calls?.length || 0,
+            contentLength: choice?.message?.content?.length || 0,
+            promptTokens: usage?.prompt_tokens,
+            completionTokens: usage?.completion_tokens,
+            finishReason: choice?.finish_reason,
+          }, aiDuration);
 
           if (!choice) {
+            log('error', 'ai', 'No choice in AI response');
             sendEvent('error', { error: 'No response from AI' });
             controller.close();
             return;
@@ -110,18 +138,22 @@ export async function POST(request: NextRequest) {
 
           const assistantMessage = choice.message;
 
-          // No tool calls — send final response
+          // No tool calls — final response
           if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
+            log('info', 'api', `Chat complete`, {
+              iterations: iteration,
+              responseLength: assistantMessage.content?.length || 0,
+            }, Date.now() - requestStart);
+
             sendEvent('done', { content: assistantMessage.content || '' });
             controller.close();
             return;
           }
 
-          // Execute tool calls — run them in parallel for speed
+          // Execute tool calls in parallel
           conversationMessages.push(assistantMessage);
           const toolCalls = assistantMessage.tool_calls as ToolCall[];
 
-          // Show status for first tool call
           const firstToolName = toolCalls[0]?.function?.name;
           const statusMsg = TOOL_STATUS[firstToolName] || 'Working...';
           sendEvent('status', {
@@ -130,7 +162,6 @@ export async function POST(request: NextRequest) {
               : statusMsg,
           });
 
-          // Execute all tool calls in parallel
           const results = await Promise.all(
             toolCalls.map(async (toolCall) => {
               let args: Record<string, unknown>;
@@ -140,11 +171,26 @@ export async function POST(request: NextRequest) {
                 args = {};
               }
 
+              const toolStart = Date.now();
               let result: unknown;
+
+              log('info', 'tool', `Calling ${toolCall.function.name}`, {
+                args: JSON.stringify(args).slice(0, 300),
+              });
+
               try {
                 result = await executeZohoTool(toolCall.function.name, args);
+
+                const resultStr = JSON.stringify(result);
+                log('info', 'tool', `${toolCall.function.name} success`, {
+                  resultLength: resultStr.length,
+                  resultPreview: resultStr.slice(0, 200),
+                }, Date.now() - toolStart);
               } catch (error) {
-                console.error(`Tool ${toolCall.function.name} failed:`, error);
+                log('error', 'tool', `${toolCall.function.name} failed`, {
+                  error: error instanceof Error ? error.message : String(error),
+                  args: JSON.stringify(args).slice(0, 200),
+                }, Date.now() - toolStart);
 
                 if (error instanceof Error && error.message === 'NOT_AUTHENTICATED') {
                   result = { error: 'Zoho CRM is not connected.' };
@@ -168,20 +214,20 @@ export async function POST(request: NextRequest) {
             })
           );
 
-          // Add all results to conversation
           for (const r of results) {
             conversationMessages.push(r);
           }
-
-          // Continue loop
         }
 
+        log('warn', 'api', 'Hit max iterations', { iterations: iteration }, Date.now() - requestStart);
         sendEvent('done', {
           content: 'Reached the maximum number of operations. Please try again.',
         });
         controller.close();
       } catch (error) {
-        console.error('Chat API error:', error);
+        log('error', 'api', 'Chat API error', {
+          error: error instanceof Error ? error.message : String(error),
+        }, Date.now() - requestStart);
         sendEvent('error', {
           error: error instanceof Error ? error.message : 'Internal server error',
         });

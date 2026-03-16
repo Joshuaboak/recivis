@@ -335,6 +335,20 @@ function renderInline(text: string): (string | React.ReactElement)[] {
   return parts.length > 0 ? parts : [text];
 }
 
+function exportTableToExcel(headers: string[], rows: string[][]) {
+  // Dynamic import to keep bundle size down
+  import('xlsx').then((XLSX) => {
+    const wsData = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Report');
+
+    const now = new Date();
+    const filename = `recivis-export-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  });
+}
+
 function renderTable(lines: string[], key: number) {
   const headers = lines[0]
     .split('|')
@@ -348,28 +362,44 @@ function renderTable(lines: string[], key: number) {
       .filter(Boolean)
   );
 
+  // Tables with 4+ rows get the export button (report-like tables)
+  const showExport = rows.length >= 4;
+
   return (
-    <div key={key} className="my-3 overflow-x-auto border border-border-subtle rounded-xl">
-      <table>
-        <thead>
-          <tr className="bg-surface-raised">
-            {headers.map((h, hi) => (
-              <th key={hi} className="whitespace-nowrap">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, ri) => (
-            <tr key={ri}>
-              {row.map((cell, ci) => (
-                <td key={ci} className="text-text-secondary">
-                  {renderInline(cell)}
-                </td>
+    <div key={key} className="my-3 -mx-1 sm:-mx-4 md:-mx-8 lg:-mx-16">
+      {showExport && (
+        <div className="flex justify-end mb-2 px-1 sm:px-4 md:px-8 lg:px-16">
+          <button
+            onClick={() => exportTableToExcel(headers, rows)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-lg hover:bg-csa-accent/20 transition-colors cursor-pointer"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export to Excel
+          </button>
+        </div>
+      )}
+      <div className="overflow-x-auto border border-border-subtle rounded-xl">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-surface-raised">
+              {headers.map((h, hi) => (
+                <th key={hi} className="whitespace-nowrap">{h}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row, ri) => (
+              <tr key={ri}>
+                {row.map((cell, ci) => (
+                  <td key={ci} className="text-text-secondary">
+                    {renderInline(cell)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

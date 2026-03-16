@@ -77,7 +77,7 @@ export default function InvoiceView() {
     <div className="flex flex-col h-full">
       {/* PO Upload Zone — always visible at top */}
       <div className="px-6 pt-4 pb-2 flex-shrink-0">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}

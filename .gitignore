@@ -36,6 +36,9 @@ yarn-error.log*
 # MCP OAuth tokens (persisted locally)
 .mcp-tokens.json
 
+# ReCivis logs
+.recivis-logs.json
+
 # vercel
 .vercel
 
