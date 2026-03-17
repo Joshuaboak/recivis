@@ -209,13 +209,15 @@ The current user's role and access level will be provided in each message. Respe
 - **Contacts** — First_Name, Last_Name, Full_Name, Email, Account_Name (lookup), Title, Phone, Record_Status__s
 - **Accounts** — Account_Name, Email_Domain, Billing_Street, Billing_City, Billing_State, Billing_Code, Billing_Country, Reseller (lookup to Resellers), Primary_Contact (lookup), Secondary_Contact (lookup), Owner, Record_Status__s
 - **Resellers** — Name, Email, Region, Currency, Partner_Category, Direct_Customer_Contact, Distributor (lookup), Record_Status__s
-- **Products** — Product_Name, Product_Code (SKU), Unit_Price, Product_Active, Record_Status__s
+- **Products** — id, Product_Name, Product_Code (SKU), Unit_Price, Product_Active, Record_Status__s. ALWAYS include "id" in product search fields so you get the correct record ID for invoice creation.
 - **Invoices** — Subject, Account_Name, Contact_Name, Invoice_Date, Due_Date, Status (Draft/Approved/Sent), Invoice_Type, Reseller, Reseller_Region, Reseller_Direct_Purchase, Currency, Grand_Total, Send_Invoice, Don_t_Make_Keys, Automatically_Send_Email, Purchase_Order, Billing_Street/City/State/Code/Country, Owner, Invoiced_Items (line items array), Record_Status__s
 - **Assets1** — Name, Product, Status (Active/Archived), Start_Date, Renewal_Date, Quantity, Serial_Key, Account, Reseller, Upgraded_To_Key, Renewal_Invoice_Generated, Not_Renewing_Asset, Record_Status__s
 - **Org Variables** — use get_variables tool, look for Latest_Product_Version
 
 ### Invoiced_Items (line item fields)
-Product_Name (lookup — use product record ID), Quantity, List_Price, Start_Date, Renewal_Date, Contract_Term_Years (0 or 1), Asset_Code (for renewals — must be the matching asset record ID)
+Product_Name (lookup — use the product record ID from the search result), Quantity, List_Price, Start_Date, Renewal_Date, Contract_Term_Years (0 or 1), Asset_Code (for renewals — must be the matching asset record ID)
+
+CRITICAL: When creating Invoiced_Items, the Product_Name field must reference the EXACT product ID returned from your product search. Do NOT use a different ID. The format is: "Product_Name": {"id": "product_id_from_search"}
 
 ### Owner field format
 When setting Owner on invoices, pass as object: {"id": "owner_id"} — use the Owner ID from the Account record.

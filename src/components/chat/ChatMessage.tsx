@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Bot, User, ExternalLink, CheckCircle, Pencil, X } from 'lucide-react';
+import { Bot, User, ExternalLink, CheckCircle, Pencil, X, Plus, Trash2 } from 'lucide-react';
 import type { ChatMessage } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
 import LineItemForm from './LineItemForm';
@@ -14,13 +14,15 @@ function detectPromptType(content: string): PromptType {
   const lower = content.toLowerCase();
   const tail = lower.slice(-300);
 
-  // Invoice creation confirmation
+  // Invoice creation / line item confirmation
   if (
     tail.includes('does this look correct') ||
     tail.includes('confirm to create') ||
     tail.includes('create this invoice') ||
     tail.includes('ready to create') ||
     tail.includes('confirm?') ||
+    tail.includes('add another line item') ||
+    tail.includes('another line item, or') ||
     tail.includes('(y/n)')
   ) {
     return 'confirm_create';
@@ -115,8 +117,8 @@ function getPromptButtons(type: PromptType): { primary: { label: string; message
   switch (type) {
     case 'confirm_create':
       return {
-        primary: { label: 'Confirm', message: 'Yes, create the invoice', icon: 'check' },
-        secondary: { label: 'Edit', message: 'I need to make some changes', icon: 'edit' },
+        primary: { label: 'Create Invoice', message: 'Yes, create the invoice', icon: 'check' },
+        secondary: { label: 'Add Line Item', message: 'Add another line item', icon: 'plus' },
       };
     case 'yes_no_proceed':
       return {
@@ -171,7 +173,7 @@ function renderMarkdown(content: string, onOptionClick?: (text: string) => void)
         tableLines.push(lines[i]);
         i++;
       }
-      elements.push(renderTable(tableLines, key++));
+      elements.push(renderTable(tableLines, key++, onOptionClick));
       continue;
     }
 
@@ -376,7 +378,7 @@ function exportTableToExcel(headers: string[], rows: string[][]) {
   });
 }
 
-function renderTable(lines: string[], key: number) {
+function renderTable(lines: string[], key: number, onOptionClick?: (text: string) => void) {
   const headers = lines[0]
     .split('|')
     .map((h) => h.trim())
@@ -389,8 +391,9 @@ function renderTable(lines: string[], key: number) {
       .filter(Boolean)
   );
 
-  // Tables with 4+ rows get the export button (report-like tables)
   const showExport = rows.length >= 6;
+  // Detect line item tables (has Product column + small row count) — show trash icons
+  const isLineItemTable = headers.some((h) => /product/i.test(h)) && rows.length <= 10 && rows.length >= 1;
 
   return (
     <div key={key} className="my-3 -mx-1 sm:-mx-4 md:-mx-8 lg:-mx-16">
@@ -412,6 +415,7 @@ function renderTable(lines: string[], key: number) {
               {headers.map((h, hi) => (
                 <th key={hi} className="whitespace-nowrap">{h}</th>
               ))}
+              {isLineItemTable && <th className="w-10"></th>}
             </tr>
           </thead>
           <tbody>
@@ -422,6 +426,17 @@ function renderTable(lines: string[], key: number) {
                     {renderInline(cell)}
                   </td>
                 ))}
+                {isLineItemTable && onOptionClick && (
+                  <td className="w-10 text-center">
+                    <button
+                      onClick={() => onOptionClick(`Remove line item ${ri + 1}`)}
+                      className="p-1.5 text-text-muted hover:text-error hover:bg-error/10 rounded-lg transition-colors cursor-pointer"
+                      title="Remove line item"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -512,7 +527,7 @@ export default function ChatMessageComponent({ message, index }: ChatMessageProp
                 onClick={() => handleOptionClick(buttons.secondary.message)}
                 className="flex items-center gap-2 px-5 py-2.5 bg-surface-raised border-2 border-border-subtle rounded-xl text-text-secondary text-sm font-semibold hover:border-csa-accent hover:text-csa-accent transition-all cursor-pointer"
               >
-                {buttons.secondary.icon === 'edit' ? <Pencil size={16} /> : <X size={16} />}
+                {buttons.secondary.icon === 'edit' ? <Pencil size={16} /> : buttons.secondary.icon === 'plus' ? <Plus size={16} /> : <X size={16} />}
                 {buttons.secondary.label}
               </button>
             </div>

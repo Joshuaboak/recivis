@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
               let result: unknown;
 
               log('info', 'tool', `Calling ${toolCall.function.name}`, {
-                args: JSON.stringify(args).slice(0, 300),
+                args: JSON.stringify(args).slice(0, 1000),
               });
 
               try {
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
                 const resultStr = JSON.stringify(result);
                 log('info', 'tool', `${toolCall.function.name} success`, {
                   resultLength: resultStr.length,
-                  resultPreview: resultStr.slice(0, 200),
+                  resultPreview: resultStr.slice(0, 500),
                 }, Date.now() - toolStart);
               } catch (error) {
                 log('error', 'tool', `${toolCall.function.name} failed`, {
