@@ -129,7 +129,7 @@ export default function AccountDetailView() {
             <div className="border border-border-subtle rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead><tr className="bg-surface-raised">
-                  <th>Subject</th><th>Date</th><th>Type</th><th>Status</th><th>Total</th><th className="w-10"></th>
+                  <th>Invoice #</th><th>Subject</th><th>Date</th><th>Type</th><th>Status</th><th>Total</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
                   {invoices.map((inv, i) => {
@@ -145,6 +145,7 @@ export default function AccountDetailView() {
                         }}
                         className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                       >
+                        <td className="text-text-muted text-xs font-mono">{inv.Invoice_Number as string || '\u2014'}</td>
                         <td className="font-semibold text-csa-accent">{inv.Subject as string || `Invoice ${inv.id as string}`}</td>
                         <td className="text-text-secondary">{formatDate(inv.Invoice_Date)}</td>
                         <td>

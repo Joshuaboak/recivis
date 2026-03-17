@@ -8,6 +8,7 @@ import { useAppStore } from '@/lib/store';
 interface Invoice {
   id: string;
   Subject: string;
+  Invoice_Number?: string;
   Account_Name?: { name: string; id: string };
   Invoice_Date: string;
   Status: string;
@@ -78,7 +79,8 @@ export default function DraftInvoicesView() {
             <table className="w-full">
               <thead>
                 <tr className="bg-surface-raised">
-                  <th>Invoice</th>
+                  <th>Invoice #</th>
+                  <th>Subject</th>
                   <th>Account</th>
                   <th>Date</th>
                   <th>Type</th>
@@ -101,6 +103,7 @@ export default function DraftInvoicesView() {
                     }}
                     className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                   >
+                    <td className="text-text-muted text-xs font-mono">{inv.Invoice_Number || '\u2014'}</td>
                     <td>
                       <span className="font-semibold text-csa-accent hover:text-csa-highlight transition-colors">
                         {inv.Subject || `Invoice ${inv.id}`}

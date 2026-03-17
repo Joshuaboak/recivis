@@ -4,6 +4,7 @@ import { log } from '@/lib/logger';
 
 /**
  * GET /api/invoices/[id] — get invoice detail with line items
+ * Line items are embedded in the invoice record as Product_Details.
  */
 export async function GET(
   request: NextRequest,
@@ -12,18 +13,12 @@ export async function GET(
   const { id } = await params;
 
   try {
-    // Fetch invoice and line items in parallel
-    const [invoiceResult, lineItemsResult] = await Promise.all([
-      executeZohoTool('get_record', { module: 'Invoices', record_id: id }),
-      executeZohoTool('get_related_records', {
-        parent_module: 'Invoices',
-        parent_id: id,
-        related_list: 'Invoiced_Items',
-        fields: 'Product_Name,Quantity,Unit_Price,Total,List_Price,Discount,Net_Total,Tax,Description,Record_Status__s',
-      }),
-    ]);
+    const invoiceResult = await executeZohoTool('get_record', {
+      module: 'Invoices',
+      record_id: id,
+    });
 
-    // Parse results
+    // Parse result
     const parseResult = (r: unknown) => {
       const res = r as { content?: Array<{ text?: string }> };
       if (res?.content) {
@@ -41,9 +36,9 @@ export async function GET(
 
     const invoiceData = parseResult(invoiceResult);
     const invoice = invoiceData[0] || null;
-    const lineItems = parseResult(lineItemsResult).filter(
-      (li: Record<string, unknown>) => li.Record_Status__s !== 'Trash'
-    );
+
+    // Extract line items from the invoice record's Product_Details array
+    const lineItems = (invoice?.Product_Details as Record<string, unknown>[] | undefined) || [];
 
     return NextResponse.json({ invoice, lineItems });
   } catch (error) {

@@ -165,22 +165,28 @@ export default function InvoiceDetailView() {
                 </thead>
                 <tbody>
                   {lineItems.map((li, i) => {
-                    const product = li.Product_Name as { name?: string } | string | null;
+                    // Zoho Product_Details uses lowercase keys: product, quantity, unit_price, total, etc.
+                    const product = (li.product || li.Product_Name) as { name?: string } | string | null;
                     const productName = typeof product === 'object' && product !== null ? product.name : product;
+                    const qty = (li.quantity ?? li.Quantity) as number;
+                    const unitPrice = (li.unit_price ?? li.Unit_Price) as number;
+                    const discount = (li.Discount ?? li.discount) as number;
+                    const total = (li.total ?? li.Total ?? li.net_total ?? li.Net_Total) as number;
+                    const desc = (li.product_description ?? li.Description) as string | undefined;
                     return (
                       <tr key={i}>
                         <td>
                           <div className="font-semibold text-text-primary">{productName || '\u2014'}</div>
-                          {li.Description ? (
-                            <p className="text-xs text-text-muted mt-0.5 max-w-md truncate">{li.Description as string}</p>
+                          {desc ? (
+                            <p className="text-xs text-text-muted mt-0.5 max-w-md truncate">{desc}</p>
                           ) : null}
                         </td>
-                        <td className="text-right text-text-secondary">{li.Quantity as number}</td>
-                        <td className="text-right text-text-secondary">{symbol}{(li.Unit_Price as number)?.toFixed(2)}</td>
+                        <td className="text-right text-text-secondary">{qty}</td>
+                        <td className="text-right text-text-secondary">{symbol}{unitPrice?.toFixed(2)}</td>
                         <td className="text-right text-text-muted">
-                          {li.Discount ? `${symbol}${(li.Discount as number)?.toFixed(2)}` : '\u2014'}
+                          {discount ? `${symbol}${discount.toFixed(2)}` : '\u2014'}
                         </td>
-                        <td className="text-right text-text-primary font-semibold">{symbol}{(li.Total as number)?.toFixed(2)}</td>
+                        <td className="text-right text-text-primary font-semibold">{symbol}{total?.toFixed(2)}</td>
                       </tr>
                     );
                   })}
