@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Send, Hash, Calendar, DollarSign } from 'lucide-react';
+import { Send, Hash, Calendar, DollarSign, X, Plus, FileCheck } from 'lucide-react';
 
 interface LineItemFormProps {
   defaults: {
@@ -20,6 +20,10 @@ export default function LineItemForm({ defaults, onSubmit, disabled }: LineItemF
   const [startDate, setStartDate] = useState(defaults.startDate);
   const [endDate, setEndDate] = useState(defaults.endDate);
   const [price, setPrice] = useState(defaults.price);
+  const [submitted, setSubmitted] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed) return null;
 
   const handleSubmit = () => {
     const parts: string[] = [];
@@ -32,10 +36,46 @@ export default function LineItemForm({ defaults, onSubmit, disabled }: LineItemF
       parts.push(`Price: default`);
     }
     onSubmit(parts.join('\n'));
+    setSubmitted(true);
   };
 
+  if (submitted) {
+    return (
+      <div className="mt-4 flex gap-3">
+        <button
+          onClick={() => onSubmit('Create the invoice')}
+          disabled={disabled}
+          className="flex items-center gap-2 px-5 py-2.5 bg-success/15 border-2 border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/25 hover:border-success/50 transition-all cursor-pointer"
+        >
+          <FileCheck size={16} />
+          Create Invoice
+        </button>
+        <button
+          onClick={() => onSubmit('Add another line item')}
+          disabled={disabled}
+          className="flex items-center gap-2 px-5 py-2.5 bg-surface-raised border-2 border-border-subtle rounded-xl text-text-secondary text-sm font-semibold hover:border-csa-accent hover:text-csa-accent transition-all cursor-pointer"
+        >
+          <Plus size={16} />
+          Add Line Item
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-4 bg-surface border-2 border-border-subtle rounded-2xl p-5 space-y-4">
+    <div className="mt-4 bg-surface border-2 border-border-subtle rounded-2xl p-5 space-y-4 relative">
+      {/* Remove button */}
+      <button
+        onClick={() => {
+          setDismissed(true);
+          onSubmit('Skip this line item');
+        }}
+        className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center text-text-muted hover:text-error hover:bg-error/10 rounded-lg transition-colors cursor-pointer"
+        title="Remove line item"
+      >
+        <X size={16} />
+      </button>
+
       <div className="grid grid-cols-2 gap-4">
         {/* Quantity */}
         <div>
