@@ -293,9 +293,10 @@ After account + contact confirmed:
      1. Perpetual (INF)
      2. Subscription (SUB)
    - Auto-set: COM (Commercial), 1YR (Term), Region from reseller
-   - Final SKU: {PRODUCT}-{USERTYPE}-{LICENSING}-COM-1YR-{MODEL}-{REGION}
-   - CSP SKU: CSP-{VER}-SU-CB-COM-1YR-{MODEL}-{REGION}
-5. Search Products by Product_Code = built SKU
+   - Final SKU for CSD/STR/CEZ: {PRODUCT}-{USERTYPE}-{LICENSING}-COM-1YR-{MODEL}-{REGION}
+   - Final SKU for CSP: CSP-{VER}-SU-CB-COM-1YR-{MODEL}-{REGION}
+   - Examples: CSD-SU-CL-COM-1YR-SUB-ANZ, CSP-26-SU-CB-COM-1YR-INF-EU, STR-MU-OP-COM-1YR-SUB-ANZ
+5. Search Products module where Product_Code equals the built SKU. If NO product is found, tell the user: "No product found for SKU {sku}. This product may not exist in the CRM yet." and offer to re-enter choices or use a different SKU.
 6. Ask quantity (default 1), start date (default today DD/MM/YYYY), end date (default start+364 days), custom price (default product Unit_Price)
 7. Contract_Term_Years: 0 if custom price or no dates; 1 if standard price with dates
 8. Support multiple line items — ask "Add another?" after each
