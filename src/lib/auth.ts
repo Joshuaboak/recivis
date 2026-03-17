@@ -30,24 +30,34 @@ export async function createUser(
     resellerName?: string;
     region?: string;
     allowedResellerIds?: string[];
-  }
+  },
+  roleId?: number
 ): Promise<{ id: number; email: string }> {
   await ensureDB();
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
+  // If no roleId provided, look it up from the role name
+  if (!roleId) {
+    const roleResult = await query('SELECT id FROM roles WHERE name = $1', [role]);
+    if (roleResult.rows.length > 0) {
+      roleId = roleResult.rows[0].id;
+    }
+  }
+
   const result = await query(
-    `INSERT INTO users (email, password_hash, name, role, reseller_id, reseller_name, region, allowed_reseller_ids)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO users (email, password_hash, name, role, role_id, reseller_id, reseller_name, region, allowed_reseller_ids)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (email) DO UPDATE SET
-       password_hash = $2, name = $3, role = $4, reseller_id = $5,
-       reseller_name = $6, region = $7, allowed_reseller_ids = $8, updated_at = NOW()
+       password_hash = $2, name = $3, role = $4, role_id = $5, reseller_id = $6,
+       reseller_name = $7, region = $8, allowed_reseller_ids = $9, updated_at = NOW()
      RETURNING id, email`,
     [
       email.toLowerCase().trim(),
       passwordHash,
       name,
       role,
+      roleId || null,
       resellerData?.resellerId || null,
       resellerData?.resellerName || null,
       resellerData?.region || null,
@@ -69,8 +79,15 @@ export async function authenticateUser(
   await ensureDB();
 
   const result = await query(
-    `SELECT id, email, password_hash, name, role, reseller_id, reseller_name, region, allowed_reseller_ids, is_active
-     FROM users WHERE email = $1`,
+    `SELECT u.id, u.email, u.password_hash, u.name, u.role, u.reseller_id, u.reseller_name,
+            u.region, u.allowed_reseller_ids, u.is_active,
+            r.can_create_invoices, r.can_approve_invoices, r.can_send_invoices,
+            r.can_view_all_records, r.can_view_own_records, r.can_view_child_records,
+            r.can_modify_prices, r.can_upload_po, r.can_manage_users,
+            r.can_view_reports, r.can_export_data
+     FROM users u
+     LEFT JOIN roles r ON r.id = u.role_id
+     WHERE u.email = $1`,
     [email.toLowerCase().trim()]
   );
 
@@ -94,6 +111,17 @@ export async function authenticateUser(
     resellerName: row.reseller_name || undefined,
     region: row.region || undefined,
     allowedResellerIds: row.allowed_reseller_ids || undefined,
+    permissions: {
+      canCreateInvoices: row.can_create_invoices ?? true,
+      canApproveInvoices: row.can_approve_invoices ?? false,
+      canSendInvoices: row.can_send_invoices ?? false,
+      canViewAllRecords: row.can_view_all_records ?? false,
+      canModifyPrices: row.can_modify_prices ?? false,
+      canUploadPO: row.can_upload_po ?? false,
+      canManageUsers: row.can_manage_users ?? false,
+      canViewReports: row.can_view_reports ?? false,
+      canExportData: row.can_export_data ?? false,
+    },
   };
 
   const token = jwt.sign(
@@ -153,31 +181,66 @@ export async function auditLog(
 }
 
 /**
- * Seed initial admin users. Called once on setup.
+ * Seed default roles and admin users. Called once on setup.
  */
 export async function seedAdminUsers() {
   await ensureDB();
 
-  // Check if admin users exist
-  const existing = await query('SELECT COUNT(*) FROM users WHERE role IN ($1, $2)', ['admin', 'ibm']);
-
-  if (parseInt(existing.rows[0].count) === 0) {
-    await createUser(
-      'joshua.boak@civilsurveysolutions.com.au',
-      'CSA-Admin-2026!',
-      'Josh Boak',
-      'admin'
-    );
-
-    await createUser(
-      'andrew.english@civilsurveyapplications.com.au',
-      'CSA-IBM-2026!',
-      'Andrew English',
-      'ibm'
-    );
-
-    console.log('Admin users seeded successfully');
+  // Seed roles if they don't exist
+  const existingRoles = await query('SELECT COUNT(*) FROM roles');
+  if (parseInt(existingRoles.rows[0].count) === 0) {
+    await query(`
+      INSERT INTO roles (name, display_name, description, can_create_invoices, can_approve_invoices, can_send_invoices, can_view_all_records, can_view_own_records, can_view_child_records, can_modify_prices, can_upload_po, can_manage_users, can_view_reports, can_export_data, is_system_role) VALUES
+      ('admin', 'Administrator', 'Full system access. Can manage users, approve invoices, and access all records.', true, true, true, true, true, true, true, true, true, true, true, true),
+      ('ibm', 'International Business Manager', 'Full access to all records and invoicing. Cannot manage users.', true, true, true, true, true, true, true, true, false, true, true, true),
+      ('distributor', 'Distributor', 'Can create and send invoices for own accounts and child reseller accounts. Cannot approve.', true, false, true, false, true, true, false, true, false, true, true, false),
+      ('reseller', 'Reseller', 'Can create invoices and upload POs for own accounts only. Cannot approve or send.', true, false, false, false, true, false, false, true, false, true, false, false),
+      ('viewer', 'Viewer', 'Read-only access to own records. Cannot create or modify anything.', false, false, false, false, true, false, false, false, false, true, false, false)
+    `);
+    console.log('Default roles seeded');
   }
+
+  // Seed admin users if they don't exist
+  const existingUsers = await query('SELECT COUNT(*) FROM users WHERE role IN ($1, $2)', ['admin', 'ibm']);
+  if (parseInt(existingUsers.rows[0].count) === 0) {
+    // Get role IDs
+    const adminRole = await query('SELECT id FROM roles WHERE name = $1', ['admin']);
+    const ibmRole = await query('SELECT id FROM roles WHERE name = $1', ['ibm']);
+
+    await createUser('joshua.boak@civilsurveysolutions.com.au', 'CSA-Admin-2026!', 'Josh Boak', 'admin', {}, adminRole.rows[0]?.id);
+    await createUser('andrew.english@civilsurveyapplications.com.au', 'CSA-IBM-2026!', 'Andrew English', 'ibm', {}, ibmRole.rows[0]?.id);
+    console.log('Admin users seeded');
+  } else {
+    // Link existing users to roles if role_id is null
+    await query(`
+      UPDATE users SET role_id = (SELECT id FROM roles WHERE name = users.role)
+      WHERE role_id IS NULL AND EXISTS (SELECT 1 FROM roles WHERE name = users.role)
+    `);
+  }
+}
+
+/**
+ * Get permissions for a role.
+ */
+export async function getRolePermissions(roleName: string): Promise<Record<string, boolean>> {
+  await ensureDB();
+  const result = await query('SELECT * FROM roles WHERE name = $1', [roleName]);
+  if (result.rows.length === 0) return {};
+
+  const role = result.rows[0];
+  return {
+    canCreateInvoices: role.can_create_invoices,
+    canApproveInvoices: role.can_approve_invoices,
+    canSendInvoices: role.can_send_invoices,
+    canViewAllRecords: role.can_view_all_records,
+    canViewOwnRecords: role.can_view_own_records,
+    canViewChildRecords: role.can_view_child_records,
+    canModifyPrices: role.can_modify_prices,
+    canUploadPO: role.can_upload_po,
+    canManageUsers: role.can_manage_users,
+    canViewReports: role.can_view_reports,
+    canExportData: role.can_export_data,
+  };
 }
 
 /**
@@ -281,13 +344,9 @@ async function sendResetEmail(email: string, name: string, resetUrl: string) {
 
     const gmail = google.gmail({ version: 'v1', auth });
 
-    // Build RFC 2822 MIME message
-    const messageParts = [
-      `From: ReCivis <${senderEmail}>`,
-      `To: ${email}`,
-      `Subject: ReCivis — Password Reset`,
-      `Content-Type: text/html; charset=utf-8`,
-      ``,
+    const bccEmail = process.env.GMAIL_BCC || 'it@civilsurveysolutions.com.au';
+
+    const htmlBody = [
       `<div style="font-family: 'Encode Sans Semi Condensed', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">`,
       `  <div style="text-align: center; margin-bottom: 24px;">`,
       `    <div style="display: inline-block; background: #0077B7; width: 48px; height: 48px; line-height: 48px; text-align: center; border-radius: 12px; color: white; font-size: 24px; font-weight: bold;">R</div>`,
@@ -304,10 +363,18 @@ async function sendResetEmail(email: string, name: string, resetUrl: string) {
       `  <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">`,
       `  <p style="color: #aaa; font-size: 11px;">Civil Survey Applications Pty Ltd</p>`,
       `</div>`,
-    ];
+    ].join('\n');
 
-    const bccEmail = process.env.GMAIL_BCC || 'it@civilsurveysolutions.com.au';
-    const rawMessage = [`From: ReCivis <${senderEmail}>`, `To: ${email}`, `Bcc: ${bccEmail}`, ...messageParts.slice(3)].join('\n');
+    const rawMessage = [
+      `From: ReCivis <${senderEmail}>`,
+      `To: ${email}`,
+      `Bcc: ${bccEmail}`,
+      `Subject: ReCivis - Password Reset`,
+      `Content-Type: text/html; charset=utf-8`,
+      ``,
+      htmlBody,
+    ].join('\n');
+
     const encodedMessage = Buffer.from(rawMessage)
       .toString('base64')
       .replace(/\+/g, '-')

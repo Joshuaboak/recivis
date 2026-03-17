@@ -1,4 +1,16 @@
-export type UserRole = 'admin' | 'ibm' | 'distributor' | 'reseller' | 'unauthorized';
+export type UserRole = 'admin' | 'ibm' | 'distributor' | 'reseller' | 'viewer' | 'unauthorized';
+
+export interface UserPermissions {
+  canCreateInvoices: boolean;
+  canApproveInvoices: boolean;
+  canSendInvoices: boolean;
+  canViewAllRecords: boolean;
+  canModifyPrices: boolean;
+  canUploadPO: boolean;
+  canManageUsers: boolean;
+  canViewReports: boolean;
+  canExportData: boolean;
+}
 
 export interface User {
   email: string;
@@ -8,6 +20,7 @@ export interface User {
   resellerName?: string;
   region?: string;
   allowedResellerIds?: string[];
+  permissions?: UserPermissions;
 }
 
 export interface ChatMessage {
