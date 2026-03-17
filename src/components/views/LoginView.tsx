@@ -8,6 +8,7 @@ import { useAppStore } from '@/lib/store';
 export default function LoginView() {
   const { setUser } = useAppStore();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +23,7 @@ export default function LoginView() {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
       const data = await res.json();
@@ -119,6 +120,19 @@ export default function LoginView() {
               />
             </div>
 
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="w-full bg-surface border-2 border-border-subtle px-4 py-3 text-sm text-text-primary placeholder-text-muted outline-none focus:border-csa-accent transition-colors rounded-xl"
+              />
+            </div>
+
             {error && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
@@ -132,7 +146,7 @@ export default function LoginView() {
 
             <button
               type="submit"
-              disabled={loading || !email.trim()}
+              disabled={loading || !email.trim() || !password}
               className="w-full flex items-center justify-center gap-2 bg-csa-accent text-white px-6 py-3 text-sm font-bold uppercase tracking-wider hover:bg-csa-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed rounded-xl"
             >
               {loading ? (
