@@ -20,6 +20,9 @@ type ViewId = 'dashboard' | 'accounts' | 'invoice' | 'draft-invoices' | 'reports
 
 export default function Sidebar() {
   const { currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
+  const [dashboardMenuOpen, setDashboardMenuOpen] = useState(
+    currentView === 'dashboard' || currentView === 'accounts' || currentView === 'account-detail'
+  );
   const [invoiceMenuOpen, setInvoiceMenuOpen] = useState(
     currentView === 'invoice' || currentView === 'draft-invoices'
   );
@@ -29,6 +32,7 @@ export default function Sidebar() {
     setCurrentView(id);
   };
 
+  const isDashboardActive = currentView === 'dashboard' || currentView === 'accounts' || currentView === 'account-detail';
   const isInvoiceActive = currentView === 'invoice' || currentView === 'draft-invoices';
 
   return (
@@ -58,11 +62,60 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-        {/* Dashboard */}
-        <NavItem id="dashboard" label="Dashboard" icon={LayoutDashboard} active={currentView === 'dashboard'} onClick={() => handleNavClick('dashboard')} open={sidebarOpen} />
+        {/* Dashboard (with submenu: Overview + Accounts) */}
+        <div>
+          <button
+            onClick={() => {
+              if (!sidebarOpen) {
+                handleNavClick('dashboard');
+              } else {
+                setDashboardMenuOpen(!dashboardMenuOpen);
+                if (!isDashboardActive) handleNavClick('dashboard');
+              }
+            }}
+            className={`
+              w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
+              transition-all duration-150 relative group rounded-xl cursor-pointer
+              ${isDashboardActive
+                ? 'bg-csa-accent/15 text-csa-accent'
+                : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
+              }
+            `}
+          >
+            {isDashboardActive && (
+              <motion.div layoutId="nav-indicator-dash" className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent rounded-r" transition={{ duration: 0.2 }} />
+            )}
+            <LayoutDashboard size={20} className="flex-shrink-0" />
+            <AnimatePresence>
+              {sidebarOpen && (
+                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">
+                  Dashboard
+                </motion.span>
+              )}
+            </AnimatePresence>
+            {sidebarOpen && (
+              <ChevronDown size={14} className={`text-text-muted transition-transform ${dashboardMenuOpen ? 'rotate-180' : ''}`} />
+            )}
+          </button>
 
-        {/* Accounts */}
-        <NavItem id="accounts" label="Accounts" icon={Building2} active={currentView === 'accounts' || currentView === 'account-detail'} onClick={() => handleNavClick('accounts')} open={sidebarOpen} />
+          {/* Dashboard Submenu */}
+          <AnimatePresence>
+            {sidebarOpen && dashboardMenuOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="overflow-hidden"
+              >
+                <div className="ml-8 mt-1 space-y-0.5">
+                  <SubNavItem label="Overview" active={currentView === 'dashboard'} onClick={() => handleNavClick('dashboard')} />
+                  <SubNavItem label="Accounts" active={currentView === 'accounts' || currentView === 'account-detail'} onClick={() => handleNavClick('accounts')} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Invoices (with submenu) */}
         <div>
@@ -85,7 +138,7 @@ export default function Sidebar() {
             `}
           >
             {isInvoiceActive && (
-              <motion.div layoutId="nav-indicator" className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent rounded-r" transition={{ duration: 0.2 }} />
+              <motion.div layoutId="nav-indicator-inv" className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent rounded-r" transition={{ duration: 0.2 }} />
             )}
             <FilePlus size={20} className="flex-shrink-0" />
             <AnimatePresence>
@@ -112,7 +165,7 @@ export default function Sidebar() {
               >
                 <div className="ml-8 mt-1 space-y-0.5">
                   <SubNavItem label="New Invoice" active={currentView === 'invoice'} onClick={() => handleNavClick('invoice')} />
-                  <SubNavItem label="Draft Invoices" active={currentView === 'draft-invoices'} onClick={() => handleNavClick('draft-invoices')} />
+                  <SubNavItem label="Existing Invoices" active={currentView === 'draft-invoices'} onClick={() => handleNavClick('draft-invoices')} />
                 </div>
               </motion.div>
             )}

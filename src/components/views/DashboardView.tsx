@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   FilePlus,
@@ -10,8 +11,19 @@ import {
   Clock,
   TrendingUp,
   ArrowRight,
+  Loader2,
+  MapPin,
+  ExternalLink,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+
+interface RecentAccount {
+  id: string;
+  Account_Name: string;
+  Billing_Country: string | null;
+  Email_Domain: string | null;
+  Reseller?: { name: string; id: string };
+}
 
 const quickActions = [
   {
@@ -40,8 +52,8 @@ const quickActions = [
   },
   {
     id: 'drafts',
-    label: 'Draft Invoices',
-    description: 'View and manage drafts',
+    label: 'Existing Invoices',
+    description: 'View and manage invoices',
     icon: FileText,
     color: 'bg-amber-600',
     view: 'draft-invoices' as const,
@@ -62,11 +74,28 @@ const item = {
 };
 
 export default function DashboardView() {
-  const { user, setCurrentView, clearMessages, addMessage } = useAppStore();
+  const { user, setCurrentView, clearMessages, setSelectedAccountId } = useAppStore();
+  const [recentAccounts, setRecentAccounts] = useState<RecentAccount[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+
+  // Load recent accounts on mount
+  useEffect(() => {
+    setLoadingAccounts(true);
+    fetch('/api/accounts?')
+      .then(res => res.json())
+      .then(data => setRecentAccounts((data.accounts || []).slice(0, 8)))
+      .catch(() => setRecentAccounts([]))
+      .finally(() => setLoadingAccounts(false));
+  }, []);
 
   const handleAction = (action: (typeof quickActions)[number]) => {
     clearMessages();
     setCurrentView(action.view);
+  };
+
+  const openAccount = (id: string) => {
+    setSelectedAccountId(id);
+    setCurrentView('account-detail');
   };
 
   const timeOfDay = () => {
@@ -130,11 +159,89 @@ export default function DashboardView() {
           ))}
         </motion.div>
 
+        {/* Recent Accounts */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.4 }}
+          className="mb-10"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+              <Building2 size={18} className="text-csa-accent" />
+              Recent Accounts
+            </h2>
+            <button
+              onClick={() => { clearMessages(); setCurrentView('accounts'); }}
+              className="text-xs font-semibold text-csa-accent hover:text-csa-highlight transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              View All <ArrowRight size={12} />
+            </button>
+          </div>
+
+          {loadingAccounts ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 size={20} className="text-csa-accent animate-spin" />
+            </div>
+          ) : recentAccounts.length > 0 ? (
+            <div className="border border-border-subtle rounded-xl overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-surface-raised">
+                    <th>Account</th>
+                    <th>Country</th>
+                    <th>Reseller</th>
+                    <th className="w-10"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentAccounts.map((acc, i) => (
+                    <motion.tr
+                      key={acc.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.4 + i * 0.03 }}
+                      onClick={() => openAccount(acc.id)}
+                      className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
+                    >
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <Building2 size={14} className="text-csa-accent flex-shrink-0" />
+                          <span className="font-semibold text-text-primary">{acc.Account_Name}</span>
+                        </div>
+                        {acc.Email_Domain && (
+                          <span className="text-xs text-text-muted ml-6">{acc.Email_Domain}</span>
+                        )}
+                      </td>
+                      <td className="text-text-secondary">
+                        {acc.Billing_Country && (
+                          <span className="flex items-center gap-1">
+                            <MapPin size={12} className="text-text-muted" />
+                            {acc.Billing_Country}
+                          </span>
+                        )}
+                      </td>
+                      <td className="text-text-secondary text-sm">
+                        {acc.Reseller?.name || '\u2014'}
+                      </td>
+                      <td>
+                        <ExternalLink size={14} className="text-text-muted" />
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-sm text-text-muted">No accounts found</div>
+          )}
+        </motion.div>
+
         {/* Stats row */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.4 }}
+          transition={{ delay: 0.5, duration: 0.4 }}
           className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10"
         >
           <div className="bg-csa-dark border-2 border-border-subtle p-5 rounded-2xl">

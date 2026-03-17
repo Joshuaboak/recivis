@@ -12,8 +12,8 @@ export async function GET(
   const { id } = await params;
 
   try {
-    // Fetch account, contacts, and assets in parallel
-    const [accountResult, contactsResult, assetsResult] = await Promise.all([
+    // Fetch account, contacts, assets, and invoices in parallel
+    const [accountResult, contactsResult, assetsResult, invoicesResult] = await Promise.all([
       executeZohoTool('get_record', { module: 'Accounts', record_id: id }),
       executeZohoTool('get_related_records', {
         parent_module: 'Accounts',
@@ -26,6 +26,12 @@ export async function GET(
         parent_id: id,
         related_list: 'Assets',
         fields: 'Name,Product,Status,Start_Date,Renewal_Date,Quantity,Serial_Key,Reseller,Upgraded_To_Key,Renewal_Invoice_Generated,Not_Renewing_Asset,Record_Status__s',
+      }),
+      executeZohoTool('get_related_records', {
+        parent_module: 'Accounts',
+        parent_id: id,
+        related_list: 'Invoices',
+        fields: 'Subject,Invoice_Date,Status,Grand_Total,Currency,Invoice_Type,Record_Status__s',
       }),
     ]);
 
@@ -62,7 +68,11 @@ export async function GET(
       (a: Record<string, unknown>) => a.Status !== 'Active'
     );
 
-    return NextResponse.json({ account, contacts, activeAssets, archivedAssets });
+    const invoices = parseResult(invoicesResult).filter(
+      (inv: Record<string, unknown>) => inv.Record_Status__s !== 'Trash'
+    );
+
+    return NextResponse.json({ account, contacts, activeAssets, archivedAssets, invoices });
   } catch (error) {
     log('error', 'api', `Account detail failed for ${id}`, {
       error: error instanceof Error ? error.message : String(error),

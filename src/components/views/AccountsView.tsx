@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Building2, Loader2, MapPin, ExternalLink, ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
@@ -31,7 +31,8 @@ export default function AccountsView() {
   const [selectedRegion, setSelectedRegion] = useState<string>('');
 
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
-  const canFilterReseller = isAdmin || user?.permissions?.canViewChildRecords;
+  const hasChildResellers = user?.permissions?.canViewChildRecords;
+  const canFilterReseller = isAdmin || hasChildResellers;
 
   // Debounce search
   useEffect(() => {
@@ -41,6 +42,7 @@ export default function AccountsView() {
 
   // Load resellers for filter
   useEffect(() => {
+    if (!canFilterReseller) return;
     async function load() {
       let url = '/api/resellers';
       if (!isAdmin && user?.resellerId) {
@@ -53,7 +55,39 @@ export default function AccountsView() {
       } catch { /* skip */ }
     }
     load();
-  }, [isAdmin, user?.resellerId]);
+  }, [isAdmin, user?.resellerId, canFilterReseller]);
+
+  // Available regions (admin/ibm only)
+  const regions = useMemo(
+    () => [...new Set(resellers.map(r => r.region).filter(Boolean))].sort(),
+    [resellers]
+  );
+
+  // Filter resellers by selected region for admin/ibm
+  const filteredResellers = useMemo(() => {
+    if (selectedRegion && isAdmin) {
+      return resellers.filter(r => r.region === selectedRegion);
+    }
+    return resellers;
+  }, [resellers, selectedRegion, isAdmin]);
+
+  // Reset reseller selection when region changes and selected reseller no longer visible
+  useEffect(() => {
+    if (selectedReseller && filteredResellers.length > 0) {
+      const stillVisible = filteredResellers.some(r => r.id === selectedReseller);
+      if (!stillVisible) setSelectedReseller('');
+    }
+  }, [filteredResellers, selectedReseller]);
+
+  // Identify the user's own reseller vs children for distributor view
+  const ownReseller = useMemo(
+    () => resellers.find(r => r.id === user?.resellerId),
+    [resellers, user?.resellerId]
+  );
+  const childResellers = useMemo(
+    () => resellers.filter(r => r.id !== user?.resellerId),
+    [resellers, user?.resellerId]
+  );
 
   // Fetch accounts
   const fetchAccounts = useCallback(async () => {
@@ -65,20 +99,12 @@ export default function AccountsView() {
 
       const res = await fetch(`/api/accounts?${params}`);
       const data = await res.json();
-      let filtered = data.accounts || [];
-
-      // Client-side region filter
-      if (selectedRegion && isAdmin) {
-        // Region is on the reseller, not directly on account
-        // For now, we'll filter post-fetch if reseller data is available
-      }
-
-      setAccounts(filtered);
+      setAccounts(data.accounts || []);
     } catch {
       setAccounts([]);
     }
     setLoading(false);
-  }, [searchDebounced, selectedReseller, selectedRegion, isAdmin]);
+  }, [searchDebounced, selectedReseller]);
 
   useEffect(() => {
     fetchAccounts();
@@ -88,8 +114,6 @@ export default function AccountsView() {
     setSelectedAccountId(id);
     setCurrentView('account-detail');
   };
-
-  const regions = [...new Set(resellers.map(r => r.region).filter(Boolean))].sort();
 
   return (
     <div className="h-full overflow-y-auto">
@@ -106,29 +130,12 @@ export default function AccountsView() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search accounts..."
+                placeholder="Search accounts by name, email, or domain..."
                 className="w-full bg-surface border-2 border-border-subtle pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
               />
             </div>
 
-            {/* Reseller filter */}
-            {canFilterReseller && resellers.length > 1 && (
-              <div className="relative min-w-[200px]">
-                <select
-                  value={selectedReseller}
-                  onChange={(e) => setSelectedReseller(e.target.value)}
-                  className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10"
-                >
-                  <option value="">All Resellers</option>
-                  {resellers.map(r => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-              </div>
-            )}
-
-            {/* Region filter (admin/ibm only) */}
+            {/* Region filter (admin/ibm only) — placed before reseller so it filters the reseller list */}
             {isAdmin && regions.length > 1 && (
               <div className="relative min-w-[140px]">
                 <select
@@ -140,6 +147,38 @@ export default function AccountsView() {
                   {regions.map(r => (
                     <option key={r} value={r}>{r}</option>
                   ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+              </div>
+            )}
+
+            {/* Reseller filter */}
+            {canFilterReseller && filteredResellers.length > 1 && (
+              <div className="relative min-w-[220px]">
+                <select
+                  value={selectedReseller}
+                  onChange={(e) => setSelectedReseller(e.target.value)}
+                  className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10"
+                >
+                  {isAdmin ? (
+                    <>
+                      <option value="">All Resellers</option>
+                      {filteredResellers.map(r => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </>
+                  ) : (
+                    /* Distributor/reseller with children: structured options */
+                    <>
+                      <option value="">All (My Network)</option>
+                      {ownReseller && (
+                        <option value={ownReseller.id}>{ownReseller.name} (Mine)</option>
+                      )}
+                      {childResellers.length > 0 && childResellers.map(r => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </>
+                  )}
                 </select>
                 <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
               </div>
@@ -195,10 +234,10 @@ export default function AccountsView() {
                       )}
                     </td>
                     <td className="text-text-secondary text-sm">
-                      {acc.Reseller?.name || '—'}
+                      {acc.Reseller?.name || '\u2014'}
                     </td>
                     <td className="text-text-muted text-sm">
-                      {acc.Owner?.name || '—'}
+                      {acc.Owner?.name || '\u2014'}
                     </td>
                     <td>
                       <ExternalLink size={14} className="text-text-muted" />
@@ -215,7 +254,7 @@ export default function AccountsView() {
           <div className="text-center py-16">
             <Building2 size={32} className="text-text-muted mx-auto mb-3" />
             <p className="text-sm text-text-muted">
-              {search ? `No accounts matching "${search}"` : 'Search for an account to get started'}
+              {search ? `No accounts matching "${search}"` : 'No accounts found'}
             </p>
           </div>
         )}

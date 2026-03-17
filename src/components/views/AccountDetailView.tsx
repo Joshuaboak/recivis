@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 
 export default function AccountDetailView() {
@@ -11,6 +11,7 @@ export default function AccountDetailView() {
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
   const [activeAssets, setActiveAssets] = useState<Record<string, unknown>[]>([]);
   const [archivedAssets, setArchivedAssets] = useState<Record<string, unknown>[]>([]);
+  const [invoices, setInvoices] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export default function AccountDetailView() {
         setContacts(data.contacts || []);
         setActiveAssets(data.activeAssets || []);
         setArchivedAssets(data.archivedAssets || []);
+        setInvoices(data.invoices || []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -117,8 +119,64 @@ export default function AccountDetailView() {
           )}
         </motion.div>
 
+        {/* Invoices */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
+          <h2 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
+            <FileText size={18} className="text-csa-purple" />
+            Invoices ({invoices.length})
+          </h2>
+          {invoices.length > 0 ? (
+            <div className="border border-border-subtle rounded-xl overflow-hidden">
+              <table className="w-full">
+                <thead><tr className="bg-surface-raised">
+                  <th>Subject</th><th>Date</th><th>Type</th><th>Status</th><th>Total</th><th className="w-10"></th>
+                </tr></thead>
+                <tbody>
+                  {invoices.map((inv, i) => {
+                    const invCrmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Invoices/${inv.id as string}`;
+                    const currency = inv.Currency as string;
+                    const symbol = currency === 'AUD' ? '$' : currency === 'EUR' ? '\u20AC' : currency === 'GBP' ? '\u00A3' : '$';
+                    return (
+                      <tr key={i}>
+                        <td className="font-semibold text-text-primary">{inv.Subject as string || `Invoice ${inv.id as string}`}</td>
+                        <td className="text-text-secondary">{formatDate(inv.Invoice_Date)}</td>
+                        <td>
+                          <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${
+                            inv.Invoice_Type === 'Renewal'
+                              ? 'bg-csa-purple/20 text-csa-purple'
+                              : 'bg-csa-accent/20 text-csa-accent'
+                          }`}>
+                            {inv.Invoice_Type as string || 'New'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${
+                            inv.Status === 'Sent' ? 'bg-success/20 text-success'
+                              : inv.Status === 'Approved' ? 'bg-csa-accent/20 text-csa-accent'
+                              : 'bg-warning/20 text-warning'
+                          }`}>
+                            {inv.Status as string}
+                          </span>
+                        </td>
+                        <td className="text-text-primary font-semibold">{symbol}{(inv.Grand_Total as number)?.toFixed(2)}</td>
+                        <td>
+                          <a href={invCrmLink} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink size={14} className="text-text-muted hover:text-csa-accent transition-colors" />
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-text-muted py-4">No invoices found</p>
+          )}
+        </motion.div>
+
         {/* Active Assets */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-8">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="mb-8">
           <h2 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
             <Package size={18} className="text-success" />
             Active Assets ({activeAssets.length})
@@ -152,7 +210,7 @@ export default function AccountDetailView() {
 
         {/* Archived Assets */}
         {archivedAssets.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
             <h2 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
               <Package size={18} className="text-text-muted" />
               Archived Assets ({archivedAssets.length})

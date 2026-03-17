@@ -52,7 +52,7 @@ export default function DraftInvoicesView() {
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-text-primary">Draft Invoices</h1>
+          <h1 className="text-2xl font-bold text-text-primary">Existing Invoices</h1>
           <div className="relative min-w-[160px]">
             <select
               value={statusFilter}

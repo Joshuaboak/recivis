@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeZohoTool } from '@/lib/zoho';
+import { callMcpTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 
 /**
  * GET /api/accounts?search=term&resellerId=id&page=1
- * Search accounts from Zoho CRM via MCP
+ * Fetches accounts — shows a list on load, filters on search.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -16,36 +16,29 @@ export async function GET(request: NextRequest) {
     const fields = 'Account_Name,Billing_Country,Reseller,Email_Domain,Owner,Record_Status__s';
     let result;
 
-    if (search) {
-      if (resellerId) {
-        result = await executeZohoTool('search_records', {
-          module: 'Accounts',
+    if (search && resellerId) {
+      result = await callMcpTool('ZohoCRM_Search_Records', {
+        path_variables: { module: 'Accounts' },
+        query_params: {
           criteria: `((Account_Name:starts_with:${search})and(Reseller:equals:${resellerId}))`,
-          fields,
-          page,
-        });
-      } else {
-        result = await executeZohoTool('search_records', {
-          module: 'Accounts',
-          word: search,
-          fields,
-          page,
-        });
-      }
+          fields, page,
+        },
+      });
+    } else if (search) {
+      result = await callMcpTool('ZohoCRM_Search_Records', {
+        path_variables: { module: 'Accounts' },
+        query_params: { word: search, fields, page },
+      });
     } else if (resellerId) {
-      result = await executeZohoTool('search_records', {
-        module: 'Accounts',
-        criteria: `(Reseller:equals:${resellerId})`,
-        fields,
-        page,
+      result = await callMcpTool('ZohoCRM_Search_Records', {
+        path_variables: { module: 'Accounts' },
+        query_params: { criteria: `(Reseller:equals:${resellerId})`, fields, page },
       });
     } else {
-      // No filter — get recent accounts
-      result = await executeZohoTool('search_records', {
-        module: 'Accounts',
-        word: 'a',
-        fields,
-        page,
+      // No filter — get recent accounts using Get_Records (browse mode)
+      result = await callMcpTool('ZohoCRM_Get_Records', {
+        path_variables: { module: 'Accounts' },
+        query_params: { fields, per_page: 50, page, sort_by: 'Modified_Time', sort_order: 'desc' },
       });
     }
 
@@ -69,9 +62,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ accounts });
   } catch (error) {
-    log('error', 'api', 'Accounts search failed', {
+    log('error', 'api', 'Accounts fetch failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json({ error: 'Failed to search accounts' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load accounts' }, { status: 500 });
   }
 }

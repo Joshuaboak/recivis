@@ -16,7 +16,7 @@ const VIEW_TITLES: Record<string, string> = {
   accounts: 'Accounts',
   'account-detail': 'Account',
   invoice: 'Invoice Assistant',
-  'draft-invoices': 'Draft Invoices',
+  'draft-invoices': 'Existing Invoices',
   reports: 'Reports',
 };
 
