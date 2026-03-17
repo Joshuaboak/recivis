@@ -65,16 +65,12 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
               <div className="px-4 py-3 border-b border-border-subtle">
                 <p className="text-sm font-semibold text-text-primary truncate">{user.name}</p>
                 <p className="text-xs text-text-muted truncate">{user.email}</p>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-csa-accent/20 text-csa-accent rounded-md">
-                    {user.userRoleDisplayName || user.role}
-                  </span>
-                  {user.resellerName && (
-                    <span className="text-[10px] text-text-muted truncate">
-                      {user.resellerName}
-                    </span>
-                  )}
-                </div>
+                <span className="inline-block mt-1.5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-csa-accent/20 text-csa-accent rounded-md">
+                  {user.userRoleDisplayName || user.role}
+                </span>
+                {user.resellerName && (
+                  <p className="text-[11px] text-text-muted mt-1">{user.resellerName}</p>
+                )}
               </div>
             )}
 
