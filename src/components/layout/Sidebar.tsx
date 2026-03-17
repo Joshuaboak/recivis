@@ -5,12 +5,12 @@ import {
   LayoutDashboard,
   FilePlus,
   BarChart3,
-  LogOut,
   ChevronLeft,
   ChevronRight,
   Check,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import UserMenu from './UserMenu';
 
 const navItems = [
   { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
@@ -122,29 +122,9 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* User section */}
-      <div className="px-3 pb-4 space-y-2">
-        {user && sidebarOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="px-3 py-2 border-t-2 border-border-subtle pt-4"
-          >
-            <p className="text-xs font-semibold text-text-secondary truncate">{user.name}</p>
-            <p className="text-xs text-text-muted truncate">{user.email}</p>
-            <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-csa-accent/20 text-csa-accent">
-              {user.role}
-            </span>
-          </motion.div>
-        )}
-
-        <button
-          onClick={() => setUser(null)}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-muted hover:text-error transition-colors"
-        >
-          <LogOut size={18} className="flex-shrink-0" />
-          {sidebarOpen && <span>Sign Out</span>}
-        </button>
+      {/* User menu */}
+      <div className="px-3 pb-4 border-t-2 border-border-subtle pt-3">
+        <UserMenu collapsed={!sidebarOpen} />
       </div>
 
       {/* Collapse toggle */}
