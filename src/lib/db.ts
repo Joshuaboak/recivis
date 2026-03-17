@@ -43,9 +43,19 @@ export async function initDB() {
         created_at TIMESTAMP DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) NOT NULL,
+        token VARCHAR(255) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
       CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
+      CREATE INDEX IF NOT EXISTS idx_reset_tokens_token ON password_reset_tokens(token);
     `);
   } finally {
     client.release();

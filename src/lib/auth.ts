@@ -1,5 +1,7 @@
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import nodemailer from 'nodemailer';
 import { query, initDB } from './db';
 import type { User, UserRole } from './types';
 
@@ -176,4 +178,122 @@ export async function seedAdminUsers() {
 
     console.log('Admin users seeded successfully');
   }
+}
+
+/**
+ * Create a password reset token and send email.
+ * Token expires in 1 hour.
+ */
+export async function requestPasswordReset(email: string): Promise<boolean> {
+  await ensureDB();
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const result = await query('SELECT id, name FROM users WHERE email = $1 AND is_active = true', [normalizedEmail]);
+
+  if (result.rows.length === 0) {
+    // Don't reveal whether email exists — return true anyway
+    return true;
+  }
+
+  const user = result.rows[0];
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  // Invalidate any existing tokens for this user
+  await query('UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false', [user.id]);
+
+  // Create new token
+  await query(
+    'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+    [user.id, token, expiresAt]
+  );
+
+  // Send reset email
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://recivis-production.up.railway.app';
+  const resetUrl = `${appUrl}?reset=${token}`;
+
+  await sendResetEmail(normalizedEmail, user.name, resetUrl);
+  await auditLog(user.id, normalizedEmail, 'password_reset_requested');
+
+  return true;
+}
+
+/**
+ * Verify a reset token and set new password.
+ */
+export async function resetPassword(token: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  await ensureDB();
+
+  const result = await query(
+    `SELECT t.id AS token_id, t.user_id, t.expires_at, u.email, u.name
+     FROM password_reset_tokens t
+     JOIN users u ON u.id = t.user_id
+     WHERE t.token = $1 AND t.used = false AND u.is_active = true`,
+    [token]
+  );
+
+  if (result.rows.length === 0) {
+    return { success: false, error: 'Invalid or expired reset link.' };
+  }
+
+  const row = result.rows[0];
+
+  if (new Date(row.expires_at) < new Date()) {
+    await query('UPDATE password_reset_tokens SET used = true WHERE id = $1', [row.token_id]);
+    return { success: false, error: 'This reset link has expired. Please request a new one.' };
+  }
+
+  // Set new password
+  const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, row.user_id]);
+
+  // Mark token as used
+  await query('UPDATE password_reset_tokens SET used = true WHERE id = $1', [row.token_id]);
+
+  await auditLog(row.user_id, row.email, 'password_reset_completed');
+
+  return { success: true };
+}
+
+/**
+ * Send password reset email via SMTP.
+ */
+async function sendResetEmail(email: string, name: string, resetUrl: string) {
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+
+  if (!smtpHost || !smtpUser || !smtpPass) {
+    // If SMTP not configured, log the reset URL for manual use
+    console.log(`Password reset for ${email}: ${resetUrl}`);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'ReCivis <noreply@civilsurveyapplications.com.au>',
+    to: email,
+    subject: 'ReCivis — Password Reset',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
+        <h2 style="color: #0A4C6E;">Reset Your Password</h2>
+        <p>Hi ${name},</p>
+        <p>Click the button below to reset your ReCivis password. This link expires in 1 hour.</p>
+        <p style="text-align: center; margin: 24px 0;">
+          <a href="${resetUrl}" style="background: #0077B7; color: white; padding: 12px 32px; text-decoration: none; font-weight: bold; display: inline-block;">
+            Reset Password
+          </a>
+        </p>
+        <p style="color: #666; font-size: 13px;">If you didn't request this, you can safely ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+        <p style="color: #999; font-size: 11px;">Civil Survey Applications Pty Ltd</p>
+      </div>
+    `,
+  });
 }
