@@ -22,9 +22,9 @@ interface RoleOption {
 }
 
 const ALL_ROLES: RoleOption[] = [
+  { value: 'viewer', label: 'Viewer', description: 'Read-only access to reports' },
   { value: 'standard', label: 'Standard User', description: 'Create invoices, upload POs' },
   { value: 'manager', label: 'Reseller Manager', description: 'Manage users, create/send invoices' },
-  { value: 'viewer', label: 'Viewer', description: 'Read-only access to reports' },
   { value: 'ibm', label: 'Int. Business Manager', description: 'Full invoicing access' },
   { value: 'admin', label: 'System Administrator', description: 'Full access to everything' },
 ];
