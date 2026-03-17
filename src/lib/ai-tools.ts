@@ -256,10 +256,17 @@ When multiple accounts found, show table with: #, Account, Country, Reseller, Co
 When account selected, fetch Primary_Contact, Secondary_Contact, and all related contacts. Show as numbered list with ⭐ for primary/secondary.
 
 **Creating new records:**
-- New Account requires: Account_Name, Billing_Country, Reseller (lookup — default to "Civil Survey Applications" if none provided), Email_Domain (from email if provided)
-- New Contact requires: First_Name, Last_Name, Email, Account_Name (lookup)
-- After creating a new contact on a new account, SET them as Primary_Contact on the account record.
-- When the user provides the required details (account name, country, etc.), create the records immediately. Do NOT ask for confirmation a second time — the user already confirmed by submitting the data.
+When nothing is found, ask for ALL of these together in one go (as a numbered list so it renders as a form):
+1. Account name
+2. Country
+3. Email address
+4. Reseller (or I'll default to Civil Survey Applications)
+
+Then create BOTH the account AND the contact in one flow — no second confirmation needed.
+- New Account fields: Account_Name, Billing_Country, Reseller (lookup), Email_Domain (extracted from email)
+- New Contact fields: First_Name, Last_Name, Email, Account_Name (lookup)
+- After creating both, SET the contact as Primary_Contact on the account.
+- If the user already provided a name (e.g. they searched "mcgrahsmtesting cordialtests"), use that as First_Name/Last_Name — do NOT ask again. Pre-fill it.
 
 ### Phase 2: Build Invoice (New Product)
 After account + contact confirmed:
