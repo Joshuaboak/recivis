@@ -14,8 +14,8 @@ interface AppState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 
-  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'invoice' | 'draft-invoices' | 'reports';
-  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'invoice' | 'draft-invoices' | 'reports') => void;
+  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'invoice' | 'invoice-detail' | 'draft-invoices' | 'reports';
+  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'invoice' | 'invoice-detail' | 'draft-invoices' | 'reports') => void;
 
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
@@ -25,6 +25,12 @@ interface AppState {
 
   selectedAccountId: string | null;
   setSelectedAccountId: (id: string | null) => void;
+
+  selectedInvoiceId: string | null;
+  setSelectedInvoiceId: (id: string | null) => void;
+
+  invoiceReturnView: 'draft-invoices' | 'account-detail' | null;
+  setInvoiceReturnView: (view: 'draft-invoices' | 'account-detail' | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -58,6 +64,12 @@ export const useAppStore = create<AppState>()(
 
       selectedAccountId: null,
       setSelectedAccountId: (id) => set({ selectedAccountId: id }),
+
+      selectedInvoiceId: null,
+      setSelectedInvoiceId: (id) => set({ selectedInvoiceId: id }),
+
+      invoiceReturnView: null,
+      setInvoiceReturnView: (view) => set({ invoiceReturnView: view }),
     }),
     {
       name: 'recivis-storage',

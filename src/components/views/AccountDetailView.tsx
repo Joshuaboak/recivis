@@ -6,7 +6,7 @@ import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone
 import { useAppStore } from '@/lib/store';
 
 export default function AccountDetailView() {
-  const { selectedAccountId, setCurrentView } = useAppStore();
+  const { selectedAccountId, setCurrentView, setSelectedInvoiceId, setInvoiceReturnView } = useAppStore();
   const [account, setAccount] = useState<Record<string, unknown> | null>(null);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
   const [activeAssets, setActiveAssets] = useState<Record<string, unknown>[]>([]);
@@ -133,12 +133,19 @@ export default function AccountDetailView() {
                 </tr></thead>
                 <tbody>
                   {invoices.map((inv, i) => {
-                    const invCrmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Invoices/${inv.id as string}`;
                     const currency = inv.Currency as string;
                     const symbol = currency === 'AUD' ? '$' : currency === 'EUR' ? '\u20AC' : currency === 'GBP' ? '\u00A3' : '$';
                     return (
-                      <tr key={i}>
-                        <td className="font-semibold text-text-primary">{inv.Subject as string || `Invoice ${inv.id as string}`}</td>
+                      <tr
+                        key={i}
+                        onClick={() => {
+                          setSelectedInvoiceId(inv.id as string);
+                          setInvoiceReturnView('account-detail');
+                          setCurrentView('invoice-detail');
+                        }}
+                        className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
+                      >
+                        <td className="font-semibold text-csa-accent">{inv.Subject as string || `Invoice ${inv.id as string}`}</td>
                         <td className="text-text-secondary">{formatDate(inv.Invoice_Date)}</td>
                         <td>
                           <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${
@@ -160,9 +167,7 @@ export default function AccountDetailView() {
                         </td>
                         <td className="text-text-primary font-semibold">{symbol}{(inv.Grand_Total as number)?.toFixed(2)}</td>
                         <td>
-                          <a href={invCrmLink} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink size={14} className="text-text-muted hover:text-csa-accent transition-colors" />
-                          </a>
+                          <ExternalLink size={14} className="text-text-muted" />
                         </td>
                       </tr>
                     );

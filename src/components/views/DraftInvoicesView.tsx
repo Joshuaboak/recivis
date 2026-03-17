@@ -18,7 +18,7 @@ interface Invoice {
 }
 
 export default function DraftInvoicesView() {
-  const { user } = useAppStore();
+  const { user, setCurrentView, setSelectedInvoiceId, setInvoiceReturnView } = useAppStore();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('Draft');
@@ -94,13 +94,19 @@ export default function DraftInvoicesView() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: i * 0.02 }}
+                    onClick={() => {
+                      setSelectedInvoiceId(inv.id);
+                      setInvoiceReturnView('draft-invoices');
+                      setCurrentView('invoice-detail');
+                    }}
+                    className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                   >
                     <td>
-                      <a href={crmLink(inv.id)} target="_blank" rel="noopener noreferrer" className="font-semibold text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer">
+                      <span className="font-semibold text-csa-accent hover:text-csa-highlight transition-colors">
                         {inv.Subject || `Invoice ${inv.id}`}
-                      </a>
+                      </span>
                     </td>
-                    <td className="text-text-secondary">{inv.Account_Name?.name || '—'}</td>
+                    <td className="text-text-secondary">{inv.Account_Name?.name || '\u2014'}</td>
                     <td className="text-text-secondary">{formatDate(inv.Invoice_Date)}</td>
                     <td>
                       <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${
@@ -112,14 +118,12 @@ export default function DraftInvoicesView() {
                       </span>
                     </td>
                     <td className="text-text-primary font-semibold">
-                      {inv.Currency === 'AUD' ? '$' : inv.Currency === 'EUR' ? '€' : inv.Currency === 'GBP' ? '£' : '$'}
+                      {inv.Currency === 'AUD' ? '$' : inv.Currency === 'EUR' ? '\u20AC' : inv.Currency === 'GBP' ? '\u00A3' : '$'}
                       {inv.Grand_Total?.toFixed(2)}
                     </td>
-                    <td className="text-text-muted text-sm">{inv.Reseller?.name || '—'}</td>
+                    <td className="text-text-muted text-sm">{inv.Reseller?.name || '\u2014'}</td>
                     <td>
-                      <a href={crmLink(inv.id)} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink size={14} className="text-text-muted hover:text-csa-accent transition-colors" />
-                      </a>
+                      <ExternalLink size={14} className="text-text-muted" />
                     </td>
                   </motion.tr>
                 ))}
