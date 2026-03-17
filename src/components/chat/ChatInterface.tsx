@@ -20,7 +20,7 @@ interface ChatInterfaceProps {
 }
 
 export default function ChatInterface({ initialMessage, placeholder, quickActions }: ChatInterfaceProps) {
-  const { messages, addMessage, updateMessage, clearMessages, user, isLoading, setIsLoading } = useAppStore();
+  const { messages, addMessage, updateMessage, clearMessages, user, isLoading, setIsLoading, pendingPOFile, setPendingPOFile } = useAppStore();
   const [input, setInput] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -92,6 +92,48 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
     }
   }, [isLoading, messages, user, addMessage, updateMessage, setIsLoading]);
 
+  /** Auto-attach the pending PO file when an invoice is created */
+  const autoAttachPendingFile = useCallback(async (responseContent: string) => {
+    const file = useAppStore.getState().pendingPOFile;
+    if (!file) return;
+
+    // Check if response contains a newly created invoice link
+    const invoiceMatch = responseContent.match(/\/Invoices\/(\d+)/);
+    if (!invoiceMatch) return;
+
+    const invoiceId = invoiceMatch[1];
+    const lower = responseContent.toLowerCase();
+    if (!(lower.includes('invoice created') || lower.includes('created') || lower.includes('success'))) return;
+
+    try {
+      const res = await fetch('/api/attach-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recordID: invoiceId,
+          fileName: file.fileName,
+          base64: file.base64,
+          moduleName: 'Invoices',
+        }),
+      });
+
+      if (res.ok) {
+        // Add a system-like message confirming attachment
+        addMessage({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `PO document **${file.fileName}** automatically attached to the invoice.`,
+          timestamp: new Date(),
+        });
+      }
+    } catch {
+      // Non-critical — user can still attach manually
+    }
+
+    // Clear the pending file regardless
+    useAppStore.getState().setPendingPOFile(null);
+  }, [addMessage]);
+
   /** Stream SSE from the chat API, updating status and final content */
   const fetchSSE = useCallback(async (url: string, body: unknown, assistantId: string) => {
     const res = await fetch(url, {
@@ -129,6 +171,8 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
               isStreaming: false,
             });
             setStatusMessage('');
+            // Auto-attach pending PO file if invoice was just created
+            autoAttachPendingFile(event.content);
           } else if (event.type === 'error') {
             updateMessage(assistantId, {
               content: `Error: ${event.error}`,
