@@ -3,8 +3,10 @@
 import { useState, useRef, useCallback } from 'react';
 import { Upload, FileText, X, FilePlus, RefreshCw } from 'lucide-react';
 import ChatInterface from '../chat/ChatInterface';
+import { useAppStore } from '@/lib/store';
 
 export default function InvoiceView() {
+  const { setPendingPOFile } = useAppStore();
   const [dragOver, setDragOver] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +51,9 @@ export default function InvoiceView() {
       const base64 = (reader.result as string).split(',')[1]; // Strip data:... prefix
       const isPdf = file.type === 'application/pdf';
       const mediaType = isPdf ? 'application/pdf' : file.type;
+
+      // Store file for later attachment to the created invoice
+      setPendingPOFile({ fileName: file.name, base64 });
 
       const event = new CustomEvent('recivis-send-file', {
         detail: {

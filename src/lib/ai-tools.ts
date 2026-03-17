@@ -327,7 +327,7 @@ After account + contact confirmed:
 
 ### Phase 4: PO, Send & Approve
 After invoice created (always as Draft with Send_Invoice=false):
-1. Ask for PO number → if provided, update invoice Purchase_Order field
+1. Ask for PO number → if provided, update invoice Purchase_Order field. After setting PO number, prompt: "Would you like to attach the PO document?" (the UI will show a drag-and-drop zone automatically when it detects a PO number was set — include the invoice CRM link in your response so the attachment zone can find the invoice ID).
 2. Offer three options:
    1. **Send** — send the invoice for payment
    2. **Approve** — approve the invoice (generates licence keys)

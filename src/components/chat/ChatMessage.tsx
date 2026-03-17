@@ -6,6 +6,34 @@ import type { ChatMessage } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
 import LineItemForm from './LineItemForm';
 import DataForm, { parseFieldList } from './DataForm';
+import POAttachment from './POAttachment';
+
+/** Extract invoice ID from message — only when PO was SET or invoice CREATED (not when asking) */
+function detectInvoiceForAttachment(content: string): string | null {
+  const lower = content.toLowerCase();
+
+  // Must have an invoice link AND indicate the PO was set or invoice was created
+  const hasInvoiceLink = /\/Invoices\/\d+/.test(content);
+  if (!hasInvoiceLink) return null;
+
+  const poWasSet = (
+    lower.includes('po number has been') ||
+    lower.includes('po number set') ||
+    lower.includes('po updated') ||
+    lower.includes('purchase_order') ||
+    lower.includes('invoice created') ||
+    lower.includes('invoice updated') ||
+    lower.includes('would you like to attach')
+  );
+
+  // Do NOT trigger on "do you have a PO number?" — that's asking, not confirming
+  const isAsking = lower.includes('do you have a po') || lower.includes('do you have a purchase order');
+  if (isAsking && !poWasSet) return null;
+  if (!poWasSet) return null;
+
+  const linkMatch = content.match(/\/Invoices\/(\d+)/);
+  return linkMatch ? linkMatch[1] : null;
+}
 
 type PromptType = 'confirm_create' | 'yes_no_proceed' | 'yes_no' | null;
 
@@ -531,6 +559,18 @@ export default function ChatMessageComponent({ message, index }: ChatMessageProp
                 {buttons.secondary.label}
               </button>
             </div>
+          );
+        })()}
+
+        {/* PO Attachment zone — shown when invoice is created or PO number mentioned */}
+        {!isUser && !isLoading && (() => {
+          const invoiceId = detectInvoiceForAttachment(message.content);
+          if (!invoiceId) return null;
+          return (
+            <POAttachment
+              invoiceId={invoiceId}
+              onComplete={handleOptionClick}
+            />
           );
         })()}
 

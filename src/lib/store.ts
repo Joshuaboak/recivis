@@ -19,6 +19,10 @@ interface AppState {
 
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
+
+  // Store uploaded PO file data for attaching to the invoice after creation
+  pendingPOFile: { fileName: string; base64: string } | null;
+  setPendingPOFile: (file: { fileName: string; base64: string } | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -46,6 +50,9 @@ export const useAppStore = create<AppState>()(
 
       isLoading: false,
       setIsLoading: (loading) => set({ isLoading: loading }),
+
+      pendingPOFile: null,
+      setPendingPOFile: (file) => set({ pendingPOFile: file }),
     }),
     {
       name: 'recivis-storage',
