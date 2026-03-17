@@ -58,9 +58,10 @@ export default function POAttachment({ invoiceId, onComplete }: POAttachmentProp
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          invoiceId,
+          recordID: invoiceId,
           fileName: file.name,
           base64,
+          moduleName: 'Invoices',
         }),
       });
 

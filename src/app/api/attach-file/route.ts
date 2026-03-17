@@ -2,65 +2,100 @@ import { NextRequest, NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
 
 /**
- * Attach a file to a Zoho CRM record.
- * Calls a Deluge custom function that accepts base64 file data.
- *
- * The Deluge function "attachfiletoinvoice" must exist in Zoho CRM with:
- *   Arguments: invoiceId (string), fileName (string), fileBase64 (string)
- *   Code:
- *     fileData = fileBase64.toFile(fileName);
- *     response = zoho.crm.attachFile("Invoices", invoiceId.toLong(), fileData);
- *     return response.toString();
+ * Attach a file to any Zoho CRM record.
+ * 1. Gets an OAuth access token via the getresellerzohotoken Deluge function
+ * 2. Uploads the file directly to Zoho CRM Attachments REST API (multipart/form-data)
  */
 
-const ZAPIKEY = process.env.ZOHO_API_KEY ||
-  '1003.c34f94ef513dd69ce6eada9d6d97dc31.35c2e6e02fc62c21dfcfb5c3391e8e6d';
+const TOKEN_URL = 'https://www.zohoapis.com.au/crm/v7/functions/getresellerzohotoken/actions/execute?auth_type=apikey&zapikey=1003.c34f94ef513dd69ce6eada9d6d97dc31.35c2e6e02fc62c21dfcfb5c3391e8e6d&arguments=%7B%22resellerName%22%3A%22Civil%20Survey%20Applications%22%7D';
+
+let cachedToken: { token: string; expiresAt: number } | null = null;
+
+async function getAccessToken(): Promise<string> {
+  if (cachedToken && Date.now() < cachedToken.expiresAt - 60000) {
+    return cachedToken.token;
+  }
+
+  const res = await fetch(TOKEN_URL, { method: 'POST' });
+  if (!res.ok) {
+    throw new Error(`Token fetch failed: ${res.status}`);
+  }
+
+  const data = await res.json();
+  const token = data?.details?.output;
+
+  if (!token || token.startsWith('ERROR')) {
+    throw new Error(`Token error: ${token || 'no output'}`);
+  }
+
+  cachedToken = {
+    token,
+    expiresAt: Date.now() + 3600 * 1000, // 1 hour
+  };
+
+  log('info', 'auth', 'Got Zoho access token for attachments');
+  return token;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const { invoiceId, fileName, base64, module } = await request.json();
+    const { recordID, fileName, base64, moduleName } = await request.json();
 
-    if (!invoiceId || !fileName || !base64) {
-      return NextResponse.json({ error: 'Missing invoiceId, fileName, or base64' }, { status: 400 });
+    if (!recordID || !fileName || !base64) {
+      return NextResponse.json({ error: 'Missing recordID, fileName, or base64' }, { status: 400 });
     }
 
-    const targetModule = module || 'Invoices';
+    const module = moduleName || 'Invoices';
+    const sizeKB = Math.round(base64.length / 1024);
 
-    log('info', 'file', `Attaching ${fileName} to ${targetModule}/${invoiceId}`);
+    log('info', 'file', `Attaching ${fileName} to ${module}/${recordID} (${sizeKB}KB base64)`);
 
-    const args = JSON.stringify({
-      invoiceId: invoiceId,
-      fileName: fileName,
-      fileBase64: base64,
-      module: targetModule,
+    // Step 1: Get access token
+    const accessToken = await getAccessToken();
+
+    // Step 2: Convert base64 to file and upload via multipart/form-data
+    const fileBuffer = Buffer.from(base64, 'base64');
+    const blob = new Blob([fileBuffer]);
+
+    const formData = new FormData();
+    formData.append('file', blob, fileName);
+
+    const apiUrl = `https://www.zohoapis.com.au/crm/v7/${module}/${recordID}/Attachments`;
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Zoho-oauthtoken ${accessToken}`,
+      },
+      body: formData,
     });
 
-    const url = `https://www.zohoapis.com.au/crm/v2/functions/attachfiletoinvoice/actions/execute?auth_type=apikey&zapikey=${ZAPIKEY}&arguments=${encodeURIComponent(args)}`;
-
-    const res = await fetch(url, { method: 'POST' });
     const responseText = await res.text();
 
     log('info', 'file', `Attachment result for ${fileName}`, {
       status: res.status,
-      result: responseText.slice(0, 300),
+      result: responseText.slice(0, 500),
     });
 
-    // Try to parse as JSON
     let data;
     try {
       data = JSON.parse(responseText);
     } catch {
-      // Deluge function may not exist yet or returned non-JSON
-      log('error', 'file', 'Non-JSON response from attachment function', {
-        response: responseText.slice(0, 200),
+      log('error', 'file', 'Non-JSON response from Zoho Attachments API', {
+        response: responseText.slice(0, 300),
       });
       return NextResponse.json({
-        error: 'The attachment function is not available. The Deluge function "attachfiletoinvoice" needs to be created in Zoho CRM.',
-      }, { status: 501 });
+        error: `Unexpected response from Zoho (HTTP ${res.status})`,
+      }, { status: 502 });
     }
 
     if (!res.ok) {
-      return NextResponse.json({ error: `Zoho API error: ${res.status}` }, { status: 502 });
+      // If token expired, clear cache and let user retry
+      if (res.status === 401) {
+        cachedToken = null;
+      }
+      return NextResponse.json({
+        error: data?.message || `Zoho API error: ${res.status}`,
+      }, { status: 502 });
     }
 
     return NextResponse.json({ success: true, data });
