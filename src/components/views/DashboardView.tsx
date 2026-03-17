@@ -4,11 +4,11 @@ import { motion } from 'framer-motion';
 import {
   FilePlus,
   RefreshCw,
-  Upload,
   BarChart3,
-  TrendingUp,
-  Clock,
+  Building2,
   FileText,
+  Clock,
+  TrendingUp,
   ArrowRight,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
@@ -20,7 +20,7 @@ const quickActions = [
     description: 'Create a new product invoice',
     icon: FilePlus,
     color: 'bg-csa-accent',
-    message: 'I need to create a new product invoice.',
+    view: 'invoice' as const,
   },
   {
     id: 'renewal',
@@ -28,23 +28,23 @@ const quickActions = [
     description: 'Renew existing licences',
     icon: RefreshCw,
     color: 'bg-csa-purple',
-    message: 'I need to create a renewal invoice.',
+    view: 'invoice' as const,
   },
   {
-    id: 'upload',
-    label: 'Upload PO',
-    description: 'Process a purchase order',
-    icon: Upload,
+    id: 'accounts',
+    label: 'Accounts',
+    description: 'Browse customer accounts',
+    icon: Building2,
     color: 'bg-emerald-600',
-    message: 'I have a purchase order to process.',
+    view: 'accounts' as const,
   },
   {
-    id: 'report',
-    label: 'Reports',
-    description: 'View invoices & expiring assets',
-    icon: BarChart3,
+    id: 'drafts',
+    label: 'Draft Invoices',
+    description: 'View and manage drafts',
+    icon: FileText,
     color: 'bg-amber-600',
-    view: 'reports' as const,
+    view: 'draft-invoices' as const,
   },
 ];
 
@@ -65,18 +65,8 @@ export default function DashboardView() {
   const { user, setCurrentView, clearMessages, addMessage } = useAppStore();
 
   const handleAction = (action: (typeof quickActions)[number]) => {
-    if (action.view) {
-      setCurrentView(action.view);
-      return;
-    }
     clearMessages();
-    setCurrentView('invoice');
-    // Small delay so the chat interface mounts first
-    setTimeout(() => {
-      if (action.message) {
-        // The initial greeting will fire, then user can type
-      }
-    }, 100);
+    setCurrentView(action.view);
   };
 
   const timeOfDay = () => {

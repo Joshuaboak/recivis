@@ -14,15 +14,17 @@ interface AppState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 
-  currentView: 'dashboard' | 'invoice' | 'reports';
-  setCurrentView: (view: 'dashboard' | 'invoice' | 'reports') => void;
+  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'invoice' | 'draft-invoices' | 'reports';
+  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'invoice' | 'draft-invoices' | 'reports') => void;
 
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 
-  // Store uploaded PO file data for attaching to the invoice after creation
   pendingPOFile: { fileName: string; base64: string } | null;
   setPendingPOFile: (file: { fileName: string; base64: string } | null) => void;
+
+  selectedAccountId: string | null;
+  setSelectedAccountId: (id: string | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -53,6 +55,9 @@ export const useAppStore = create<AppState>()(
 
       pendingPOFile: null,
       setPendingPOFile: (file) => set({ pendingPOFile: file }),
+
+      selectedAccountId: null,
+      setSelectedAccountId: (id) => set({ selectedAccountId: id }),
     }),
     {
       name: 'recivis-storage',

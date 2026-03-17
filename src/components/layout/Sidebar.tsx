@@ -1,32 +1,35 @@
 'use client';
 
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   FilePlus,
+  FileText,
   BarChart3,
+  Building2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Check,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import UserMenu from './UserMenu';
 
-const navItems = [
-  { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'invoice' as const, label: 'Invoices', icon: FilePlus },
-  { id: 'reports' as const, label: 'Reports', icon: BarChart3 },
-];
+type ViewId = 'dashboard' | 'accounts' | 'invoice' | 'draft-invoices' | 'reports';
 
 export default function Sidebar() {
-  const { user, setUser, currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
+  const { currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
+  const [invoiceMenuOpen, setInvoiceMenuOpen] = useState(
+    currentView === 'invoice' || currentView === 'draft-invoices'
+  );
 
-  const handleNavClick = (id: 'dashboard' | 'invoice' | 'reports') => {
-    if (id !== currentView) {
-      clearMessages();
-    }
+  const handleNavClick = (id: ViewId) => {
+    if (id !== currentView) clearMessages();
     setCurrentView(id);
   };
+
+  const isInvoiceActive = currentView === 'invoice' || currentView === 'draft-invoices';
 
   return (
     <motion.aside
@@ -37,21 +40,13 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div className="h-16 flex items-center px-4 border-b-4 border-border">
-        <motion.div
-          className="flex items-center gap-3 overflow-hidden"
-          animate={{ opacity: 1 }}
-        >
+        <motion.div className="flex items-center gap-3 overflow-hidden" animate={{ opacity: 1 }}>
           <div className="w-10 h-10 bg-csa-accent flex items-center justify-center flex-shrink-0 rounded-xl">
             <span className="text-white font-bold text-lg">R</span>
           </div>
           <AnimatePresence>
             {sidebarOpen && (
-              <motion.div
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto' }}
-                exit={{ opacity: 0, width: 0 }}
-                className="overflow-hidden whitespace-nowrap"
-              >
+              <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="overflow-hidden whitespace-nowrap">
                 <h1 className="text-xl font-bold text-text-primary tracking-tight">
                   Re<span className="text-csa-accent">Civis</span>
                 </h1>
@@ -62,45 +57,70 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 space-y-1">
-        {navItems.map((item) => {
-          const isActive = currentView === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => handleNavClick(item.id)}
-              className={`
-                w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
-                transition-all duration-150 relative group rounded-xl cursor-pointer
-                ${isActive
-                  ? 'bg-csa-accent/15 text-csa-accent'
-                  : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
-                }
-              `}
-            >
-              {isActive && (
-                <motion.div
-                  layoutId="nav-indicator"
-                  className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent"
-                  transition={{ duration: 0.2 }}
-                />
+      <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+        {/* Dashboard */}
+        <NavItem id="dashboard" label="Dashboard" icon={LayoutDashboard} active={currentView === 'dashboard'} onClick={() => handleNavClick('dashboard')} open={sidebarOpen} />
+
+        {/* Accounts */}
+        <NavItem id="accounts" label="Accounts" icon={Building2} active={currentView === 'accounts' || currentView === 'account-detail'} onClick={() => handleNavClick('accounts')} open={sidebarOpen} />
+
+        {/* Invoices (with submenu) */}
+        <div>
+          <button
+            onClick={() => {
+              if (!sidebarOpen) {
+                handleNavClick('invoice');
+              } else {
+                setInvoiceMenuOpen(!invoiceMenuOpen);
+                if (!isInvoiceActive) handleNavClick('invoice');
+              }
+            }}
+            className={`
+              w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
+              transition-all duration-150 relative group rounded-xl cursor-pointer
+              ${isInvoiceActive
+                ? 'bg-csa-accent/15 text-csa-accent'
+                : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
+              }
+            `}
+          >
+            {isInvoiceActive && (
+              <motion.div layoutId="nav-indicator" className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent rounded-r" transition={{ duration: 0.2 }} />
+            )}
+            <FilePlus size={20} className="flex-shrink-0" />
+            <AnimatePresence>
+              {sidebarOpen && (
+                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">
+                  Invoices
+                </motion.span>
               )}
-              <item.icon size={20} className="flex-shrink-0" />
-              <AnimatePresence>
-                {sidebarOpen && (
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="overflow-hidden whitespace-nowrap"
-                  >
-                    {item.label}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </button>
-          );
-        })}
+            </AnimatePresence>
+            {sidebarOpen && (
+              <ChevronDown size={14} className={`text-text-muted transition-transform ${invoiceMenuOpen ? 'rotate-180' : ''}`} />
+            )}
+          </button>
+
+          {/* Submenu */}
+          <AnimatePresence>
+            {sidebarOpen && invoiceMenuOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="overflow-hidden"
+              >
+                <div className="ml-8 mt-1 space-y-0.5">
+                  <SubNavItem label="New Invoice" active={currentView === 'invoice'} onClick={() => handleNavClick('invoice')} />
+                  <SubNavItem label="Draft Invoices" active={currentView === 'draft-invoices'} onClick={() => handleNavClick('draft-invoices')} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Reports */}
+        <NavItem id="reports" label="Reports" icon={BarChart3} active={currentView === 'reports'} onClick={() => handleNavClick('reports')} open={sidebarOpen} />
       </nav>
 
       {/* CRM Status */}
@@ -109,12 +129,7 @@ export default function Sidebar() {
           <Check size={16} className="flex-shrink-0" />
           <AnimatePresence>
             {sidebarOpen && (
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="overflow-hidden whitespace-nowrap"
-              >
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="overflow-hidden whitespace-nowrap">
                 CRM Connected
               </motion.span>
             )}
@@ -135,5 +150,48 @@ export default function Sidebar() {
         {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
       </button>
     </motion.aside>
+  );
+}
+
+// Standard nav item
+function NavItem({ id, label, icon: Icon, active, onClick, open }: {
+  id: string; label: string; icon: React.ComponentType<{ size: number; className?: string }>; active: boolean; onClick: () => void; open: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
+        transition-all duration-150 relative group rounded-xl cursor-pointer
+        ${active ? 'bg-csa-accent/15 text-csa-accent' : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'}
+      `}
+    >
+      {active && (
+        <motion.div layoutId="nav-indicator" className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent rounded-r" transition={{ duration: 0.2 }} />
+      )}
+      <Icon size={20} className="flex-shrink-0" />
+      <AnimatePresence>
+        {open && (
+          <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="overflow-hidden whitespace-nowrap">
+            {label}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </button>
+  );
+}
+
+// Sub-nav item (indented)
+function SubNavItem({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        w-full text-left px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer
+        ${active ? 'text-csa-accent bg-csa-accent/10' : 'text-text-muted hover:text-text-secondary hover:bg-surface-raised'}
+      `}
+    >
+      {label}
+    </button>
   );
 }
