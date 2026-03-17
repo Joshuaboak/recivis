@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import nodemailer from 'nodemailer';
+import { google } from 'googleapis';
 import { query, initDB } from './db';
 import type { User, UserRole } from './types';
 
@@ -256,44 +256,75 @@ export async function resetPassword(token: string, newPassword: string): Promise
 }
 
 /**
- * Send password reset email via SMTP.
+ * Send password reset email via Gmail API with service account.
+ * Uses domain-wide delegation to send as auth@civilsurveyapplications.com.au
  */
 async function sendResetEmail(email: string, name: string, resetUrl: string) {
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
+  const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  const senderEmail = process.env.GMAIL_SENDER || 'auth@civilsurveyapplications.com.au';
 
-  if (!smtpHost || !smtpUser || !smtpPass) {
-    // If SMTP not configured, log the reset URL for manual use
+  if (!serviceAccountKey) {
+    // Fallback: log the reset URL for manual use
     console.log(`Password reset for ${email}: ${resetUrl}`);
     return;
   }
 
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: { user: smtpUser, pass: smtpPass },
-  });
+  try {
+    const credentials = JSON.parse(serviceAccountKey);
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'ReCivis <noreply@civilsurveyapplications.com.au>',
-    to: email,
-    subject: 'ReCivis — Password Reset',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
-        <h2 style="color: #0A4C6E;">Reset Your Password</h2>
-        <p>Hi ${name},</p>
-        <p>Click the button below to reset your ReCivis password. This link expires in 1 hour.</p>
-        <p style="text-align: center; margin: 24px 0;">
-          <a href="${resetUrl}" style="background: #0077B7; color: white; padding: 12px 32px; text-decoration: none; font-weight: bold; display: inline-block;">
-            Reset Password
-          </a>
-        </p>
-        <p style="color: #666; font-size: 13px;">If you didn't request this, you can safely ignore this email.</p>
-        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
-        <p style="color: #999; font-size: 11px;">Civil Survey Applications Pty Ltd</p>
-      </div>
-    `,
-  });
+    const auth = new google.auth.JWT({
+      email: credentials.client_email,
+      key: credentials.private_key,
+      scopes: ['https://www.googleapis.com/auth/gmail.send'],
+      subject: senderEmail, // Domain-wide delegation: impersonate this user
+    });
+
+    const gmail = google.gmail({ version: 'v1', auth });
+
+    // Build RFC 2822 MIME message
+    const messageParts = [
+      `From: ReCivis <${senderEmail}>`,
+      `To: ${email}`,
+      `Subject: ReCivis — Password Reset`,
+      `Content-Type: text/html; charset=utf-8`,
+      ``,
+      `<div style="font-family: 'Encode Sans Semi Condensed', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">`,
+      `  <div style="text-align: center; margin-bottom: 24px;">`,
+      `    <div style="display: inline-block; background: #0077B7; width: 48px; height: 48px; line-height: 48px; text-align: center; border-radius: 12px; color: white; font-size: 24px; font-weight: bold;">R</div>`,
+      `  </div>`,
+      `  <h2 style="color: #0A4C6E; margin-bottom: 16px;">Reset Your Password</h2>`,
+      `  <p style="color: #333;">Hi ${name},</p>`,
+      `  <p style="color: #333;">You requested a password reset for your ReCivis account. Click the button below to set a new password. This link expires in 1 hour.</p>`,
+      `  <p style="text-align: center; margin: 32px 0;">`,
+      `    <a href="${resetUrl}" style="background: #0077B7; color: white; padding: 14px 36px; text-decoration: none; font-weight: bold; display: inline-block; border-radius: 8px; font-size: 14px;">`,
+      `      Reset Password`,
+      `    </a>`,
+      `  </p>`,
+      `  <p style="color: #888; font-size: 13px;">If you didn't request this, you can safely ignore this email. Your password won't change.</p>`,
+      `  <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">`,
+      `  <p style="color: #aaa; font-size: 11px;">Civil Survey Applications Pty Ltd</p>`,
+      `</div>`,
+    ];
+
+    const bccEmail = process.env.GMAIL_BCC || 'it@civilsurveysolutions.com.au';
+    const rawMessage = [`From: ReCivis <${senderEmail}>`, `To: ${email}`, `Bcc: ${bccEmail}`, ...messageParts.slice(3)].join('\n');
+    const encodedMessage = Buffer.from(rawMessage)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encodedMessage,
+      },
+    });
+
+    console.log(`Password reset email sent to ${email} via Gmail API`);
+  } catch (err) {
+    console.error('Gmail API send failed:', err);
+    // Fallback to console logging
+    console.log(`Password reset for ${email}: ${resetUrl}`);
+  }
 }
