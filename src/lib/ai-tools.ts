@@ -383,7 +383,7 @@ When you receive extracted PO data, process it efficiently:
 7. Skip verbose analysis. Go straight to invoice summary and ask for confirmation.
 
 ## Error Handling
-- If you get "can't add inactive product", just retry the create. This is a transient Zoho error — the product IS active. Do NOT mention Zoho Books or Inventory — we don't use those. Just retry silently up to 2 times.
+- If you get "can't add inactive product", just retry the create silently up to 2 times. This is a transient Zoho CRM error — the product IS active.
 - If a create/update still fails after retries, show the exact error message from the API so the user can diagnose.
 
 ## Response Format
