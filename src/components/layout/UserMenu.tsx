@@ -11,16 +11,26 @@ import {
   Check,
   AlertCircle,
   Users,
+  Building2,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 
-const USER_ROLES = [
+interface RoleOption {
+  value: string;
+  label: string;
+  description: string;
+}
+
+const ALL_ROLES: RoleOption[] = [
   { value: 'standard', label: 'Standard User', description: 'Create invoices, upload POs' },
   { value: 'manager', label: 'Reseller Manager', description: 'Manage users, create/send invoices' },
   { value: 'viewer', label: 'Viewer', description: 'Read-only access to reports' },
   { value: 'ibm', label: 'Int. Business Manager', description: 'Full invoicing access' },
   { value: 'admin', label: 'System Administrator', description: 'Full access to everything' },
 ];
+
+// Managers can only assign these roles
+const MANAGER_ROLES = ['standard', 'manager', 'viewer'];
 
 export default function UserMenu({ collapsed }: { collapsed: boolean }) {
   const { user, setUser } = useAppStore();
@@ -30,7 +40,6 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
 
   const canManageUsers = user?.permissions?.canManageUsers;
 
-  // Close menu on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -43,14 +52,15 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
 
   return (
     <div className="relative" ref={menuRef}>
-      {/* Add User Modal */}
       <AnimatePresence>
         {showAddUser && (
-          <AddUserModal onClose={() => setShowAddUser(false)} />
+          <AddUserModal
+            currentUser={user}
+            onClose={() => setShowAddUser(false)}
+          />
         )}
       </AnimatePresence>
 
-      {/* Popup menu */}
       <AnimatePresence>
         {menuOpen && (
           <motion.div
@@ -60,7 +70,6 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
             transition={{ duration: 0.15 }}
             className="absolute bottom-full left-0 right-0 mb-2 bg-csa-dark border-2 border-border rounded-xl overflow-hidden shadow-xl z-50"
           >
-            {/* User info */}
             {user && (
               <div className="px-4 py-3 border-b border-border-subtle">
                 <p className="text-sm font-semibold text-text-primary truncate">{user.name}</p>
@@ -74,7 +83,6 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
               </div>
             )}
 
-            {/* Menu items */}
             <div className="py-1">
               {canManageUsers && (
                 <button
@@ -97,7 +105,6 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
         )}
       </AnimatePresence>
 
-      {/* Trigger button */}
       <button
         onClick={() => setMenuOpen(!menuOpen)}
         className="w-full flex items-center gap-3 px-3 py-3 hover:bg-surface-raised rounded-xl transition-colors cursor-pointer group"
@@ -126,14 +133,77 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
 // ADD USER MODAL
 // ============================================================
 
-function AddUserModal({ onClose }: { onClose: () => void }) {
+interface ResellerOption {
+  id: string;
+  name: string;
+  region: string;
+  partner_category: string;
+}
+
+function AddUserModal({ currentUser, onClose }: { currentUser: ReturnType<typeof useAppStore.getState>['user']; onClose: () => void }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('standard');
+  const [resellerId, setResellerId] = useState(currentUser?.resellerId || '');
+  const [resellerSearch, setResellerSearch] = useState('');
+  const [resellers, setResellers] = useState<ResellerOption[]>([]);
+  const [showResellerDropdown, setShowResellerDropdown] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const resellerRef = useRef<HTMLDivElement>(null);
+
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'ibm';
+  const isManager = currentUser?.role === 'manager';
+  const isDistributor = currentUser?.reseller?.partnerCategory === 'Distributor' ||
+    currentUser?.reseller?.partnerCategory === 'Distributor/Reseller';
+
+  // Determine which roles the current user can assign
+  const availableRoles = isAdmin
+    ? ALL_ROLES
+    : ALL_ROLES.filter(r => MANAGER_ROLES.includes(r.value));
+
+  // Determine if user can change reseller
+  const canChangeReseller = isAdmin || (isManager && isDistributor);
+
+  // Load resellers
+  useEffect(() => {
+    async function loadResellers() {
+      try {
+        let url = '/api/resellers';
+        if (isAdmin) {
+          // Admin sees all
+          url = '/api/resellers';
+        } else if (isManager && isDistributor && currentUser?.resellerId) {
+          // Distributor manager sees own + children
+          url = `/api/resellers?resellerId=${currentUser.resellerId}&includeChildren=true`;
+        } else if (currentUser?.resellerId) {
+          // Regular manager sees own only
+          url = `/api/resellers?resellerId=${currentUser.resellerId}`;
+        }
+
+        const res = await fetch(url);
+        const data = await res.json();
+        setResellers(data.resellers || []);
+
+        // Set default reseller display
+        if (currentUser?.resellerId) {
+          const own = (data.resellers || []).find((r: ResellerOption) => r.id === currentUser.resellerId);
+          if (own) setResellerSearch(own.name);
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+    loadResellers();
+  }, [isAdmin, isManager, isDistributor, currentUser?.resellerId]);
+
+  const filteredResellers = resellerSearch
+    ? resellers.filter(r => r.name.toLowerCase().includes(resellerSearch.toLowerCase()))
+    : resellers;
+
+  const selectedReseller = resellers.find(r => r.id === resellerId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,6 +222,7 @@ function AddUserModal({ onClose }: { onClose: () => void }) {
           email,
           password,
           userRoleName: role,
+          resellerId: resellerId || currentUser?.resellerId || 'csa-internal',
         }),
       });
 
@@ -184,10 +255,10 @@ function AddUserModal({ onClose }: { onClose: () => void }) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ duration: 0.2 }}
-        className="bg-csa-dark border-2 border-border rounded-2xl w-full max-w-lg overflow-hidden"
+        className="bg-csa-dark border-2 border-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle sticky top-0 bg-csa-dark z-10">
           <div className="flex items-center gap-2">
             <UserPlus size={18} className="text-csa-accent" />
             <h2 className="text-lg font-bold text-text-primary">Add User</h2>
@@ -202,85 +273,148 @@ function AddUserModal({ onClose }: { onClose: () => void }) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
-                Full Name <span className="text-csa-accent">*</span>
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="John Smith"
-                autoFocus
-                className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
-              />
-            </div>
+          {/* Name */}
+          <div>
+            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
+              Full Name <span className="text-csa-accent">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="John Smith"
+              autoFocus
+              className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
+            />
+          </div>
 
-            <div className="col-span-2">
-              <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
-                Email <span className="text-csa-accent">*</span>
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="john@company.com"
-                className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
-              />
-            </div>
+          {/* Email */}
+          <div>
+            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
+              Email <span className="text-csa-accent">*</span>
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="john@company.com"
+              className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
+            />
+          </div>
 
-            <div className="col-span-2">
-              <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
-                Password <span className="text-csa-accent">*</span>
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min 8 characters"
-                className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
-              />
-            </div>
+          {/* Password */}
+          <div>
+            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
+              Password <span className="text-csa-accent">*</span>
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Min 8 characters"
+              className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
+            />
+          </div>
 
-            <div className="col-span-2">
-              <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
-                Role
-              </label>
-              <div className="space-y-2">
-                {USER_ROLES.map((r) => (
-                  <label
-                    key={r.value}
-                    className={`flex items-center gap-3 px-4 py-3 border-2 rounded-xl cursor-pointer transition-all ${
-                      role === r.value
-                        ? 'border-csa-accent bg-csa-accent/10'
-                        : 'border-border-subtle hover:border-border'
+          {/* Reseller */}
+          <div ref={resellerRef}>
+            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
+              <Building2 size={12} className="inline mr-1" />
+              Reseller
+            </label>
+            {canChangeReseller ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={resellerSearch}
+                  onChange={(e) => {
+                    setResellerSearch(e.target.value);
+                    setShowResellerDropdown(true);
+                    // Clear selection if they're typing
+                    if (selectedReseller?.name !== e.target.value) {
+                      setResellerId('');
+                    }
+                  }}
+                  onFocus={() => setShowResellerDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowResellerDropdown(false), 150)}
+                  placeholder="Search resellers..."
+                  className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
+                />
+                {showResellerDropdown && filteredResellers.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-csa-dark border-2 border-border-subtle rounded-xl overflow-hidden z-50 shadow-lg max-h-48 overflow-y-auto">
+                    {filteredResellers.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setResellerId(r.id);
+                          setResellerSearch(r.name);
+                          setShowResellerDropdown(false);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors cursor-pointer ${
+                          r.id === resellerId
+                            ? 'bg-csa-accent/15 text-csa-accent'
+                            : 'text-text-secondary hover:bg-surface-raised hover:text-csa-accent'
+                        }`}
+                      >
+                        <span className="font-semibold">{r.name}</span>
+                        {r.region && (
+                          <span className="text-text-muted text-xs ml-2">({r.region})</span>
+                        )}
+                        {r.partner_category && r.partner_category !== 'Internal' && (
+                          <span className="text-text-muted text-xs ml-1">— {r.partner_category}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="px-4 py-2.5 bg-surface border-2 border-border-subtle rounded-xl text-sm text-text-secondary">
+                {selectedReseller?.name || currentUser?.resellerName || 'Your reseller'}
+              </div>
+            )}
+          </div>
+
+          {/* Role */}
+          <div>
+            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
+              Role
+            </label>
+            <div className="space-y-2">
+              {availableRoles.map((r) => (
+                <label
+                  key={r.value}
+                  className={`flex items-center gap-3 px-4 py-3 border-2 rounded-xl cursor-pointer transition-all ${
+                    role === r.value
+                      ? 'border-csa-accent bg-csa-accent/10'
+                      : 'border-border-subtle hover:border-border'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="role"
+                    value={r.value}
+                    checked={role === r.value}
+                    onChange={() => setRole(r.value)}
+                    className="sr-only"
+                  />
+                  <div
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      role === r.value ? 'border-csa-accent' : 'border-text-muted'
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="role"
-                      value={r.value}
-                      checked={role === r.value}
-                      onChange={() => setRole(r.value)}
-                      className="sr-only"
-                    />
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                        role === r.value ? 'border-csa-accent' : 'border-text-muted'
-                      }`}
-                    >
-                      {role === r.value && (
-                        <div className="w-2 h-2 rounded-full bg-csa-accent" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-text-primary">{r.label}</p>
-                      <p className="text-xs text-text-muted">{r.description}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
+                    {role === r.value && (
+                      <div className="w-2 h-2 rounded-full bg-csa-accent" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-text-primary">{r.label}</p>
+                    <p className="text-xs text-text-muted">{r.description}</p>
+                  </div>
+                </label>
+              ))}
             </div>
           </div>
 
