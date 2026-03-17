@@ -1,10 +1,9 @@
-export type UserRole = 'admin' | 'ibm' | 'distributor' | 'reseller' | 'viewer' | 'unauthorized';
-
 export interface UserPermissions {
   canCreateInvoices: boolean;
   canApproveInvoices: boolean;
   canSendInvoices: boolean;
   canViewAllRecords: boolean;
+  canViewChildRecords: boolean;
   canModifyPrices: boolean;
   canUploadPO: boolean;
   canManageUsers: boolean;
@@ -12,15 +11,32 @@ export interface UserPermissions {
   canExportData: boolean;
 }
 
+export interface Reseller {
+  id: string;
+  name: string;
+  email?: string;
+  region?: string;
+  currency?: string;
+  partnerCategory?: string;
+  directCustomerContact?: boolean;
+  distributorId?: string;
+  resellerRoleName?: string;
+}
+
 export interface User {
   email: string;
   name: string;
-  role: UserRole;
+  reseller?: Reseller;
+  userRoleName?: string;
+  userRoleDisplayName?: string;
+  resellerRoleName?: string;
+  allowedResellerIds?: string[];
+  permissions?: UserPermissions;
+  // Legacy compat fields used by the AI system prompt
+  role?: string;
   resellerId?: string;
   resellerName?: string;
   region?: string;
-  allowedResellerIds?: string[];
-  permissions?: UserPermissions;
 }
 
 export interface ChatMessage {
