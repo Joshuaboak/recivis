@@ -72,7 +72,12 @@ export default function DataForm({ fields, onSubmit, disabled }: DataFormProps) 
  * Returns null if the list doesn't look like a data collection form.
  */
 export function parseFieldList(items: string[]): FormField[] | null {
-  const fieldIndicators = /\b(name|email|address|country|phone|number|date|price|details|notes|account|contact|company|quantity|reseller|po|order|street|city|state)\b/i;
+  // Only match data-collection fields, NOT line-item fields (quantity+date+price together = LineItemForm)
+  const lineItemIndicators = /\b(start date|end date|custom price|quantity)\b/i;
+  const lineItemCount = items.filter((item) => lineItemIndicators.test(item)).length;
+  if (lineItemCount >= 3) return null; // This is a line item form, not a data form
+
+  const fieldIndicators = /\b(name|email|address|country|phone|details|notes|account|contact|company|reseller|po|order|street|city|state)\b/i;
   const fieldCount = items.filter((item) => fieldIndicators.test(item)).length;
 
   // Need at least 50% of items to look like fields

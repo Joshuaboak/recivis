@@ -68,20 +68,30 @@ function detectLineItemPrompt(content: string): { quantity: number; startDate: s
 
   // Extract defaults from the message text
   const qtyMatch = content.match(/(?:default[:\s]*|Quantity[?:]*\s*\(default[:\s]*)\s*(\d+)/i);
-  const startMatch = content.match(/(?:Start date|start)[?:]*\s*\(default[^)]*?(\d{1,2}\/\d{1,2}\/\d{4})/i);
-  const endMatch = content.match(/(?:End date|end)[?:]*\s*\(default[^)]*?(\d{1,2}\/\d{1,2}\/\d{4})/i);
-  const priceMatch = content.match(/(?:price|Price)[?:]*\s*\(default[:\s]*[€$£]?([\d,]+\.?\d*)/i);
+  const startMatch = content.match(/(?:Start date|start)[?:]*\s*\(?default[^)]*?(\d{1,2}\/\d{1,2}\/\d{4})/i);
+  const endMatch = content.match(/(?:End date|end)[?:]*\s*\(?default[^)]*?(\d{1,2}\/\d{1,2}\/\d{4})/i);
   const currMatch = content.match(/([€$£]|EUR|USD|AUD|GBP|NZD)/i);
 
-  // Also try: "Unit Price: €2,550.00" format
-  const unitPriceMatch = content.match(/Unit Price[:\s]*[€$£]?([\d,]+\.?\d*)/i);
+  // Try multiple price patterns: "€1,850.00", "Unit Price: €1,850", "default: €1,850", "— €1,850.00"
+  const pricePatterns = [
+    /(?:Unit Price|List Price|list price)[:\s]*[€$£]?([\d,]+\.?\d*)/i,
+    /(?:price|Price)[?:]*\s*\(?default[:\s]*[€$£]?([\d,]+\.?\d*)/i,
+    /[—\-–]\s*[€$£]([\d,]+\.?\d*)/,
+    /[€$£]([\d,]+\.?\d{2})/,
+  ];
+  let priceVal = '0';
+  for (const pat of pricePatterns) {
+    const m = content.match(pat);
+    if (m?.[1]) {
+      priceVal = m[1].replace(/,/g, '');
+      break;
+    }
+  }
 
   const today = new Date();
   const todayStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
   const endDefault = new Date(today.getTime() + 364 * 24 * 60 * 60 * 1000);
   const endStr = `${String(endDefault.getDate()).padStart(2, '0')}/${String(endDefault.getMonth() + 1).padStart(2, '0')}/${endDefault.getFullYear()}`;
-
-  const priceVal = priceMatch?.[1]?.replace(/,/g, '') || unitPriceMatch?.[1]?.replace(/,/g, '') || '0';
 
   let currSymbol = '€';
   if (currMatch) {
