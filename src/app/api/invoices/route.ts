@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchAllPages } from '@/lib/zoho';
+import { searchAllPages, executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 
 /**
@@ -46,5 +46,37 @@ export async function GET(request: NextRequest) {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json({ error: 'Failed to load invoices' }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/invoices — create a new invoice
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    const result = await executeZohoTool('create_records', {
+      module: 'Invoices',
+      records: [body],
+      trigger: ['workflow'],
+    });
+
+    const parsed = parseMcpResult(result);
+    const created = parsed.data[0] as Record<string, unknown> | undefined;
+
+    if (created?.code === 'SUCCESS') {
+      const details = created.details as Record<string, unknown>;
+      log('info', 'api', 'Invoice created', { id: details?.id });
+      return NextResponse.json({ success: true, id: details?.id });
+    }
+
+    log('warn', 'api', 'Invoice creation result', { data: JSON.stringify(parsed.data).slice(0, 300) });
+    return NextResponse.json({ success: true, data: parsed.data });
+  } catch (error) {
+    log('error', 'api', 'Invoice creation failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 });
   }
 }

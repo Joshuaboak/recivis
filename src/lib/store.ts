@@ -14,8 +14,11 @@ interface AppState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 
-  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'invoice' | 'invoice-detail' | 'draft-invoices' | 'reports';
-  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'invoice' | 'invoice-detail' | 'draft-invoices' | 'reports') => void;
+  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports';
+  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports') => void;
+
+  newInvoiceContext: Record<string, unknown> | null;
+  setNewInvoiceContext: (ctx: Record<string, unknown> | null) => void;
 
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
@@ -70,6 +73,9 @@ export const useAppStore = create<AppState>()(
 
       invoiceReturnView: null,
       setInvoiceReturnView: (view) => set({ invoiceReturnView: view }),
+
+      newInvoiceContext: null,
+      setNewInvoiceContext: (ctx) => set({ newInvoiceContext: ctx }),
     }),
     {
       name: 'recivis-storage',

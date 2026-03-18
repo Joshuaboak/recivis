@@ -7,7 +7,7 @@ import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
 
 export default function AccountDetailView() {
-  const { selectedAccountId, setCurrentView, setSelectedInvoiceId, setInvoiceReturnView } = useAppStore();
+  const { selectedAccountId, setCurrentView, setSelectedInvoiceId, setInvoiceReturnView, setNewInvoiceContext } = useAppStore();
   const [account, setAccount] = useState<Record<string, unknown> | null>(null);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
   const [activeAssets, setActiveAssets] = useState<Record<string, unknown>[]>([]);
@@ -306,10 +306,30 @@ export default function AccountDetailView() {
 
         {/* Invoices */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
-          <h2 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
-            <FileText size={18} className="text-csa-purple" />
-            Invoices ({invoices.length})
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+              <FileText size={18} className="text-csa-purple" />
+              Invoices ({invoices.length})
+            </h2>
+            <button
+              onClick={() => {
+                setNewInvoiceContext({
+                  account: { name: account.Account_Name as string, id: selectedAccountId },
+                  contact: primaryContact ? { name: primaryContact.name, id: primaryContact.id } : null,
+                  reseller: reseller ? { name: reseller.name, id: (account.Reseller as { id?: string })?.id } : null,
+                  region: (account.Reseller_Region as string) || '',
+                  currency: (account.Currency as string) || '',
+                  owner: owner ? { name: owner.name, id: (account.Owner as { id?: string })?.id } : null,
+                  billingCountry: account.Billing_Country as string || '',
+                });
+                setCurrentView('create-invoice');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
+            >
+              <Plus size={13} />
+              New Product Invoice
+            </button>
+          </div>
           {invoices.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-hidden">
               <table className="w-full">
