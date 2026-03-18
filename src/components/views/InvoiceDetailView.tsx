@@ -15,11 +15,14 @@ import {
   ExternalLink,
   Hash,
   MapPin,
+  Send,
+  CheckCircle2,
+  Lock,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 
 export default function InvoiceDetailView() {
-  const { selectedInvoiceId, invoiceReturnView, setCurrentView, setSelectedAccountId } = useAppStore();
+  const { user, selectedInvoiceId, invoiceReturnView, setCurrentView, setSelectedAccountId } = useAppStore();
   const [invoice, setInvoice] = useState<Record<string, unknown> | null>(null);
   const [lineItems, setLineItems] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +85,7 @@ export default function InvoiceDetailView() {
   const contact = invoice.Contact_Name as { name?: string; id?: string } | null;
   const reseller = invoice.Reseller as { name?: string } | null;
   const owner = invoice.Owner as { name?: string } | null;
+  const status = invoice.Status as string;
   const symbol = getCurrencySymbol(invoice.Currency);
 
   const statusColor = (status: unknown) => {
@@ -112,8 +116,8 @@ export default function InvoiceDetailView() {
               <h1 className="text-2xl font-bold text-text-primary truncate">
                 {invoice.Subject as string || `Invoice ${selectedInvoiceId}`}
               </h1>
-              <span className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg border ${statusColor(invoice.Status)}`}>
-                {invoice.Status as string}
+              <span className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg border ${statusColor(status)}`}>
+                {status}
               </span>
               <span className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg border ${typeColor(invoice.Invoice_Type)}`}>
                 {invoice.Invoice_Type as string || 'New'}
@@ -127,10 +131,33 @@ export default function InvoiceDetailView() {
               </p>
             ) : null}
           </div>
-          <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer flex-shrink-0">
-            <ExternalLink size={14} />
-            Open in CRM
-          </a>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {status === 'Approved' ? (
+              <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl">
+                <Lock size={14} />
+                Locked
+              </div>
+            ) : (
+              <>
+                {user?.permissions?.canApproveInvoices && status === 'Draft' ? (
+                  <button className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer">
+                    <CheckCircle2 size={14} />
+                    Approve
+                  </button>
+                ) : null}
+                {user?.permissions?.canSendInvoices && (status === 'Draft' || status === 'Sent') ? (
+                  <button className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-highlight bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+                    <Send size={14} />
+                    Send Invoice
+                  </button>
+                ) : null}
+              </>
+            )}
+            <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+              <ExternalLink size={14} />
+              Open in CRM
+            </a>
+          </div>
         </div>
 
         {/* Invoice Info Cards */}
