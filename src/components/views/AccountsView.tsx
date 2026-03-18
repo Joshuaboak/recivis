@@ -99,7 +99,24 @@ export default function AccountsView() {
     try {
       const params = new URLSearchParams();
       if (searchDebounced) params.set('search', searchDebounced);
-      if (selectedReseller) params.set('resellerId', selectedReseller);
+
+      if (selectedReseller) {
+        params.set('resellerId', selectedReseller);
+      } else if (isAdmin && selectedRegion) {
+        // Region selected — get all reseller IDs in that region
+        const regionResellerIds = resellers
+          .filter(r => r.region === selectedRegion)
+          .map(r => r.id);
+        if (regionResellerIds.length > 0) {
+          params.set('resellerIds', regionResellerIds.join(','));
+        }
+      } else if (!isAdmin && user?.resellerId) {
+        if (hasChildResellers && resellers.length > 1) {
+          params.set('resellerIds', resellers.map(r => r.id).join(','));
+        } else {
+          params.set('resellerId', user.resellerId);
+        }
+      }
 
       const res = await fetch(`/api/accounts?${params}`);
       const data = await res.json();
@@ -108,7 +125,7 @@ export default function AccountsView() {
       setAccounts([]);
     }
     setLoading(false);
-  }, [searchDebounced, selectedReseller]);
+  }, [searchDebounced, selectedReseller, selectedRegion, isAdmin, hasChildResellers, user?.resellerId, resellers]);
 
   useEffect(() => {
     fetchAccounts();
@@ -204,8 +221,9 @@ export default function AccountsView() {
 
         {/* Loading */}
         {loading && (
-          <div className="flex items-center justify-center py-16">
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Loader2 size={24} className="text-csa-accent animate-spin" />
+            <span className="text-xs text-text-muted">Loading accounts...</span>
           </div>
         )}
 
