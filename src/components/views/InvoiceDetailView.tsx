@@ -18,6 +18,9 @@ import {
   Send,
   CheckCircle2,
   Lock,
+  Pencil,
+  Save,
+  X,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 
@@ -27,9 +30,19 @@ export default function InvoiceDetailView() {
   const [lineItems, setLineItems] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Edit mode
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editInvoiceDate, setEditInvoiceDate] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editLineItems, setEditLineItems] = useState<Record<string, unknown>[]>([]);
+
+  const canEdit = (user?.role === 'admin' || user?.role === 'ibm') && invoice?.Status === 'Draft';
+
   useEffect(() => {
     if (!selectedInvoiceId) return;
     setLoading(true);
+    setEditing(false);
 
     fetch(`/api/invoices/${selectedInvoiceId}`)
       .then(res => res.json())
@@ -40,6 +53,56 @@ export default function InvoiceDetailView() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [selectedInvoiceId]);
+
+  const enterEditMode = () => {
+    if (!invoice) return;
+    setEditInvoiceDate(invoice.Invoice_Date as string || '');
+    setEditDueDate(invoice.Due_Date as string || '');
+    setEditLineItems(lineItems.map(li => ({ ...li })));
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+  };
+
+  const saveEdits = async () => {
+    if (!selectedInvoiceId) return;
+    setSaving(true);
+
+    try {
+      const body: Record<string, unknown> = {};
+      if (editInvoiceDate !== (invoice?.Invoice_Date as string || '')) body.Invoice_Date = editInvoiceDate;
+      if (editDueDate !== (invoice?.Due_Date as string || '')) body.Due_Date = editDueDate;
+
+      // Build line items payload — include all fields Zoho needs
+      const updatedItems = editLineItems.map(li => {
+        const item: Record<string, unknown> = { ...li };
+        return item;
+      });
+      body.Invoiced_Items = updatedItems;
+
+      const res = await fetch(`/api/invoices/${selectedInvoiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        // Reload invoice data
+        const reload = await fetch(`/api/invoices/${selectedInvoiceId}`);
+        const data = await reload.json();
+        setInvoice(data.invoice);
+        setLineItems(data.lineItems || []);
+        setEditing(false);
+      }
+    } catch { /* handled by UI */ }
+    setSaving(false);
+  };
+
+  const updateLineItem = (index: number, field: string, value: string) => {
+    setEditLineItems(prev => prev.map((li, i) => i === index ? { ...li, [field]: value } : li));
+  };
 
   const goBack = () => {
     if (invoiceReturnView === 'account-detail') {
@@ -88,8 +151,8 @@ export default function InvoiceDetailView() {
   const status = invoice.Status as string;
   const symbol = getCurrencySymbol(invoice.Currency);
 
-  const statusColor = (status: unknown) => {
-    switch (status) {
+  const statusColor = (s: unknown) => {
+    switch (s) {
       case 'Sent': return 'bg-success/20 text-success border-success/30';
       case 'Approved': return 'bg-csa-accent/20 text-csa-accent border-csa-accent/30';
       case 'Draft': return 'bg-warning/20 text-warning border-warning/30';
@@ -103,12 +166,14 @@ export default function InvoiceDetailView() {
       : 'bg-csa-accent/20 text-csa-accent border-csa-accent/30';
   };
 
+  // Display items — use edit state when editing, otherwise originals
+  const displayLineItems = editing ? editLineItems : lineItems;
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-6">
         {/* Header */}
         <div className="mb-8">
-          {/* Top row: back, invoice number badge, actions */}
           <div className="flex items-center gap-3 mb-3">
             <button onClick={goBack} className="w-9 h-9 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
               <ArrowLeft size={18} className="text-text-secondary" />
@@ -131,7 +196,28 @@ export default function InvoiceDetailView() {
             <div className="flex-1" />
 
             <div className="flex items-center gap-2">
-              {status === 'Draft' ? (() => {
+              {/* Edit / Save / Cancel */}
+              {canEdit && !editing ? (
+                <button onClick={enterEditMode} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-warning bg-warning/10 border border-warning/30 rounded-xl hover:bg-warning/20 transition-colors cursor-pointer">
+                  <Pencil size={14} />
+                  Edit
+                </button>
+              ) : null}
+              {editing ? (
+                <>
+                  <button onClick={cancelEdit} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
+                    <X size={14} />
+                    Cancel
+                  </button>
+                  <button onClick={saveEdits} disabled={saving} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-50">
+                    {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </>
+              ) : null}
+
+              {/* Action buttons */}
+              {!editing && status === 'Draft' ? (() => {
                 const isSystemAdmin = user?.role === 'admin' || user?.role === 'ibm';
                 const canApprove = isSystemAdmin || user?.permissions?.canApproveInvoices;
                 const canSend = isSystemAdmin || user?.permissions?.canSendInvoices;
@@ -151,12 +237,13 @@ export default function InvoiceDetailView() {
                     ) : null}
                   </>
                 );
-              })() : (
+              })() : null}
+              {!editing && status !== 'Draft' ? (
                 <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl">
                   <Lock size={14} />
                   Locked
                 </div>
-              )}
+              ) : null}
               <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
                 <ExternalLink size={14} />
                 Open in CRM
@@ -164,7 +251,6 @@ export default function InvoiceDetailView() {
             </div>
           </div>
 
-          {/* Subject */}
           <h1 className="text-2xl font-bold text-text-primary ml-12">
             {invoice.Subject as string || `Invoice ${selectedInvoiceId}`}
           </h1>
@@ -188,8 +274,21 @@ export default function InvoiceDetailView() {
           )}
           <InfoCard label="Contact" value={contact?.name || '\u2014'} icon={<User size={14} />} />
           <InfoCard label="Reseller" value={reseller?.name || '\u2014'} icon={<Globe size={14} />} />
-          <InfoCard label="Invoice Date" value={formatDate(invoice.Invoice_Date)} icon={<Calendar size={14} />} />
-          <InfoCard label="Due Date" value={formatDate(invoice.Due_Date)} icon={<Calendar size={14} />} />
+
+          {/* Invoice Date — editable */}
+          {editing ? (
+            <EditDateCard label="Invoice Date" value={editInvoiceDate} onChange={setEditInvoiceDate} icon={<Calendar size={14} />} />
+          ) : (
+            <InfoCard label="Invoice Date" value={formatDate(invoice.Invoice_Date)} icon={<Calendar size={14} />} />
+          )}
+
+          {/* Due Date — editable */}
+          {editing ? (
+            <EditDateCard label="Due Date" value={editDueDate} onChange={setEditDueDate} icon={<Calendar size={14} />} />
+          ) : (
+            <InfoCard label="Due Date" value={formatDate(invoice.Due_Date)} icon={<Calendar size={14} />} />
+          )}
+
           <InfoCard label="Currency" value={invoice.Currency as string || '\u2014'} icon={<DollarSign size={14} />} />
           {owner ? <InfoCard label="Owner" value={owner.name || '\u2014'} icon={<User size={14} />} /> : null}
           {invoice.Billing_Country ? <InfoCard label="Billing Country" value={invoice.Billing_Country as string} icon={<MapPin size={14} />} /> : null}
@@ -200,9 +299,10 @@ export default function InvoiceDetailView() {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
           <h2 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
             <Package size={18} className="text-csa-accent" />
-            Line Items ({lineItems.length})
+            Line Items ({displayLineItems.length})
+            {editing && <span className="text-xs font-normal text-warning ml-2">Editing</span>}
           </h2>
-          {lineItems.length > 0 ? (
+          {displayLineItems.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead>
@@ -216,13 +316,11 @@ export default function InvoiceDetailView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {lineItems.map((li, i) => {
-                    // Invoiced_Items subform fields from Zoho CRM
+                  {displayLineItems.map((li, i) => {
                     const product = li.Product_Name as { name?: string } | string | null;
                     const productName = typeof product === 'object' && product !== null ? product.name : (product as string);
                     const qty = li.Quantity as number;
                     const unitPrice = li.List_Price as number;
-                    const discount = li.Discount as number;
                     const total = li.Net_Total as number;
                     const desc = li.Description as string | undefined;
                     return (
@@ -235,8 +333,30 @@ export default function InvoiceDetailView() {
                         </td>
                         <td className="text-right text-text-secondary">{qty}</td>
                         <td className="text-right text-text-secondary">{symbol}{unitPrice?.toFixed(2)}</td>
-                        <td className="text-text-secondary">{formatDate(li.Start_Date)}</td>
-                        <td className="text-text-secondary">{formatDate(li.Renewal_Date)}</td>
+                        <td>
+                          {editing ? (
+                            <input
+                              type="date"
+                              value={li.Start_Date as string || ''}
+                              onChange={(e) => updateLineItem(i, 'Start_Date', e.target.value)}
+                              className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent w-[130px]"
+                            />
+                          ) : (
+                            <span className="text-text-secondary">{formatDate(li.Start_Date)}</span>
+                          )}
+                        </td>
+                        <td>
+                          {editing ? (
+                            <input
+                              type="date"
+                              value={li.Renewal_Date as string || ''}
+                              onChange={(e) => updateLineItem(i, 'Renewal_Date', e.target.value)}
+                              className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent w-[130px]"
+                            />
+                          ) : (
+                            <span className="text-text-secondary">{formatDate(li.Renewal_Date)}</span>
+                          )}
+                        </td>
                         <td className="text-right text-text-primary font-semibold">{symbol}{total?.toFixed(2)}</td>
                       </tr>
                     );
@@ -300,6 +420,23 @@ function InfoCard({ label, value, icon }: { label: string; value: string; icon: 
         {label}
       </div>
       <p className="text-sm text-text-primary truncate">{value || '\u2014'}</p>
+    </div>
+  );
+}
+
+function EditDateCard({ label, value, onChange, icon }: { label: string; value: string; onChange: (v: string) => void; icon: React.ReactNode }) {
+  return (
+    <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-csa-accent uppercase tracking-wider mb-1">
+        {icon}
+        {label}
+      </div>
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-transparent border-none text-sm text-text-primary outline-none w-full"
+      />
     </div>
   );
 }
