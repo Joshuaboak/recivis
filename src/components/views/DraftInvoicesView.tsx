@@ -405,12 +405,15 @@ function SortHeader({ label, field, sortField, sortDir, onSort }: {
       onClick={() => onSort(field)}
       className="cursor-pointer select-none group"
     >
-      <span className={`inline-flex items-center gap-1.5 transition-colors ${active ? 'text-csa-accent' : 'group-hover:text-text-primary'}`}>
+      <span className={`inline-flex items-center gap-1 whitespace-nowrap transition-colors ${active ? 'text-csa-accent' : 'group-hover:text-text-primary'}`}>
         {label}
-        <span className={`inline-flex flex-col -space-y-[5px] ${active ? '' : 'opacity-40 group-hover:opacity-70'} transition-opacity`}>
-          <ArrowUp size={11} strokeWidth={2.5} className={active && sortDir === 'asc' ? 'text-csa-accent' : 'text-text-secondary'} />
-          <ArrowDown size={11} strokeWidth={2.5} className={active && sortDir === 'desc' ? 'text-csa-accent' : 'text-text-secondary'} />
-        </span>
+        {active ? (
+          sortDir === 'asc'
+            ? <ArrowUp size={13} strokeWidth={2.5} className="text-csa-accent" />
+            : <ArrowDown size={13} strokeWidth={2.5} className="text-csa-accent" />
+        ) : (
+          <ArrowDown size={13} strokeWidth={2} className="text-text-secondary opacity-50 group-hover:opacity-80" />
+        )}
       </span>
     </th>
   );
