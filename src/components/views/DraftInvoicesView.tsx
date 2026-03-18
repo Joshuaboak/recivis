@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Loader2, ExternalLink, ChevronDown, ArrowUp, ArrowDown, Search, X } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import { FileText, Loader2, ExternalLink, ChevronDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
 
@@ -49,9 +49,7 @@ export default function DraftInvoicesView() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   // Search state
-  const [searchField, setSearchField] = useState<'Subject' | 'Account' | null>(null);
   const [searchText, setSearchText] = useState('');
-  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -147,13 +145,6 @@ export default function DraftInvoicesView() {
     fetchInvoices();
   }, [fetchInvoices]);
 
-  // Focus search input when opened
-  useEffect(() => {
-    if (searchField && searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, [searchField]);
-
   // Client-side type filter, search + sort
   const processedInvoices = useMemo(() => {
     let result = [...invoices];
@@ -163,14 +154,14 @@ export default function DraftInvoicesView() {
       result = result.filter(inv => (inv.Invoice_Type || '') === typeFilter);
     }
 
-    // Search filter
+    // Search filter — searches across invoice #, subject, and account name
     if (searchText) {
       const q = searchText.toLowerCase();
-      if (searchField === 'Subject') {
-        result = result.filter(inv => (inv.Subject || '').toLowerCase().includes(q));
-      } else if (searchField === 'Account') {
-        result = result.filter(inv => (inv.Account_Name?.name || '').toLowerCase().includes(q));
-      }
+      result = result.filter(inv =>
+        (inv.Reference_Number || '').toLowerCase().includes(q) ||
+        (inv.Subject || '').toLowerCase().includes(q) ||
+        (inv.Account_Name?.name || '').toLowerCase().includes(q)
+      );
     }
 
     // Sort
@@ -191,7 +182,7 @@ export default function DraftInvoicesView() {
     }
 
     return result;
-  }, [invoices, typeFilter, sortField, sortDir, searchText, searchField]);
+  }, [invoices, typeFilter, sortField, sortDir, searchText]);
 
   // Pagination derived values — clamp page to valid range
   const totalPages = Math.max(1, Math.ceil(processedInvoices.length / pageSize));
@@ -215,16 +206,6 @@ export default function DraftInvoicesView() {
     }
   };
 
-  const toggleSearch = (field: 'Subject' | 'Account') => {
-    if (searchField === field) {
-      setSearchField(null);
-      setSearchText('');
-    } else {
-      setSearchField(field);
-      setSearchText('');
-    }
-  };
-
   const formatDate = (d: string) => {
     if (!d) return '\u2014';
     const date = new Date(d);
@@ -239,6 +220,18 @@ export default function DraftInvoicesView() {
           <h1 className="text-2xl font-bold text-text-primary">Existing Invoices</h1>
 
           <div className="flex flex-wrap items-center gap-3">
+            {/* Search */}
+            <div className="flex-1 min-w-[220px] relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+              <input
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Search by invoice #, subject, or account..."
+                className="w-full bg-surface border-2 border-border-subtle pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
+              />
+            </div>
+
             {/* Status filter */}
             <div className="relative min-w-[140px]">
               <select
@@ -319,37 +312,6 @@ export default function DraftInvoicesView() {
           </div>
         </div>
 
-        {/* Search bar */}
-        <AnimatePresence>
-          {searchField && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="overflow-hidden mb-4"
-            >
-              <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  placeholder={searchField === 'Subject' ? 'Search by subject...' : 'Search by account name...'}
-                  className="w-full bg-surface border-2 border-border-subtle pl-10 pr-10 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
-                />
-                <button
-                  onClick={() => { setSearchField(null); setSearchText(''); }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Loading */}
         {loading && (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -372,8 +334,8 @@ export default function DraftInvoicesView() {
               <thead>
                 <tr className="bg-surface-raised">
                   <SortHeader label="Invoice #" field="Reference_Number" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <SearchHeader label="Subject" active={searchField === 'Subject'} onToggle={() => toggleSearch('Subject')} />
-                  <SearchHeader label="Account" active={searchField === 'Account'} onToggle={() => toggleSearch('Account')} />
+                  <th>Subject</th>
+                  <th>Account</th>
                   <SortHeader label="Date" field="Invoice_Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <th>Type</th>
                   <SortHeader label="Total" field="Grand_Total" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
@@ -477,27 +439,3 @@ function SortHeader({ label, field, sortField, sortDir, onSort }: {
   );
 }
 
-/** Searchable column header with icon toggle */
-function SearchHeader({ label, active, onToggle }: {
-  label: string;
-  active: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <th>
-      <span className="inline-flex items-center gap-2">
-        {label}
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggle(); }}
-          className={`p-1 rounded-lg transition-all ${
-            active
-              ? 'text-csa-accent bg-csa-accent/15'
-              : 'text-text-secondary opacity-50 hover:opacity-100 hover:text-csa-accent hover:bg-csa-accent/10'
-          }`}
-        >
-          <Search size={13} strokeWidth={2.5} />
-        </button>
-      </span>
-    </th>
-  );
-}
