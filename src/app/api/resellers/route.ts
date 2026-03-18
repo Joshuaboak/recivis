@@ -99,6 +99,7 @@ function mapReseller(r: Record<string, unknown>) {
     id: r.id as string,
     name: r.Name as string || 'Unknown',
     region: r.Region as string || '',
+    currency: r.Currency as string || '',
     partner_category: r.Partner_Category as string || '',
     distributor_id: distributor?.id || null,
   };
