@@ -403,17 +403,14 @@ function SortHeader({ label, field, sortField, sortDir, onSort }: {
   return (
     <th
       onClick={() => onSort(field)}
-      className="cursor-pointer select-none hover:text-csa-accent transition-colors"
+      className="cursor-pointer select-none group"
     >
-      <span className="inline-flex items-center gap-1">
+      <span className={`inline-flex items-center gap-1.5 transition-colors ${active ? 'text-csa-accent' : 'group-hover:text-text-primary'}`}>
         {label}
-        {active ? (
-          sortDir === 'asc'
-            ? <ArrowUp size={12} className="text-csa-accent" />
-            : <ArrowDown size={12} className="text-csa-accent" />
-        ) : (
-          <ArrowDown size={12} className="text-text-muted/30" />
-        )}
+        <span className={`inline-flex flex-col -space-y-[5px] ${active ? '' : 'opacity-40 group-hover:opacity-70'} transition-opacity`}>
+          <ArrowUp size={11} strokeWidth={2.5} className={active && sortDir === 'asc' ? 'text-csa-accent' : 'text-text-secondary'} />
+          <ArrowDown size={11} strokeWidth={2.5} className={active && sortDir === 'desc' ? 'text-csa-accent' : 'text-text-secondary'} />
+        </span>
       </span>
     </th>
   );
@@ -427,15 +424,17 @@ function SearchHeader({ label, active, onToggle }: {
 }) {
   return (
     <th>
-      <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex items-center gap-2">
         {label}
         <button
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
-          className={`p-0.5 rounded transition-colors ${
-            active ? 'text-csa-accent' : 'text-text-muted/30 hover:text-text-muted'
+          className={`p-1 rounded-lg transition-all ${
+            active
+              ? 'text-csa-accent bg-csa-accent/15'
+              : 'text-text-secondary opacity-50 hover:opacity-100 hover:text-csa-accent hover:bg-csa-accent/10'
           }`}
         >
-          <Search size={12} />
+          <Search size={13} strokeWidth={2.5} />
         </button>
       </span>
     </th>
