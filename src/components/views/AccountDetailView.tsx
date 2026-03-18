@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
+import AssetDetailModal from '../AssetDetailModal';
 
 export default function AccountDetailView() {
   const { selectedAccountId, setCurrentView, setSelectedInvoiceId, setInvoiceReturnView, setNewInvoiceContext } = useAppStore();
@@ -26,6 +27,7 @@ export default function AccountDetailView() {
   // Renewal generation
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
   const [generatingRenewal, setGeneratingRenewal] = useState(false);
+  const [viewingAsset, setViewingAsset] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     if (!selectedAccountId) return;
@@ -464,7 +466,7 @@ export default function AccountDetailView() {
                       className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
                     />
                   </th>
-                  <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Serial Key</th>
+                  <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Serial Key</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
                   {activeAssets.map((a, i) => {
@@ -491,6 +493,14 @@ export default function AccountDetailView() {
                         <td className="text-text-secondary">{formatDate(a.Start_Date)}</td>
                         <td className="text-text-secondary">{formatDate(a.Renewal_Date)}</td>
                         <td className="text-text-muted text-xs font-mono">{a.Serial_Key as string || '\u2014'}</td>
+                        <td>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setViewingAsset(a); }}
+                            className="p-1 text-text-muted hover:text-csa-accent transition-colors cursor-pointer"
+                          >
+                            <Eye size={14} />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -512,7 +522,7 @@ export default function AccountDetailView() {
             <div className="border border-border-subtle rounded-xl overflow-hidden opacity-70">
               <table className="w-full">
                 <thead><tr className="bg-surface-raised">
-                  <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Status</th>
+                  <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Status</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
                   {archivedAssets.map((a, i) => {
@@ -524,6 +534,14 @@ export default function AccountDetailView() {
                         <td className="text-text-muted">{formatDate(a.Start_Date)}</td>
                         <td className="text-text-muted">{formatDate(a.Renewal_Date)}</td>
                         <td className="text-text-muted">{a.Status as string}</td>
+                        <td>
+                          <button
+                            onClick={() => setViewingAsset(a)}
+                            className="p-1 text-text-muted hover:text-csa-accent transition-colors cursor-pointer"
+                          >
+                            <Eye size={14} />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -533,6 +551,15 @@ export default function AccountDetailView() {
           </motion.div>
         )}
       </div>
+
+      {/* Asset Detail Modal */}
+      {viewingAsset ? (
+        <AssetDetailModal
+          assetId={viewingAsset.id as string}
+          assetData={viewingAsset}
+          onClose={() => setViewingAsset(null)}
+        />
+      ) : null}
     </div>
   );
 }
