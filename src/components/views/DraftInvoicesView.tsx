@@ -42,6 +42,7 @@ export default function DraftInvoicesView() {
   const [resellers, setResellers] = useState<ResellerOption[]>([]);
   const [selectedReseller, setSelectedReseller] = useState<string>('');
   const [selectedRegion, setSelectedRegion] = useState<string>('');
+  const [typeFilter, setTypeFilter] = useState<string>('');
 
   // Sort state
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -153,9 +154,14 @@ export default function DraftInvoicesView() {
     }
   }, [searchField]);
 
-  // Client-side search + sort
+  // Client-side type filter, search + sort
   const processedInvoices = useMemo(() => {
     let result = [...invoices];
+
+    // Type filter
+    if (typeFilter) {
+      result = result.filter(inv => (inv.Invoice_Type || '') === typeFilter);
+    }
 
     // Search filter
     if (searchText) {
@@ -185,7 +191,7 @@ export default function DraftInvoicesView() {
     }
 
     return result;
-  }, [invoices, sortField, sortDir, searchText, searchField]);
+  }, [invoices, typeFilter, sortField, sortDir, searchText, searchField]);
 
   // Pagination derived values — clamp page to valid range
   const totalPages = Math.max(1, Math.ceil(processedInvoices.length / pageSize));
@@ -198,7 +204,7 @@ export default function DraftInvoicesView() {
   }, [currentPage, totalPages]);
 
   // Reset to page 1 when filters/search/sort change
-  useEffect(() => { setCurrentPage(1); }, [statusFilter, selectedReseller, selectedRegion, searchText, sortField, sortDir]);
+  useEffect(() => { setCurrentPage(1); }, [statusFilter, selectedReseller, selectedRegion, typeFilter, searchText, sortField, sortDir]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -243,6 +249,22 @@ export default function DraftInvoicesView() {
                 <option value="Draft">Draft</option>
                 <option value="Approved">Approved</option>
                 <option value="Sent">Sent</option>
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+            </div>
+
+            {/* Type filter */}
+            <div className="relative min-w-[160px]">
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10"
+              >
+                <option value="">All Types</option>
+                <option value="New Product">New Product</option>
+                <option value="Renewal">Renewal</option>
+                <option value="Co-Term">Co-Term</option>
+                <option value="Add To Contract">Add To Contract</option>
               </select>
               <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
             </div>
