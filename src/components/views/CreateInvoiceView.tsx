@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -29,7 +29,7 @@ export default function CreateInvoiceView() {
   const account = newInvoiceContext?.account as { name?: string; id?: string } | null;
   const contact = newInvoiceContext?.contact as { name?: string; id?: string } | null;
   const resellerData = newInvoiceContext?.reseller as { name?: string; id?: string } | null;
-  const resellerRegion = (newInvoiceContext?.region as string) || 'AU';
+  const [resellerRegion, setResellerRegion] = useState((newInvoiceContext?.region as string) || 'AU');
   const ownerData = newInvoiceContext?.owner as { name?: string; id?: string } | null;
   const billingCountry = newInvoiceContext?.billingCountry as string || '';
 
@@ -39,8 +39,25 @@ export default function CreateInvoiceView() {
 
   const [invoiceDate, setInvoiceDate] = useState(today);
   const [dueDate, setDueDate] = useState(plus30);
-  const [currency, setCurrency] = useState((newInvoiceContext?.currency as string) || 'AUD');
+  const [currency, setCurrency] = useState('AUD');
   const [lineItems, setLineItems] = useState<Record<string, unknown>[]>([]);
+
+  // Fetch reseller currency on load
+  useEffect(() => {
+    if (!resellerData?.id) return;
+    fetch(`/api/resellers?resellerId=${resellerData.id}`)
+      .then(res => res.json())
+      .then(data => {
+        const reseller = data.resellers?.[0];
+        if (reseller?.currency) {
+          setCurrency(reseller.currency);
+        }
+        if (reseller?.region) {
+          setResellerRegion(reseller.region);
+        }
+      })
+      .catch(() => {});
+  }, [resellerData?.id]);
   const [saving, setSaving] = useState(false);
   const [skuBuilderIndex, setSkuBuilderIndex] = useState<number | null>(null);
 
