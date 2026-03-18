@@ -25,6 +25,10 @@ interface ResellerOption {
   region: string;
 }
 
+const REGION_LABELS: Record<string, string> = {
+  AF: 'Africa', AS: 'Asia', AU: 'Australia', EU: 'Europe', NA: 'North America', NZ: 'New Zealand', WW: 'Worldwide',
+};
+
 type SortField = 'Reference_Number' | 'Invoice_Date' | 'Grand_Total';
 type SortDir = 'asc' | 'desc';
 
@@ -253,7 +257,7 @@ export default function DraftInvoicesView() {
                 >
                   <option value="">All Regions</option>
                   {regions.map(r => (
-                    <option key={r} value={r}>{r}</option>
+                    <option key={r} value={r}>{REGION_LABELS[r] || r}</option>
                   ))}
                 </select>
                 <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
