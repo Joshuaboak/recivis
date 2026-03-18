@@ -169,18 +169,23 @@ export async function searchAllPages(
   const allRecords: Record<string, unknown>[] = [];
 
   for (let page = 1; page <= maxPages; page++) {
-    const result = await executeZohoTool('search_records', {
-      module,
-      criteria,
-      fields,
-      page,
-      sort_order: sortOrder,
-    });
+    try {
+      const result = await executeZohoTool('search_records', {
+        module,
+        criteria,
+        fields,
+        page,
+        sort_order: sortOrder,
+      });
 
-    const parsed = parseMcpResult(result);
-    allRecords.push(...parsed.data);
+      const parsed = parseMcpResult(result);
+      allRecords.push(...parsed.data);
 
-    if (!parsed.moreRecords) break;
+      if (!parsed.moreRecords) break;
+    } catch {
+      // Zoho returns an error when no records match — stop paging
+      break;
+    }
   }
 
   return allRecords;
@@ -200,15 +205,19 @@ export async function getAllRecordPages(
   const allRecords: Record<string, unknown>[] = [];
 
   for (let page = 1; page <= maxPages; page++) {
-    const result = await callMcpTool('ZohoCRM_Get_Records', {
-      path_variables: { module },
-      query_params: { fields, per_page: 200, page, sort_by: sortBy, sort_order: sortOrder },
-    });
+    try {
+      const result = await callMcpTool('ZohoCRM_Get_Records', {
+        path_variables: { module },
+        query_params: { fields, per_page: 200, page, sort_by: sortBy, sort_order: sortOrder },
+      });
 
-    const parsed = parseMcpResult(result);
-    allRecords.push(...parsed.data);
+      const parsed = parseMcpResult(result);
+      allRecords.push(...parsed.data);
 
-    if (!parsed.moreRecords) break;
+      if (!parsed.moreRecords) break;
+    } catch {
+      break;
+    }
   }
 
   return allRecords;
