@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import Pagination from '../Pagination';
 
 export default function AccountDetailView() {
   const { selectedAccountId, setCurrentView, setSelectedInvoiceId, setInvoiceReturnView } = useAppStore();
@@ -13,6 +14,8 @@ export default function AccountDetailView() {
   const [archivedAssets, setArchivedAssets] = useState<Record<string, unknown>[]>([]);
   const [invoices, setInvoices] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
+  const [contactPage, setContactPage] = useState(1);
+  const contactPageSize = 10;
 
   useEffect(() => {
     if (!selectedAccountId) return;
@@ -55,6 +58,25 @@ export default function AccountDetailView() {
   const reseller = account.Reseller as { name?: string } | null;
   const owner = account.Owner as { name?: string } | null;
   const primaryContact = account.Primary_Contact as { name?: string; id?: string } | null;
+  const secondaryContact = account.Secondary_Contact as { name?: string; id?: string } | null;
+
+  // Sort contacts: primary first, secondary second, then rest
+  const sortedContacts = [...contacts].sort((a, b) => {
+    const aId = a.id as string;
+    const bId = b.id as string;
+    const aIsPrimary = primaryContact?.id && aId === primaryContact.id;
+    const bIsPrimary = primaryContact?.id && bId === primaryContact.id;
+    const aIsSecondary = secondaryContact?.id && aId === secondaryContact.id;
+    const bIsSecondary = secondaryContact?.id && bId === secondaryContact.id;
+    if (aIsPrimary) return -1;
+    if (bIsPrimary) return 1;
+    if (aIsSecondary) return -1;
+    if (bIsSecondary) return 1;
+    return 0;
+  });
+
+  const contactSafePage = Math.min(contactPage, Math.max(1, Math.ceil(sortedContacts.length / contactPageSize)));
+  const paginatedContacts = sortedContacts.slice((contactSafePage - 1) * contactPageSize, contactSafePage * contactPageSize);
 
   const formatDate = (d: unknown) => {
     if (!d || typeof d !== 'string') return '—';
@@ -96,24 +118,50 @@ export default function AccountDetailView() {
             <User size={18} className="text-csa-accent" />
             Contacts ({contacts.length})
           </h2>
-          {contacts.length > 0 ? (
-            <div className="border border-border-subtle rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead><tr className="bg-surface-raised">
-                  <th>Name</th><th>Email</th><th>Phone</th><th>Title</th>
-                </tr></thead>
-                <tbody>
-                  {contacts.map((c, i) => (
-                    <tr key={i}>
-                      <td className="font-semibold text-text-primary">{c.Full_Name as string}</td>
-                      <td><span className="flex items-center gap-1 text-text-secondary"><Mail size={12} className="text-text-muted" />{c.Email as string || '—'}</span></td>
-                      <td><span className="flex items-center gap-1 text-text-secondary"><Phone size={12} className="text-text-muted" />{c.Phone as string || '—'}</span></td>
-                      <td className="text-text-muted">{c.Title as string || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {sortedContacts.length > 0 ? (
+            <>
+              <div className="border border-border-subtle rounded-xl overflow-hidden">
+                <table className="w-full">
+                  <thead><tr className="bg-surface-raised">
+                    <th>Name</th><th>Email</th><th>Phone</th><th>Title</th>
+                  </tr></thead>
+                  <tbody>
+                    {paginatedContacts.map((c, i) => {
+                      const cId = c.id as string;
+                      const isPrimary = primaryContact?.id && cId === primaryContact.id;
+                      const isSecondary = secondaryContact?.id && cId === secondaryContact.id;
+                      return (
+                        <tr key={i}>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-text-primary">{c.Full_Name as string}</span>
+                              {isPrimary ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-warning/20 text-warning">
+                                  <Star size={9} />
+                                  Primary
+                                </span>
+                              ) : null}
+                              {isSecondary ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-csa-accent/20 text-csa-accent">
+                                  <Star size={9} />
+                                  Secondary
+                                </span>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td><span className="flex items-center gap-1 text-text-secondary"><Mail size={12} className="text-text-muted" />{c.Email as string || '\u2014'}</span></td>
+                          <td><span className="flex items-center gap-1 text-text-secondary"><Phone size={12} className="text-text-muted" />{c.Phone as string || '\u2014'}</span></td>
+                          <td className="text-text-muted">{c.Title as string || '\u2014'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-2">
+                <Pagination currentPage={contactSafePage} totalItems={sortedContacts.length} pageSize={contactPageSize} onPageChange={setContactPage} />
+              </div>
+            </>
           ) : (
             <p className="text-sm text-text-muted py-4">No contacts found</p>
           )}
