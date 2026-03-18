@@ -145,7 +145,7 @@ export default function AccountDetailView() {
                         }}
                         className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                       >
-                        <td className="text-text-muted text-xs font-mono">{inv.Invoice_Number as string || '\u2014'}</td>
+                        <td className="text-text-muted text-xs font-mono">{inv.Reference_Number as string || '\u2014'}</td>
                         <td className="font-semibold text-csa-accent">{inv.Subject as string || `Invoice ${inv.id as string}`}</td>
                         <td className="text-text-secondary">{formatDate(inv.Invoice_Date)}</td>
                         <td>

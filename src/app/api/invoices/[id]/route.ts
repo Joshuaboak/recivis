@@ -37,8 +37,8 @@ export async function GET(
     const invoiceData = parseResult(invoiceResult);
     const invoice = invoiceData[0] || null;
 
-    // Extract line items from the invoice record's Product_Details array
-    const lineItems = (invoice?.Product_Details as Record<string, unknown>[] | undefined) || [];
+    // Extract line items from the invoice record's Invoiced_Items subform
+    const lineItems = (invoice?.Invoiced_Items as Record<string, unknown>[] | undefined) || [];
 
     return NextResponse.json({ invoice, lineItems });
   } catch (error) {

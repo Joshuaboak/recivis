@@ -119,10 +119,10 @@ export default function InvoiceDetailView() {
                 {invoice.Invoice_Type as string || 'New'}
               </span>
             </div>
-            {invoice.Invoice_Number ? (
+            {invoice.Reference_Number ? (
               <p className="text-sm text-text-muted flex items-center gap-1">
                 <Hash size={12} />
-                {invoice.Invoice_Number as string}
+                {invoice.Reference_Number as string}
               </p>
             ) : null}
           </div>
@@ -158,21 +158,22 @@ export default function InvoiceDetailView() {
                   <tr className="bg-surface-raised">
                     <th>Product</th>
                     <th className="text-right">Qty</th>
-                    <th className="text-right">Unit Price</th>
-                    <th className="text-right">Discount</th>
+                    <th className="text-right">List Price</th>
+                    <th>Start</th>
+                    <th>Renewal</th>
                     <th className="text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {lineItems.map((li, i) => {
-                    // Zoho Product_Details uses lowercase keys: product, quantity, unit_price, total, etc.
-                    const product = (li.product || li.Product_Name) as { name?: string } | string | null;
-                    const productName = typeof product === 'object' && product !== null ? product.name : product;
-                    const qty = (li.quantity ?? li.Quantity) as number;
-                    const unitPrice = (li.unit_price ?? li.Unit_Price) as number;
-                    const discount = (li.Discount ?? li.discount) as number;
-                    const total = (li.total ?? li.Total ?? li.net_total ?? li.Net_Total) as number;
-                    const desc = (li.product_description ?? li.Description) as string | undefined;
+                    // Invoiced_Items subform fields from Zoho CRM
+                    const product = li.Product_Name as { name?: string } | string | null;
+                    const productName = typeof product === 'object' && product !== null ? product.name : (product as string);
+                    const qty = li.Quantity as number;
+                    const unitPrice = li.List_Price as number;
+                    const discount = li.Discount as number;
+                    const total = li.Net_Total as number;
+                    const desc = li.Description as string | undefined;
                     return (
                       <tr key={i}>
                         <td>
@@ -183,9 +184,8 @@ export default function InvoiceDetailView() {
                         </td>
                         <td className="text-right text-text-secondary">{qty}</td>
                         <td className="text-right text-text-secondary">{symbol}{unitPrice?.toFixed(2)}</td>
-                        <td className="text-right text-text-muted">
-                          {discount ? `${symbol}${discount.toFixed(2)}` : '\u2014'}
-                        </td>
+                        <td className="text-text-secondary">{formatDate(li.Start_Date)}</td>
+                        <td className="text-text-secondary">{formatDate(li.Renewal_Date)}</td>
                         <td className="text-right text-text-primary font-semibold">{symbol}{total?.toFixed(2)}</td>
                       </tr>
                     );

@@ -31,7 +31,7 @@ export async function GET(
         parent_module: 'Accounts',
         parent_id: id,
         related_list: 'Invoices',
-        fields: 'Subject,Invoice_Number,Invoice_Date,Status,Grand_Total,Currency,Invoice_Type,Record_Status__s',
+        fields: 'Subject,Reference_Number,Invoice_Date,Status,Grand_Total,Currency,Invoice_Type,Record_Status__s',
       }),
     ]);
 

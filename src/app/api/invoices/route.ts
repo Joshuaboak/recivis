@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const resellerId = searchParams.get('resellerId');
 
   try {
-    const fields = 'Subject,Invoice_Number,Account_Name,Invoice_Date,Status,Grand_Total,Currency,Invoice_Type,Reseller,Record_Status__s';
+    const fields = 'Subject,Reference_Number,Account_Name,Invoice_Date,Status,Grand_Total,Currency,Invoice_Type,Reseller,Record_Status__s';
 
     let criteria = `(Status:equals:${status})`;
     if (resellerId) {
