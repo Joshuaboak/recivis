@@ -13,7 +13,6 @@ import {
   Package,
   Loader2,
   ExternalLink,
-  Hash,
   MapPin,
   Send,
   CheckCircle2,
@@ -21,8 +20,12 @@ import {
   Pencil,
   Save,
   X,
+  Replace,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import SKUBuilder from '../SKUBuilder';
+
+const CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'INR', 'NZD'];
 
 export default function InvoiceDetailView() {
   const { user, selectedInvoiceId, invoiceReturnView, setCurrentView, setSelectedAccountId } = useAppStore();
@@ -35,9 +38,13 @@ export default function InvoiceDetailView() {
   const [saving, setSaving] = useState(false);
   const [editInvoiceDate, setEditInvoiceDate] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
+  const [editCurrency, setEditCurrency] = useState('');
   const [editLineItems, setEditLineItems] = useState<Record<string, unknown>[]>([]);
+  const [skuBuilderIndex, setSkuBuilderIndex] = useState<number | null>(null);
 
-  const canEdit = (user?.role === 'admin' || user?.role === 'ibm') && invoice?.Status === 'Draft';
+  const isEditor = user?.role === 'admin' || user?.role === 'ibm';
+  const canEdit = isEditor && invoice?.Status === 'Draft';
+  const isRenewal = invoice?.Invoice_Type === 'Renewal';
 
   useEffect(() => {
     if (!selectedInvoiceId) return;
@@ -58,12 +65,17 @@ export default function InvoiceDetailView() {
     if (!invoice) return;
     setEditInvoiceDate(invoice.Invoice_Date as string || '');
     setEditDueDate(invoice.Due_Date as string || '');
-    setEditLineItems(lineItems.map(li => ({ ...li })));
+    setEditCurrency(invoice.Currency as string || 'AUD');
+    setEditLineItems(lineItems.map(li => ({
+      ...li,
+      _originalPrice: li.List_Price, // Track original price for Contract_Term_Years logic
+    })));
     setEditing(true);
   };
 
   const cancelEdit = () => {
     setEditing(false);
+    setSkuBuilderIndex(null);
   };
 
   const saveEdits = async () => {
@@ -74,10 +86,16 @@ export default function InvoiceDetailView() {
       const body: Record<string, unknown> = {};
       if (editInvoiceDate !== (invoice?.Invoice_Date as string || '')) body.Invoice_Date = editInvoiceDate;
       if (editDueDate !== (invoice?.Due_Date as string || '')) body.Due_Date = editDueDate;
+      if (editCurrency !== (invoice?.Currency as string || '')) body.Currency = editCurrency;
 
-      // Build line items payload — include all fields Zoho needs
+      // Build line items — set Contract_Term_Years to 0 if price was changed
       const updatedItems = editLineItems.map(li => {
         const item: Record<string, unknown> = { ...li };
+        const priceChanged = item._originalPrice !== item.List_Price;
+        if (priceChanged) {
+          item.Contract_Term_Years = 0;
+        }
+        delete item._originalPrice;
         return item;
       });
       body.Invoiced_Items = updatedItems;
@@ -89,7 +107,6 @@ export default function InvoiceDetailView() {
       });
 
       if (res.ok) {
-        // Reload invoice data
         const reload = await fetch(`/api/invoices/${selectedInvoiceId}`);
         const data = await reload.json();
         setInvoice(data.invoice);
@@ -100,8 +117,21 @@ export default function InvoiceDetailView() {
     setSaving(false);
   };
 
-  const updateLineItem = (index: number, field: string, value: string) => {
+  const updateLineItem = (index: number, field: string, value: unknown) => {
     setEditLineItems(prev => prev.map((li, i) => i === index ? { ...li, [field]: value } : li));
+  };
+
+  const handleProductSelect = (index: number, product: { id: string; name: string; sku: string; unitPrice: number }) => {
+    setEditLineItems(prev => prev.map((li, i) => {
+      if (i !== index) return li;
+      return {
+        ...li,
+        Product_Name: { name: product.name, id: product.id },
+        List_Price: product.unitPrice,
+        _originalPrice: li._originalPrice, // Keep original for comparison
+      };
+    }));
+    setSkuBuilderIndex(null);
   };
 
   const goBack = () => {
@@ -120,10 +150,10 @@ export default function InvoiceDetailView() {
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
   };
 
-  const getCurrencySymbol = (c: unknown) => {
-    const currency = c as string;
-    if (currency === 'EUR') return '\u20AC';
-    if (currency === 'GBP') return '\u00A3';
+  const getCurrencySymbol = (c: string) => {
+    if (c === 'EUR') return '\u20AC';
+    if (c === 'GBP') return '\u00A3';
+    if (c === 'INR') return '\u20B9';
     return '$';
   };
 
@@ -146,10 +176,12 @@ export default function InvoiceDetailView() {
 
   const account = invoice.Account_Name as { name?: string; id?: string } | null;
   const contact = invoice.Contact_Name as { name?: string; id?: string } | null;
-  const reseller = invoice.Reseller as { name?: string } | null;
+  const reseller = invoice.Reseller as { name?: string; id?: string } | null;
   const owner = invoice.Owner as { name?: string } | null;
   const status = invoice.Status as string;
-  const symbol = getCurrencySymbol(invoice.Currency);
+  const activeCurrency = editing ? editCurrency : (invoice.Currency as string || 'AUD');
+  const symbol = getCurrencySymbol(activeCurrency);
+  const resellerRegion = (invoice.Reseller_Region as string) || 'AU';
 
   const statusColor = (s: unknown) => {
     switch (s) {
@@ -166,8 +198,8 @@ export default function InvoiceDetailView() {
       : 'bg-csa-accent/20 text-csa-accent border-csa-accent/30';
   };
 
-  // Display items — use edit state when editing, otherwise originals
   const displayLineItems = editing ? editLineItems : lineItems;
+  const canEditLineItems = editing && !isRenewal;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -196,7 +228,6 @@ export default function InvoiceDetailView() {
             <div className="flex-1" />
 
             <div className="flex items-center gap-2">
-              {/* Edit / Save / Cancel */}
               {canEdit && !editing ? (
                 <button onClick={enterEditMode} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-warning bg-warning/10 border border-warning/30 rounded-xl hover:bg-warning/20 transition-colors cursor-pointer">
                   <Pencil size={14} />
@@ -216,11 +247,9 @@ export default function InvoiceDetailView() {
                 </>
               ) : null}
 
-              {/* Action buttons */}
               {!editing && status === 'Draft' ? (() => {
-                const isSystemAdmin = user?.role === 'admin' || user?.role === 'ibm';
-                const canApprove = isSystemAdmin || user?.permissions?.canApproveInvoices;
-                const canSend = isSystemAdmin || user?.permissions?.canSendInvoices;
+                const canApprove = isEditor || user?.permissions?.canApproveInvoices;
+                const canSend = isEditor || user?.permissions?.canSendInvoices;
                 return (
                   <>
                     {canApprove ? (
@@ -275,21 +304,39 @@ export default function InvoiceDetailView() {
           <InfoCard label="Contact" value={contact?.name || '\u2014'} icon={<User size={14} />} />
           <InfoCard label="Reseller" value={reseller?.name || '\u2014'} icon={<Globe size={14} />} />
 
-          {/* Invoice Date — editable */}
           {editing ? (
             <EditDateCard label="Invoice Date" value={editInvoiceDate} onChange={setEditInvoiceDate} icon={<Calendar size={14} />} />
           ) : (
             <InfoCard label="Invoice Date" value={formatDate(invoice.Invoice_Date)} icon={<Calendar size={14} />} />
           )}
 
-          {/* Due Date — editable */}
           {editing ? (
             <EditDateCard label="Due Date" value={editDueDate} onChange={setEditDueDate} icon={<Calendar size={14} />} />
           ) : (
             <InfoCard label="Due Date" value={formatDate(invoice.Due_Date)} icon={<Calendar size={14} />} />
           )}
 
-          <InfoCard label="Currency" value={invoice.Currency as string || '\u2014'} icon={<DollarSign size={14} />} />
+          {/* Currency — editable */}
+          {editing ? (
+            <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-csa-accent uppercase tracking-wider mb-1">
+                <DollarSign size={14} />
+                Currency
+              </div>
+              <select
+                value={editCurrency}
+                onChange={(e) => setEditCurrency(e.target.value)}
+                className="bg-transparent border-none text-sm text-text-primary outline-none w-full cursor-pointer"
+              >
+                {CURRENCIES.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <InfoCard label="Currency" value={activeCurrency} icon={<DollarSign size={14} />} />
+          )}
+
           {owner ? <InfoCard label="Owner" value={owner.name || '\u2014'} icon={<User size={14} />} /> : null}
           {invoice.Billing_Country ? <InfoCard label="Billing Country" value={invoice.Billing_Country as string} icon={<MapPin size={14} />} /> : null}
           {invoice.Purchase_Order ? <InfoCard label="Purchase Order" value={invoice.Purchase_Order as string} icon={<FileText size={14} />} /> : null}
@@ -301,6 +348,7 @@ export default function InvoiceDetailView() {
             <Package size={18} className="text-csa-accent" />
             Line Items ({displayLineItems.length})
             {editing && <span className="text-xs font-normal text-warning ml-2">Editing</span>}
+            {editing && isRenewal && <span className="text-xs font-normal text-text-muted ml-1">(line items locked for renewals)</span>}
           </h2>
           {displayLineItems.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-hidden">
@@ -317,7 +365,7 @@ export default function InvoiceDetailView() {
                 </thead>
                 <tbody>
                   {displayLineItems.map((li, i) => {
-                    const product = li.Product_Name as { name?: string } | string | null;
+                    const product = li.Product_Name as { name?: string; id?: string } | string | null;
                     const productName = typeof product === 'object' && product !== null ? product.name : (product as string);
                     const qty = li.Quantity as number;
                     const unitPrice = li.List_Price as number;
@@ -325,14 +373,63 @@ export default function InvoiceDetailView() {
                     const desc = li.Description as string | undefined;
                     return (
                       <tr key={i}>
+                        {/* Product — clickable to change via SKU builder (not for renewals) */}
                         <td>
-                          <div className="font-semibold text-text-primary">{productName || '\u2014'}</div>
-                          {desc ? (
-                            <p className="text-xs text-text-muted mt-0.5 max-w-md truncate">{desc}</p>
-                          ) : null}
+                          {canEditLineItems ? (
+                            <button
+                              onClick={() => setSkuBuilderIndex(i)}
+                              className="text-left group cursor-pointer"
+                            >
+                              <div className="font-semibold text-csa-accent group-hover:text-csa-highlight transition-colors flex items-center gap-1.5">
+                                {productName || '\u2014'}
+                                <Replace size={12} className="text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                              {desc ? (
+                                <p className="text-xs text-text-muted mt-0.5 max-w-md truncate">{desc}</p>
+                              ) : null}
+                            </button>
+                          ) : (
+                            <>
+                              <div className="font-semibold text-text-primary">{productName || '\u2014'}</div>
+                              {desc ? (
+                                <p className="text-xs text-text-muted mt-0.5 max-w-md truncate">{desc}</p>
+                              ) : null}
+                            </>
+                          )}
                         </td>
-                        <td className="text-right text-text-secondary">{qty}</td>
-                        <td className="text-right text-text-secondary">{symbol}{unitPrice?.toFixed(2)}</td>
+
+                        {/* Quantity */}
+                        <td className="text-right">
+                          {canEditLineItems ? (
+                            <input
+                              type="number"
+                              min={1}
+                              value={qty}
+                              onChange={(e) => updateLineItem(i, 'Quantity', parseInt(e.target.value) || 1)}
+                              className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent w-[70px] text-right"
+                            />
+                          ) : (
+                            <span className="text-text-secondary">{qty}</span>
+                          )}
+                        </td>
+
+                        {/* List Price */}
+                        <td className="text-right">
+                          {canEditLineItems ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              min={0}
+                              value={unitPrice}
+                              onChange={(e) => updateLineItem(i, 'List_Price', parseFloat(e.target.value) || 0)}
+                              className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent w-[100px] text-right"
+                            />
+                          ) : (
+                            <span className="text-text-secondary">{symbol}{unitPrice?.toFixed(2)}</span>
+                          )}
+                        </td>
+
+                        {/* Start Date */}
                         <td>
                           {editing ? (
                             <input
@@ -345,6 +442,8 @@ export default function InvoiceDetailView() {
                             <span className="text-text-secondary">{formatDate(li.Start_Date)}</span>
                           )}
                         </td>
+
+                        {/* Renewal Date */}
                         <td>
                           {editing ? (
                             <input
@@ -357,6 +456,8 @@ export default function InvoiceDetailView() {
                             <span className="text-text-secondary">{formatDate(li.Renewal_Date)}</span>
                           )}
                         </td>
+
+                        {/* Total */}
                         <td className="text-right text-text-primary font-semibold">{symbol}{total?.toFixed(2)}</td>
                       </tr>
                     );
@@ -408,6 +509,15 @@ export default function InvoiceDetailView() {
           </motion.div>
         ) : null}
       </div>
+
+      {/* SKU Builder Modal */}
+      {skuBuilderIndex !== null && (
+        <SKUBuilder
+          region={resellerRegion}
+          onSelect={(product) => handleProductSelect(skuBuilderIndex, product)}
+          onCancel={() => setSkuBuilderIndex(null)}
+        />
+      )}
     </div>
   );
 }
