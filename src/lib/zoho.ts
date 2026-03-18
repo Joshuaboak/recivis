@@ -217,7 +217,7 @@ export async function getAllRecordPages(
 
   for (let page = 1; page <= maxPages; page++) {
     try {
-      const result = await callMcpTool('ZohoCRM_Get_Records', {
+      const result = await callMcpTool('ZohoCRM_getRecords', {
         path_variables: { module },
         query_params: { fields, per_page: 200, page, sort_by: sortBy, sort_order: sortOrder },
       });
@@ -256,11 +256,11 @@ export async function executeZohoTool(
       if (args.page) qp.page = args.page;
       if (args.sort_by) qp.sort_by = args.sort_by;
       if (args.sort_order) qp.sort_order = args.sort_order;
-      return callMcpTool('ZohoCRM_Search_Records', mcpArgs);
+      return callMcpTool('ZohoCRM_searchRecords', mcpArgs);
     }
 
     case 'get_record': {
-      return callMcpTool('ZohoCRM_Get_Record', {
+      return callMcpTool('ZohoCRM_getRecord', {
         path_variables: {
           module: args.module,
           recordID: args.record_id,
@@ -283,7 +283,7 @@ export async function executeZohoTool(
     }
 
     case 'create_records': {
-      return callMcpTool('ZohoCRM_Create_Records', {
+      return callMcpTool('ZohoCRM_createRecords', {
         path_variables: { module: args.module },
         body: {
           data: args.records,
@@ -293,7 +293,7 @@ export async function executeZohoTool(
     }
 
     case 'update_records': {
-      return callMcpTool('ZohoCRM_Update_Records', {
+      return callMcpTool('ZohoCRM_updateRecords', {
         path_variables: { module: args.module },
         body: {
           data: args.records,

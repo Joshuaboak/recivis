@@ -24,10 +24,10 @@ export async function GET(request: NextRequest) {
       // Distributor: fetch own + children (where Distributor = this reseller)
       // Fetch all and filter — Zoho doesn't support OR on lookup + equals:id easily
       const [ownResult, childResult] = await Promise.all([
-        callMcpTool('ZohoCRM_Get_Record', {
+        callMcpTool('ZohoCRM_getRecord', {
           path_variables: { module: 'Resellers', recordID: resellerId },
         }),
-        callMcpTool('ZohoCRM_Search_Records', {
+        callMcpTool('ZohoCRM_searchRecords', {
           path_variables: { module: 'Resellers' },
           query_params: {
             criteria: `(Distributor:equals:${resellerId})`,
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       resellers = all.map(mapReseller);
     } else if (resellerId) {
       // Single reseller
-      const result = await callMcpTool('ZohoCRM_Get_Record', {
+      const result = await callMcpTool('ZohoCRM_getRecord', {
         path_variables: { module: 'Resellers', recordID: resellerId },
       });
       const data = parseResult(result).filter(
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       resellers = data.map(mapReseller);
     } else {
       // Admin: all resellers
-      const result = await callMcpTool('ZohoCRM_Get_Records', {
+      const result = await callMcpTool('ZohoCRM_getRecords', {
         path_variables: { module: 'Resellers' },
         query_params: { fields, per_page: 200, sort_order: 'asc' },
       });

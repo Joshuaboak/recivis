@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       allRecords = [];
       for (let page = 1; page <= 10; page++) {
         try {
-          const result = await callMcpTool('ZohoCRM_Search_Records', {
+          const result = await callMcpTool('ZohoCRM_searchRecords', {
             path_variables: { module: 'Accounts' },
             query_params: { word: search, fields, page },
           });
