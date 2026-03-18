@@ -107,19 +107,30 @@ async function ensureInitialized(): Promise<void> {
 
 /**
  * Call a Zoho MCP tool by name with arguments.
+ * Auto-retries once on failure by resetting the MCP session.
  */
 export async function callMcpTool(
   toolName: string,
   args: Record<string, unknown>
 ): Promise<unknown> {
-  await ensureInitialized();
-
-  const result = await mcpRequest('tools/call', {
-    name: toolName,
-    arguments: args,
-  });
-
-  return result;
+  try {
+    await ensureInitialized();
+    return await mcpRequest('tools/call', {
+      name: toolName,
+      arguments: args,
+    });
+  } catch (err) {
+    // Session may be stale — reset and retry once
+    log('warn', 'mcp', `Tool call ${toolName} failed, resetting session and retrying`, {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    resetSession();
+    await ensureInitialized();
+    return await mcpRequest('tools/call', {
+      name: toolName,
+      arguments: args,
+    });
+  }
 }
 
 /**
