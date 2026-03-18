@@ -351,7 +351,7 @@ export default function InvoiceDetailView() {
             <Package size={18} className="text-csa-accent" />
             Line Items ({displayLineItems.length})
             {editing && <span className="text-xs font-normal text-warning ml-2">Editing</span>}
-            {editing && isRenewal && <span className="text-xs font-normal text-text-muted ml-1">(product &amp; qty locked for renewals)</span>}
+            {editing && isRenewal && <span className="text-xs font-normal text-text-muted ml-1">(You can not modify the product or quantity for a renewal)</span>}
           </h2>
           {displayLineItems.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-hidden">
