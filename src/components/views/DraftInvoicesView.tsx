@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Loader2, ExternalLink, ChevronDown, ArrowUp, ArrowDown, Search, X } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import Pagination from '../Pagination';
 
 interface Invoice {
   id: string;
@@ -46,6 +47,10 @@ export default function DraftInvoicesView() {
   const [searchField, setSearchField] = useState<'Subject' | 'Account' | null>(null);
   const [searchText, setSearchText] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
 
   // Role checks
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
@@ -177,6 +182,12 @@ export default function DraftInvoicesView() {
 
     return result;
   }, [invoices, sortField, sortDir, searchText, searchField]);
+
+  // Pagination derived values
+  const paginatedInvoices = processedInvoices.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // Reset to page 1 when filters/search/sort change
+  useEffect(() => { setCurrentPage(1); }, [statusFilter, selectedReseller, selectedRegion, searchText, sortField, sortDir]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -313,8 +324,15 @@ export default function DraftInvoicesView() {
           </div>
         )}
 
-        {/* Invoice table */}
+        {/* Pagination (top) */}
         {!loading && processedInvoices.length > 0 && (
+          <div className="mb-3">
+            <Pagination currentPage={currentPage} totalItems={processedInvoices.length} pageSize={pageSize} onPageChange={setCurrentPage} />
+          </div>
+        )}
+
+        {/* Invoice table */}
+        {!loading && paginatedInvoices.length > 0 && (
           <div className="border border-border-subtle rounded-xl overflow-hidden">
             <table className="w-full">
               <thead>
@@ -330,12 +348,11 @@ export default function DraftInvoicesView() {
                 </tr>
               </thead>
               <tbody>
-                {processedInvoices.map((inv, i) => (
+                {paginatedInvoices.map((inv) => (
                   <motion.tr
                     key={inv.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.02 }}
                     onClick={() => {
                       setSelectedInvoiceId(inv.id);
                       setInvoiceReturnView('draft-invoices');
@@ -372,6 +389,13 @@ export default function DraftInvoicesView() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination (bottom) */}
+        {!loading && processedInvoices.length > pageSize && (
+          <div className="mt-3">
+            <Pagination currentPage={currentPage} totalItems={processedInvoices.length} pageSize={pageSize} onPageChange={setCurrentPage} />
           </div>
         )}
 

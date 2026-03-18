@@ -131,6 +131,89 @@ export function resetSession(): void {
   initPromise = null;
 }
 
+// ---- Helpers ----
+
+/**
+ * Parse an MCP tool result into an array of records.
+ */
+export function parseMcpResult(result: unknown): { data: Record<string, unknown>[]; moreRecords: boolean; page: number } {
+  const res = result as { content?: Array<{ text?: string }> };
+  if (res?.content) {
+    for (const item of res.content) {
+      if (item.text) {
+        try {
+          const parsed = JSON.parse(item.text);
+          return {
+            data: parsed.data || [],
+            moreRecords: parsed.info?.more_records ?? false,
+            page: parsed.info?.page ?? 1,
+          };
+        } catch { /* skip */ }
+      }
+    }
+  }
+  return { data: [], moreRecords: false, page: 1 };
+}
+
+/**
+ * Search records across all pages (auto-paginates).
+ * Max 10 pages (2000 records) to avoid runaway loops.
+ */
+export async function searchAllPages(
+  module: string,
+  criteria: string,
+  fields: string,
+  sortOrder: string = 'desc',
+  maxPages: number = 10
+): Promise<Record<string, unknown>[]> {
+  const allRecords: Record<string, unknown>[] = [];
+
+  for (let page = 1; page <= maxPages; page++) {
+    const result = await executeZohoTool('search_records', {
+      module,
+      criteria,
+      fields,
+      page,
+      sort_order: sortOrder,
+    });
+
+    const parsed = parseMcpResult(result);
+    allRecords.push(...parsed.data);
+
+    if (!parsed.moreRecords) break;
+  }
+
+  return allRecords;
+}
+
+/**
+ * Get records across all pages using Get_Records (browse mode).
+ * Max 10 pages (2000 records).
+ */
+export async function getAllRecordPages(
+  module: string,
+  fields: string,
+  sortBy: string = 'Modified_Time',
+  sortOrder: string = 'desc',
+  maxPages: number = 10
+): Promise<Record<string, unknown>[]> {
+  const allRecords: Record<string, unknown>[] = [];
+
+  for (let page = 1; page <= maxPages; page++) {
+    const result = await callMcpTool('ZohoCRM_Get_Records', {
+      path_variables: { module },
+      query_params: { fields, per_page: 200, page, sort_by: sortBy, sort_order: sortOrder },
+    });
+
+    const parsed = parseMcpResult(result);
+    allRecords.push(...parsed.data);
+
+    if (!parsed.moreRecords) break;
+  }
+
+  return allRecords;
+}
+
 // ---- Tool execution mapping ----
 // Maps simplified tool calls from Claude to MCP tool calls
 

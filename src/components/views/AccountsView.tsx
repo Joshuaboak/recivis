@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Building2, Loader2, MapPin, ExternalLink, ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import Pagination from '../Pagination';
 
 interface Account {
   id: string;
@@ -29,6 +30,9 @@ export default function AccountsView() {
   const [resellers, setResellers] = useState<ResellerFilter[]>([]);
   const [selectedReseller, setSelectedReseller] = useState<string>('');
   const [selectedRegion, setSelectedRegion] = useState<string>('');
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
 
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
   const hasChildResellers = user?.permissions?.canViewChildRecords;
@@ -109,6 +113,12 @@ export default function AccountsView() {
   useEffect(() => {
     fetchAccounts();
   }, [fetchAccounts]);
+
+  // Pagination
+  const paginatedAccounts = accounts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setCurrentPage(1); }, [searchDebounced, selectedReseller, selectedRegion]);
 
   const openAccount = (id: string) => {
     setSelectedAccountId(id);
@@ -193,8 +203,15 @@ export default function AccountsView() {
           </div>
         )}
 
-        {/* Accounts list */}
+        {/* Pagination (top) */}
         {!loading && accounts.length > 0 && (
+          <div className="mb-3">
+            <Pagination currentPage={currentPage} totalItems={accounts.length} pageSize={pageSize} onPageChange={setCurrentPage} />
+          </div>
+        )}
+
+        {/* Accounts list */}
+        {!loading && paginatedAccounts.length > 0 && (
           <div className="border border-border-subtle rounded-xl overflow-hidden">
             <table className="w-full">
               <thead>
@@ -207,12 +224,11 @@ export default function AccountsView() {
                 </tr>
               </thead>
               <tbody>
-                {accounts.map((acc, i) => (
+                {paginatedAccounts.map((acc) => (
                   <motion.tr
                     key={acc.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.02 }}
                     onClick={() => openAccount(acc.id)}
                     className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                   >
@@ -246,6 +262,13 @@ export default function AccountsView() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination (bottom) */}
+        {!loading && accounts.length > pageSize && (
+          <div className="mt-3">
+            <Pagination currentPage={currentPage} totalItems={accounts.length} pageSize={pageSize} onPageChange={setCurrentPage} />
           </div>
         )}
 

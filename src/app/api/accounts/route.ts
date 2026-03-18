@@ -1,64 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callMcpTool } from '@/lib/zoho';
+import { searchAllPages, getAllRecordPages, parseMcpResult, callMcpTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 
 /**
- * GET /api/accounts?search=term&resellerId=id&page=1
- * Fetches accounts — shows a list on load, filters on search.
+ * GET /api/accounts?search=term&resellerId=id
+ *
+ * Fetches ALL matching accounts across pages (up to 2000).
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search') || '';
   const resellerId = searchParams.get('resellerId');
-  const page = parseInt(searchParams.get('page') || '1');
 
   try {
     const fields = 'Account_Name,Billing_Country,Reseller,Email_Domain,Owner,Record_Status__s';
-    let result;
+    let allRecords: Record<string, unknown>[];
 
     if (search && resellerId) {
-      result = await callMcpTool('ZohoCRM_Search_Records', {
-        path_variables: { module: 'Accounts' },
-        query_params: {
-          criteria: `((Account_Name:starts_with:${search})and(Reseller:equals:${resellerId}))`,
-          fields, page,
-        },
-      });
+      allRecords = await searchAllPages(
+        'Accounts',
+        `((Account_Name:starts_with:${search})and(Reseller:equals:${resellerId}))`,
+        fields, 'desc'
+      );
     } else if (search) {
-      result = await callMcpTool('ZohoCRM_Search_Records', {
-        path_variables: { module: 'Accounts' },
-        query_params: { word: search, fields, page },
-      });
+      // Word search doesn't use criteria — use the MCP tool directly with pagination
+      allRecords = [];
+      for (let page = 1; page <= 10; page++) {
+        const result = await callMcpTool('ZohoCRM_Search_Records', {
+          path_variables: { module: 'Accounts' },
+          query_params: { word: search, fields, page },
+        });
+        const parsed = parseMcpResult(result);
+        allRecords.push(...parsed.data);
+        if (!parsed.moreRecords) break;
+      }
     } else if (resellerId) {
-      result = await callMcpTool('ZohoCRM_Search_Records', {
-        path_variables: { module: 'Accounts' },
-        query_params: { criteria: `(Reseller:equals:${resellerId})`, fields, page },
-      });
+      allRecords = await searchAllPages(
+        'Accounts',
+        `(Reseller:equals:${resellerId})`,
+        fields, 'desc'
+      );
     } else {
-      // No filter — get recent accounts using Get_Records (browse mode)
-      result = await callMcpTool('ZohoCRM_Get_Records', {
-        path_variables: { module: 'Accounts' },
-        query_params: { fields, per_page: 50, page, sort_by: 'Modified_Time', sort_order: 'desc' },
-      });
+      // No filter — get all accounts
+      allRecords = await getAllRecordPages('Accounts', fields, 'Modified_Time', 'desc');
     }
 
-    // Parse MCP response
-    let accounts: unknown[] = [];
-    const res = result as { content?: Array<{ text?: string }> };
-    if (res?.content) {
-      for (const item of res.content) {
-        if (item.text) {
-          try {
-            const parsed = JSON.parse(item.text);
-            if (parsed.data) {
-              accounts = parsed.data.filter(
-                (r: Record<string, unknown>) => r.Record_Status__s !== 'Trash'
-              );
-            }
-          } catch { /* skip */ }
-        }
-      }
-    }
+    const accounts = allRecords.filter(
+      (r) => r.Record_Status__s !== 'Trash'
+    );
 
     return NextResponse.json({ accounts });
   } catch (error) {
