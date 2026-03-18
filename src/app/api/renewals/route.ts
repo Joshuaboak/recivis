@@ -5,7 +5,16 @@ import { log } from '@/lib/logger';
 /**
  * POST /api/renewals — generate renewal invoices for selected assets
  * Body: { asset_ids: string[] }
- * Returns the created invoice ID from the Deluge function response.
+ *
+ * Deluge function response format:
+ * {
+ *   "code": "success",
+ *   "details": {
+ *     "output": "{\"status\":\"SUCCESS\",\"invoiceIDList\":[\"55779000012345678\"]}",
+ *     "userMessage": ["..."],
+ *     "id": "..."
+ *   }
+ * }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -23,32 +32,35 @@ export async function POST(request: NextRequest) {
     });
 
     const response = result as Record<string, unknown>;
-
-    // The Deluge function returns the invoice ID in various formats
-    // Try to extract it from the response
     let invoiceId: string | null = null;
 
+    // Parse the Deluge function output
     if (response?.details) {
       const details = response.details as Record<string, unknown>;
-      if (details?.output) {
-        // Parse the output string which contains the invoice ID
-        const output = details.output as string;
+      if (details?.output && typeof details.output === 'string') {
         try {
-          const parsed = JSON.parse(output);
-          invoiceId = parsed?.invoiceId || parsed?.invoice_id || parsed?.id || null;
-        } catch {
-          // Output might be a plain ID string
-          if (typeof output === 'string' && output.length > 10) {
-            invoiceId = output;
+          const parsed = JSON.parse(details.output);
+          // invoiceIDList is the array of created invoice IDs
+          if (parsed.invoiceIDList && Array.isArray(parsed.invoiceIDList) && parsed.invoiceIDList.length > 0) {
+            invoiceId = parsed.invoiceIDList[0];
           }
-        }
+          // Fallback: try other field names
+          if (!invoiceId) {
+            invoiceId = parsed.invoiceId || parsed.invoice_id || parsed.id || null;
+          }
+        } catch { /* not JSON */ }
       }
-      if (details?.userMessage) {
-        // Sometimes the ID is in userMessage
-        const msg = (details.userMessage as Array<{ message?: string }>)?.[0]?.message;
-        if (msg) {
-          const idMatch = msg.match(/\d{15,}/);
-          if (idMatch) invoiceId = idMatch[0];
+
+      // Fallback: scan userMessage for a long numeric ID
+      if (!invoiceId && details?.userMessage) {
+        const messages = details.userMessage as Array<string | { message?: string }>;
+        for (const msg of messages) {
+          const text = typeof msg === 'string' ? msg : msg?.message || '';
+          const idMatch = text.match(/\d{15,}/);
+          if (idMatch) {
+            invoiceId = idMatch[0];
+            break;
+          }
         }
       }
     }
