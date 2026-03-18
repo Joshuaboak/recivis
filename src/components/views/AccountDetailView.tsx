@@ -21,6 +21,7 @@ export default function AccountDetailView() {
   const [showAddContact, setShowAddContact] = useState(false);
   const [newContact, setNewContact] = useState({ First_Name: '', Last_Name: '', Email: '', Phone: '' });
   const [addingContact, setAddingContact] = useState(false);
+  const [updatingRole, setUpdatingRole] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedAccountId) return;
@@ -63,6 +64,29 @@ export default function AccountDetailView() {
       }
     } catch { /* handled by UI */ }
     setAddingContact(false);
+  };
+
+  const setContactRole = async (contactId: string, role: 'primary' | 'secondary') => {
+    setUpdatingRole(contactId + role);
+    try {
+      const body: Record<string, unknown> = {};
+      if (role === 'primary') body.Primary_Contact = contactId;
+      else body.Secondary_Contact = contactId;
+
+      const res = await fetch(`/api/accounts/${selectedAccountId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        // Reload account to get updated primary/secondary
+        const reload = await fetch(`/api/accounts/${selectedAccountId}`);
+        const data = await reload.json();
+        setAccount(data.account);
+        setContacts(data.contacts || []);
+      }
+    } catch { /* handled by UI */ }
+    setUpdatingRole(null);
   };
 
   const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Accounts/${selectedAccountId}`;
@@ -137,7 +161,7 @@ export default function AccountDetailView() {
           <InfoCard label="Reseller" value={reseller?.name || '—'} icon={<Building2 size={14} />} />
           <InfoCard label="Owner" value={owner?.name || '—'} icon={<User size={14} />} />
           <InfoCard label="Primary Contact" value={primaryContact?.name || '—'} icon={<User size={14} />} />
-          <InfoCard label="Address" value={[account.Billing_Street, account.Billing_City, account.Billing_State, account.Billing_Code].filter(Boolean).join(', ') || '—'} icon={<MapPin size={14} />} />
+          <InfoCard label="Secondary Contact" value={secondaryContact?.name || '—'} icon={<User size={14} />} />
           <InfoCard label="Email Domain" value={account.Email_Domain as string || '—'} icon={<Mail size={14} />} />
         </motion.div>
 
@@ -214,7 +238,7 @@ export default function AccountDetailView() {
               <div className="border border-border-subtle rounded-xl overflow-hidden">
                 <table className="w-full">
                   <thead><tr className="bg-surface-raised">
-                    <th>Name</th><th>Email</th><th>Phone</th><th>Title</th>
+                    <th>Name</th><th>Email</th><th>Phone</th><th>Title</th><th>Set As</th>
                   </tr></thead>
                   <tbody>
                     {paginatedContacts.map((c, i) => {
@@ -243,6 +267,28 @@ export default function AccountDetailView() {
                           <td><span className="flex items-center gap-1 text-text-secondary"><Mail size={12} className="text-text-muted" />{c.Email as string || '\u2014'}</span></td>
                           <td><span className="flex items-center gap-1 text-text-secondary"><Phone size={12} className="text-text-muted" />{c.Phone as string || '\u2014'}</span></td>
                           <td className="text-text-muted">{c.Title as string || '\u2014'}</td>
+                          <td>
+                            <div className="flex items-center gap-1">
+                              {!isPrimary ? (
+                                <button
+                                  onClick={() => setContactRole(cId, 'primary')}
+                                  disabled={updatingRole === cId + 'primary'}
+                                  className="px-2 py-0.5 text-[10px] font-semibold text-warning/70 hover:text-warning hover:bg-warning/10 rounded transition-colors cursor-pointer disabled:opacity-40"
+                                >
+                                  {updatingRole === cId + 'primary' ? '...' : 'Primary'}
+                                </button>
+                              ) : null}
+                              {!isSecondary ? (
+                                <button
+                                  onClick={() => setContactRole(cId, 'secondary')}
+                                  disabled={updatingRole === cId + 'secondary'}
+                                  className="px-2 py-0.5 text-[10px] font-semibold text-csa-accent/70 hover:text-csa-accent hover:bg-csa-accent/10 rounded transition-colors cursor-pointer disabled:opacity-40"
+                                >
+                                  {updatingRole === cId + 'secondary' ? '...' : 'Secondary'}
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}

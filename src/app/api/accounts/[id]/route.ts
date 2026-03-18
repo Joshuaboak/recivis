@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeZohoTool } from '@/lib/zoho';
+import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 
 /**
@@ -78,5 +78,42 @@ export async function GET(
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json({ error: 'Failed to load account' }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH /api/accounts/[id] — update account fields (Primary/Secondary Contact)
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  try {
+    const body = await request.json();
+    const updateData: Record<string, unknown> = { id };
+
+    if (body.Primary_Contact !== undefined) {
+      updateData.Primary_Contact = body.Primary_Contact ? { id: body.Primary_Contact } : null;
+    }
+    if (body.Secondary_Contact !== undefined) {
+      updateData.Secondary_Contact = body.Secondary_Contact ? { id: body.Secondary_Contact } : null;
+    }
+
+    const result = await executeZohoTool('update_records', {
+      module: 'Accounts',
+      records: [updateData],
+      trigger: [],
+    });
+
+    const parsed = parseMcpResult(result);
+    log('info', 'api', `Account ${id} updated`, { fields: Object.keys(body) });
+    return NextResponse.json({ success: true, data: parsed.data });
+  } catch (error) {
+    log('error', 'api', `Account update failed for ${id}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({ error: 'Failed to update account' }, { status: 500 });
   }
 }
