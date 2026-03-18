@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
 
@@ -22,6 +22,10 @@ export default function AccountDetailView() {
   const [newContact, setNewContact] = useState({ First_Name: '', Last_Name: '', Email: '', Phone: '' });
   const [addingContact, setAddingContact] = useState(false);
   const [updatingRole, setUpdatingRole] = useState<string | null>(null);
+
+  // Renewal generation
+  const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
+  const [generatingRenewal, setGeneratingRenewal] = useState(false);
 
   useEffect(() => {
     if (!selectedAccountId) return;
@@ -64,6 +68,50 @@ export default function AccountDetailView() {
       }
     } catch { /* handled by UI */ }
     setAddingContact(false);
+  };
+
+  const toggleAsset = (id: string) => {
+    setSelectedAssets(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllAssets = () => {
+    if (selectedAssets.size === activeAssets.length) {
+      setSelectedAssets(new Set());
+    } else {
+      setSelectedAssets(new Set(activeAssets.map(a => a.id as string)));
+    }
+  };
+
+  const generateRenewal = async () => {
+    if (selectedAssets.size === 0) return;
+    setGeneratingRenewal(true);
+    try {
+      const res = await fetch('/api/renewals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asset_ids: Array.from(selectedAssets) }),
+      });
+      const data = await res.json();
+      if (data.invoiceId) {
+        setSelectedInvoiceId(data.invoiceId);
+        setInvoiceReturnView('account-detail');
+        setCurrentView('invoice-detail');
+      } else {
+        // Reload account to see the new invoice in the list
+        const reload = await fetch(`/api/accounts/${selectedAccountId}`);
+        const reloadData = await reload.json();
+        setAccount(reloadData.account);
+        setInvoices(reloadData.invoices || []);
+        setActiveAssets(reloadData.activeAssets || []);
+        setSelectedAssets(new Set());
+      }
+    } catch { /* handled by UI */ }
+    setGeneratingRenewal(false);
   };
 
   const setContactRole = async (contactId: string, role: 'primary' | 'secondary') => {
@@ -388,26 +436,61 @@ export default function AccountDetailView() {
 
         {/* Active Assets */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="mb-8">
-          <h2 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
-            <Package size={18} className="text-success" />
-            Active Assets ({activeAssets.length})
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+              <Package size={18} className="text-success" />
+              Active Assets ({activeAssets.length})
+            </h2>
+            {selectedAssets.size > 0 ? (
+              <button
+                onClick={generateRenewal}
+                disabled={generatingRenewal}
+                className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-csa-purple bg-csa-purple/10 border border-csa-purple/30 rounded-xl hover:bg-csa-purple/20 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {generatingRenewal ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                {generatingRenewal ? 'Generating...' : `Generate Renewal (${selectedAssets.size})`}
+              </button>
+            ) : null}
+          </div>
           {activeAssets.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead><tr className="bg-surface-raised">
+                  <th className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedAssets.size === activeAssets.length && activeAssets.length > 0}
+                      onChange={toggleAllAssets}
+                      className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
+                    />
+                  </th>
                   <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Serial Key</th>
                 </tr></thead>
                 <tbody>
                   {activeAssets.map((a, i) => {
                     const product = a.Product as { name?: string } | null;
+                    const assetId = a.id as string;
+                    const isSelected = selectedAssets.has(assetId);
                     return (
-                      <tr key={i}>
+                      <tr
+                        key={i}
+                        onClick={() => toggleAsset(assetId)}
+                        className={`cursor-pointer transition-colors ${isSelected ? 'bg-csa-purple/8' : 'hover:bg-csa-accent/5'}`}
+                      >
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleAsset(assetId)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
+                          />
+                        </td>
                         <td className="text-text-primary">{product?.name || a.Name as string}</td>
                         <td className="text-text-secondary">{a.Quantity as number}</td>
                         <td className="text-text-secondary">{formatDate(a.Start_Date)}</td>
                         <td className="text-text-secondary">{formatDate(a.Renewal_Date)}</td>
-                        <td className="text-text-muted text-xs font-mono">{a.Serial_Key as string || '—'}</td>
+                        <td className="text-text-muted text-xs font-mono">{a.Serial_Key as string || '\u2014'}</td>
                       </tr>
                     );
                   })}
