@@ -132,26 +132,26 @@ export default function InvoiceDetailView() {
             ) : null}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            {status === 'Approved' ? (
-              <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl">
-                <Lock size={14} />
-                Locked
-              </div>
-            ) : (
+            {status === 'Draft' ? (
               <>
-                {user?.permissions?.canApproveInvoices && status === 'Draft' ? (
+                {user?.permissions?.canApproveInvoices ? (
                   <button className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer">
                     <CheckCircle2 size={14} />
                     Approve
                   </button>
                 ) : null}
-                {user?.permissions?.canSendInvoices && (status === 'Draft' || status === 'Sent') ? (
+                {user?.permissions?.canSendInvoices ? (
                   <button className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-highlight bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
                     <Send size={14} />
                     Send Invoice
                   </button>
                 ) : null}
               </>
+            ) : (
+              <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl">
+                <Lock size={14} />
+                Locked
+              </div>
             )}
             <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
               <ExternalLink size={14} />
