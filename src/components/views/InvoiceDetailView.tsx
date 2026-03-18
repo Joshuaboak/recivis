@@ -19,7 +19,7 @@ import {
 import { useAppStore } from '@/lib/store';
 
 export default function InvoiceDetailView() {
-  const { selectedInvoiceId, invoiceReturnView, setCurrentView, selectedAccountId } = useAppStore();
+  const { selectedInvoiceId, invoiceReturnView, setCurrentView, setSelectedAccountId } = useAppStore();
   const [invoice, setInvoice] = useState<Record<string, unknown> | null>(null);
   const [lineItems, setLineItems] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,8 +120,9 @@ export default function InvoiceDetailView() {
               </span>
             </div>
             {invoice.Reference_Number ? (
-              <p className="text-sm text-text-muted flex items-center gap-1">
+              <p className="text-sm text-text-muted flex items-center gap-1.5">
                 <Hash size={12} />
+                <span className="text-text-muted/70">INV</span>
                 {invoice.Reference_Number as string}
               </p>
             ) : null}
@@ -134,7 +135,20 @@ export default function InvoiceDetailView() {
 
         {/* Invoice Info Cards */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-          <InfoCard label="Account" value={account?.name || '\u2014'} icon={<Building2 size={14} />} />
+          {account?.id ? (
+            <button
+              onClick={() => { setSelectedAccountId(account.id as string); setCurrentView('account-detail'); }}
+              className="bg-surface border border-border-subtle rounded-xl px-4 py-3 text-left hover:border-csa-accent/50 transition-colors group cursor-pointer"
+            >
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+                <Building2 size={14} />
+                Account
+              </div>
+              <p className="text-sm text-csa-accent group-hover:text-csa-highlight truncate transition-colors">{account.name || '\u2014'}</p>
+            </button>
+          ) : (
+            <InfoCard label="Account" value={account?.name || '\u2014'} icon={<Building2 size={14} />} />
+          )}
           <InfoCard label="Contact" value={contact?.name || '\u2014'} icon={<User size={14} />} />
           <InfoCard label="Reseller" value={reseller?.name || '\u2014'} icon={<Globe size={14} />} />
           <InfoCard label="Invoice Date" value={formatDate(invoice.Invoice_Date)} icon={<Calendar size={14} />} />
