@@ -319,8 +319,9 @@ export default function DraftInvoicesView() {
 
         {/* Loading */}
         {loading && (
-          <div className="flex items-center justify-center py-16">
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Loader2 size={24} className="text-csa-accent animate-spin" />
+            <span className="text-xs text-text-muted">Loading invoices...</span>
           </div>
         )}
 
