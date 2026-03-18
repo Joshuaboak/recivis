@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
 
@@ -16,6 +16,11 @@ export default function AccountDetailView() {
   const [loading, setLoading] = useState(true);
   const [contactPage, setContactPage] = useState(1);
   const contactPageSize = 10;
+
+  // Add contact form
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [newContact, setNewContact] = useState({ First_Name: '', Last_Name: '', Email: '', Phone: '' });
+  const [addingContact, setAddingContact] = useState(false);
 
   useEffect(() => {
     if (!selectedAccountId) return;
@@ -35,6 +40,30 @@ export default function AccountDetailView() {
   }, [selectedAccountId]);
 
   const goBack = () => setCurrentView('accounts');
+
+  const handleAddContact = async () => {
+    if (!newContact.First_Name || !newContact.Last_Name) return;
+    setAddingContact(true);
+    try {
+      const res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newContact,
+          Account_Name: { id: selectedAccountId },
+        }),
+      });
+      if (res.ok) {
+        // Reload account data to get fresh contacts
+        const reload = await fetch(`/api/accounts/${selectedAccountId}`);
+        const data = await reload.json();
+        setContacts(data.contacts || []);
+        setNewContact({ First_Name: '', Last_Name: '', Email: '', Phone: '' });
+        setShowAddContact(false);
+      }
+    } catch { /* handled by UI */ }
+    setAddingContact(false);
+  };
 
   const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Accounts/${selectedAccountId}`;
 
@@ -114,10 +143,72 @@ export default function AccountDetailView() {
 
         {/* Contacts */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
-          <h2 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
-            <User size={18} className="text-csa-accent" />
-            Contacts ({contacts.length})
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+              <User size={18} className="text-csa-accent" />
+              Contacts ({contacts.length})
+            </h2>
+            {!showAddContact ? (
+              <button
+                onClick={() => setShowAddContact(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
+              >
+                <Plus size={13} />
+                Add Contact
+              </button>
+            ) : null}
+          </div>
+
+          {/* Add Contact Form */}
+          {showAddContact ? (
+            <div className="bg-surface border border-csa-accent/30 rounded-xl p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-text-primary">New Contact</span>
+                <button onClick={() => { setShowAddContact(false); setNewContact({ First_Name: '', Last_Name: '', Email: '', Phone: '' }); }} className="p-1 text-text-muted hover:text-text-primary transition-colors cursor-pointer">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <input
+                  type="text"
+                  placeholder="First Name *"
+                  value={newContact.First_Name}
+                  onChange={(e) => setNewContact(p => ({ ...p, First_Name: e.target.value }))}
+                  className="bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg"
+                />
+                <input
+                  type="text"
+                  placeholder="Last Name *"
+                  value={newContact.Last_Name}
+                  onChange={(e) => setNewContact(p => ({ ...p, Last_Name: e.target.value }))}
+                  className="bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg"
+                />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={newContact.Email}
+                  onChange={(e) => setNewContact(p => ({ ...p, Email: e.target.value }))}
+                  className="bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg"
+                />
+                <input
+                  type="tel"
+                  placeholder="Phone"
+                  value={newContact.Phone}
+                  onChange={(e) => setNewContact(p => ({ ...p, Phone: e.target.value }))}
+                  className="bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg"
+                />
+              </div>
+              <button
+                onClick={handleAddContact}
+                disabled={addingContact || !newContact.First_Name || !newContact.Last_Name}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {addingContact ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                {addingContact ? 'Creating...' : 'Create Contact'}
+              </button>
+            </div>
+          ) : null}
+
           {sortedContacts.length > 0 ? (
             <>
               <div className="border border-border-subtle rounded-xl overflow-hidden">
