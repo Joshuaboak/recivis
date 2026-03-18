@@ -183,8 +183,15 @@ export default function DraftInvoicesView() {
     return result;
   }, [invoices, sortField, sortDir, searchText, searchField]);
 
-  // Pagination derived values
-  const paginatedInvoices = processedInvoices.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  // Pagination derived values — clamp page to valid range
+  const totalPages = Math.max(1, Math.ceil(processedInvoices.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedInvoices = processedInvoices.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  // Sync currentPage if it's out of range (e.g. switching from large to small result set)
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   // Reset to page 1 when filters/search/sort change
   useEffect(() => { setCurrentPage(1); }, [statusFilter, selectedReseller, selectedRegion, searchText, sortField, sortDir]);
@@ -328,7 +335,7 @@ export default function DraftInvoicesView() {
         {/* Pagination (top) */}
         {!loading && processedInvoices.length > 0 && (
           <div className="mb-3">
-            <Pagination currentPage={currentPage} totalItems={processedInvoices.length} pageSize={pageSize} onPageChange={setCurrentPage} />
+            <Pagination currentPage={safePage} totalItems={processedInvoices.length} pageSize={pageSize} onPageChange={setCurrentPage} />
           </div>
         )}
 
@@ -396,7 +403,7 @@ export default function DraftInvoicesView() {
         {/* Pagination (bottom) */}
         {!loading && processedInvoices.length > pageSize && (
           <div className="mt-3">
-            <Pagination currentPage={currentPage} totalItems={processedInvoices.length} pageSize={pageSize} onPageChange={setCurrentPage} />
+            <Pagination currentPage={safePage} totalItems={processedInvoices.length} pageSize={pageSize} onPageChange={setCurrentPage} />
           </div>
         )}
 

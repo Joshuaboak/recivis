@@ -114,8 +114,14 @@ export default function AccountsView() {
     fetchAccounts();
   }, [fetchAccounts]);
 
-  // Pagination
-  const paginatedAccounts = accounts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  // Pagination — clamp page to valid range
+  const totalPages = Math.max(1, Math.ceil(accounts.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedAccounts = accounts.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   // Reset to page 1 when filters change
   useEffect(() => { setCurrentPage(1); }, [searchDebounced, selectedReseller, selectedRegion]);
@@ -206,7 +212,7 @@ export default function AccountsView() {
         {/* Pagination (top) */}
         {!loading && accounts.length > 0 && (
           <div className="mb-3">
-            <Pagination currentPage={currentPage} totalItems={accounts.length} pageSize={pageSize} onPageChange={setCurrentPage} />
+            <Pagination currentPage={safePage} totalItems={accounts.length} pageSize={pageSize} onPageChange={setCurrentPage} />
           </div>
         )}
 
@@ -268,7 +274,7 @@ export default function AccountsView() {
         {/* Pagination (bottom) */}
         {!loading && accounts.length > pageSize && (
           <div className="mt-3">
-            <Pagination currentPage={currentPage} totalItems={accounts.length} pageSize={pageSize} onPageChange={setCurrentPage} />
+            <Pagination currentPage={safePage} totalItems={accounts.length} pageSize={pageSize} onPageChange={setCurrentPage} />
           </div>
         )}
 
