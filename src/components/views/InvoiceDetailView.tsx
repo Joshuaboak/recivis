@@ -132,22 +132,27 @@ export default function InvoiceDetailView() {
             ) : null}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            {status === 'Draft' ? (
-              <>
-                {user?.permissions?.canApproveInvoices ? (
-                  <button className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer">
-                    <CheckCircle2 size={14} />
-                    Approve
-                  </button>
-                ) : null}
-                {user?.permissions?.canSendInvoices ? (
-                  <button className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-highlight bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
-                    <Send size={14} />
-                    Send Invoice
-                  </button>
-                ) : null}
-              </>
-            ) : (
+            {status === 'Draft' ? (() => {
+              const isSystemAdmin = user?.role === 'admin' || user?.role === 'ibm';
+              const canApprove = isSystemAdmin || user?.permissions?.canApproveInvoices;
+              const canSend = isSystemAdmin || user?.permissions?.canSendInvoices;
+              return (
+                <>
+                  {canApprove ? (
+                    <button className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer">
+                      <CheckCircle2 size={14} />
+                      Approve
+                    </button>
+                  ) : null}
+                  {canSend ? (
+                    <button className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-highlight bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+                      <Send size={14} />
+                      Send Invoice
+                    </button>
+                  ) : null}
+                </>
+              );
+            })() : (
               <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl">
                 <Lock size={14} />
                 Locked
