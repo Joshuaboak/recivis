@@ -401,13 +401,21 @@ export default function InvoiceDetailView() {
                       <tr key={i}>
                         {/* Product — clickable to change via SKU builder (not for renewals) */}
                         <td>
-                          {canEditProduct ? (
+                          {canEditProduct && !productName ? (
+                            <button
+                              onClick={() => setSkuBuilderIndex(i)}
+                              className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 border-dashed rounded-lg hover:bg-csa-accent/20 transition-colors cursor-pointer"
+                            >
+                              <Plus size={12} />
+                              Select Product
+                            </button>
+                          ) : canEditProduct ? (
                             <button
                               onClick={() => setSkuBuilderIndex(i)}
                               className="text-left group cursor-pointer"
                             >
                               <div className="font-semibold text-csa-accent group-hover:text-csa-highlight transition-colors flex items-center gap-1.5">
-                                {productName || '\u2014'}
+                                {productName}
                                 <Replace size={12} className="text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
                               </div>
                               {desc ? (
