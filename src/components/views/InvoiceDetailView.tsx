@@ -21,6 +21,8 @@ import {
   Save,
   X,
   Replace,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import SKUBuilder from '../SKUBuilder';
@@ -119,6 +121,26 @@ export default function InvoiceDetailView() {
 
   const updateLineItem = (index: number, field: string, value: unknown) => {
     setEditLineItems(prev => prev.map((li, i) => i === index ? { ...li, [field]: value } : li));
+  };
+
+  const addLineItem = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const nextYear = new Date(Date.now() + 364 * 86400000).toISOString().slice(0, 10);
+    setEditLineItems(prev => [...prev, {
+      Product_Name: null,
+      Quantity: 1,
+      List_Price: 0,
+      Net_Total: 0,
+      Start_Date: today,
+      Renewal_Date: nextYear,
+      Contract_Term_Years: 1,
+      _originalPrice: 0,
+      _isNew: true,
+    }]);
+  };
+
+  const removeLineItem = (index: number) => {
+    setEditLineItems(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleProductSelect = (index: number, product: { id: string; name: string; sku: string; unitPrice: number }) => {
@@ -364,6 +386,7 @@ export default function InvoiceDetailView() {
                     <th>Start</th>
                     <th>Renewal</th>
                     <th className="text-right">Total</th>
+                    {canEditProduct && <th className="w-10"></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -429,7 +452,8 @@ export default function InvoiceDetailView() {
                                   const val = e.target.value.replace(/[^\d.]/g, '');
                                   updateLineItem(i, 'List_Price', val === '' ? 0 : parseFloat(val));
                                 }}
-                                className="bg-transparent border-none px-1.5 py-1.5 text-sm text-text-primary outline-none w-[80px] text-right"
+                                style={{ outline: 'none', boxShadow: 'none' }}
+                                className="bg-transparent border-none px-1.5 py-1.5 text-sm text-text-primary w-[80px] text-right"
                               />
                             </div>
                           ) : (
@@ -467,6 +491,18 @@ export default function InvoiceDetailView() {
 
                         {/* Total */}
                         <td className="text-right text-text-primary font-semibold">{symbol}{total?.toFixed(2)}</td>
+
+                        {/* Remove */}
+                        {canEditProduct ? (
+                          <td>
+                            <button
+                              onClick={() => removeLineItem(i)}
+                              className="p-1 text-text-muted hover:text-error transition-colors cursor-pointer"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        ) : null}
                       </tr>
                     );
                   })}
@@ -476,6 +512,17 @@ export default function InvoiceDetailView() {
           ) : (
             <p className="text-sm text-text-muted py-4">No line items found</p>
           )}
+
+          {/* Add Line Item button — new invoices only */}
+          {canEditProduct ? (
+            <button
+              onClick={addLineItem}
+              className="mt-3 flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 border-dashed rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer w-full justify-center"
+            >
+              <Plus size={14} />
+              Add Line Item
+            </button>
+          ) : null}
         </motion.div>
 
         {/* Totals */}
