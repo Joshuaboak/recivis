@@ -199,7 +199,10 @@ export default function InvoiceDetailView() {
   };
 
   const displayLineItems = editing ? editLineItems : lineItems;
-  const canEditLineItems = editing && !isRenewal;
+  const canEditProduct = editing && !isRenewal; // Can't change product on renewals
+  const canEditQty = editing && !isRenewal;     // Can't change qty on renewals
+  const canEditPrice = editing;                  // Can always edit price
+  const canEditDates = editing;                  // Can always edit dates
 
   return (
     <div className="h-full overflow-y-auto">
@@ -348,7 +351,7 @@ export default function InvoiceDetailView() {
             <Package size={18} className="text-csa-accent" />
             Line Items ({displayLineItems.length})
             {editing && <span className="text-xs font-normal text-warning ml-2">Editing</span>}
-            {editing && isRenewal && <span className="text-xs font-normal text-text-muted ml-1">(line items locked for renewals)</span>}
+            {editing && isRenewal && <span className="text-xs font-normal text-text-muted ml-1">(product &amp; qty locked for renewals)</span>}
           </h2>
           {displayLineItems.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-hidden">
@@ -375,7 +378,7 @@ export default function InvoiceDetailView() {
                       <tr key={i}>
                         {/* Product — clickable to change via SKU builder (not for renewals) */}
                         <td>
-                          {canEditLineItems ? (
+                          {canEditProduct ? (
                             <button
                               onClick={() => setSkuBuilderIndex(i)}
                               className="text-left group cursor-pointer"
@@ -400,13 +403,13 @@ export default function InvoiceDetailView() {
 
                         {/* Quantity */}
                         <td className="text-right">
-                          {canEditLineItems ? (
+                          {canEditQty ? (
                             <input
-                              type="number"
-                              min={1}
+                              type="text"
+                              inputMode="numeric"
                               value={qty}
-                              onChange={(e) => updateLineItem(i, 'Quantity', parseInt(e.target.value) || 1)}
-                              className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent w-[70px] text-right"
+                              onChange={(e) => updateLineItem(i, 'Quantity', parseInt(e.target.value.replace(/\D/g, '')) || 1)}
+                              className="bg-surface border border-csa-accent/50 rounded-lg px-3 py-1.5 text-sm text-text-primary outline-none focus:border-csa-accent w-[60px] text-right"
                             />
                           ) : (
                             <span className="text-text-secondary">{qty}</span>
@@ -415,15 +418,20 @@ export default function InvoiceDetailView() {
 
                         {/* List Price */}
                         <td className="text-right">
-                          {canEditLineItems ? (
-                            <input
-                              type="number"
-                              step="0.01"
-                              min={0}
-                              value={unitPrice}
-                              onChange={(e) => updateLineItem(i, 'List_Price', parseFloat(e.target.value) || 0)}
-                              className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent w-[100px] text-right"
-                            />
+                          {canEditPrice ? (
+                            <div className="inline-flex items-center bg-surface border border-csa-accent/50 rounded-lg overflow-hidden focus-within:border-csa-accent">
+                              <span className="text-xs text-text-muted pl-2.5">{symbol}</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={unitPrice}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/[^\d.]/g, '');
+                                  updateLineItem(i, 'List_Price', val === '' ? 0 : parseFloat(val));
+                                }}
+                                className="bg-transparent border-none px-1.5 py-1.5 text-sm text-text-primary outline-none w-[80px] text-right"
+                              />
+                            </div>
                           ) : (
                             <span className="text-text-secondary">{symbol}{unitPrice?.toFixed(2)}</span>
                           )}
