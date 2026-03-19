@@ -23,6 +23,9 @@ import {
   Replace,
   Plus,
   Trash2,
+  Upload,
+  Paperclip,
+  Check,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import SKUBuilder from '../SKUBuilder';
@@ -44,6 +47,13 @@ export default function InvoiceDetailView() {
   const [editLineItems, setEditLineItems] = useState<Record<string, unknown>[]>([]);
   const [skuBuilderIndex, setSkuBuilderIndex] = useState<number | null>(null);
   const [updatingDirectPurchase, setUpdatingDirectPurchase] = useState(false);
+
+  // PO
+  const [editingPO, setEditingPO] = useState(false);
+  const [editPONumber, setEditPONumber] = useState('');
+  const [savingPO, setSavingPO] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadResult, setUploadResult] = useState<string | null>(null);
 
   const isEditor = user?.role === 'admin' || user?.role === 'ibm';
   const canEdit = isEditor && invoice?.Status === 'Draft';
@@ -155,6 +165,55 @@ export default function InvoiceDetailView() {
       };
     }));
     setSkuBuilderIndex(null);
+  };
+
+  const savePO = async () => {
+    if (!selectedInvoiceId) return;
+    setSavingPO(true);
+    try {
+      await fetch(`/api/invoices/${selectedInvoiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Purchase_Order: editPONumber }),
+      });
+      const res = await fetch(`/api/invoices/${selectedInvoiceId}`);
+      const data = await res.json();
+      setInvoice(data.invoice);
+      setEditingPO(false);
+    } catch { /* handled */ }
+    setSavingPO(false);
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!selectedInvoiceId) return;
+    setUploadingFile(true);
+    setUploadResult(null);
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = (reader.result as string).split(',')[1];
+        const res = await fetch('/api/attach-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recordID: selectedInvoiceId,
+            fileName: file.name,
+            base64,
+            moduleName: 'Invoices',
+          }),
+        });
+        if (res.ok) {
+          setUploadResult(`${file.name} attached`);
+        } else {
+          setUploadResult('Upload failed');
+        }
+        setUploadingFile(false);
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setUploadResult('Upload failed');
+      setUploadingFile(false);
+    }
   };
 
   const toggleDirectPurchase = async (value: boolean) => {
@@ -383,7 +442,86 @@ export default function InvoiceDetailView() {
 
           {owner ? <InfoCard label="Owner" value={owner.name || '\u2014'} icon={<User size={14} />} /> : null}
           {invoice.Billing_Country ? <InfoCard label="Billing Country" value={invoice.Billing_Country as string} icon={<MapPin size={14} />} /> : null}
-          {invoice.Purchase_Order ? <InfoCard label="Purchase Order" value={invoice.Purchase_Order as string} icon={<FileText size={14} />} /> : null}
+        </motion.div>
+
+        {/* Purchase Order */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-8">
+          <div className="bg-surface border border-border-subtle rounded-xl px-5 py-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-text-muted uppercase tracking-wider">
+                <FileText size={14} />
+                Purchase Order
+              </div>
+              {status === 'Draft' && !editingPO && (
+                <button
+                  onClick={() => { setEditPONumber(invoice.Purchase_Order as string || ''); setEditingPO(true); }}
+                  className="text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer"
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* PO Number */}
+            {editingPO ? (
+              <div className="flex items-center gap-2 mb-3">
+                <input
+                  type="text"
+                  value={editPONumber}
+                  onChange={e => setEditPONumber(e.target.value)}
+                  placeholder="Enter PO number..."
+                  className="flex-1 bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg"
+                  autoFocus
+                />
+                <button onClick={savePO} disabled={savingPO} className="p-2 text-success hover:text-success/80 transition-colors cursor-pointer disabled:opacity-50">
+                  {savingPO ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                </button>
+                <button onClick={() => setEditingPO(false)} className="p-2 text-text-muted hover:text-text-primary transition-colors cursor-pointer">
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-text-primary mb-3">
+                {invoice.Purchase_Order as string || <span className="text-text-muted">No PO number set</span>}
+              </p>
+            )}
+
+            {/* File Upload */}
+            <div className="border-t border-border-subtle pt-3">
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <input
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file);
+                    e.target.value = '';
+                  }}
+                  disabled={uploadingFile}
+                />
+                <div className={`flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg border border-dashed transition-colors ${
+                  uploadingFile
+                    ? 'text-text-muted border-border-subtle'
+                    : 'text-csa-accent border-csa-accent/30 hover:bg-csa-accent/10 group-hover:border-csa-accent/50'
+                }`}>
+                  {uploadingFile ? (
+                    <><Loader2 size={13} className="animate-spin" /> Uploading...</>
+                  ) : (
+                    <><Upload size={13} /> Attach PO Document</>
+                  )}
+                </div>
+                {uploadResult ? (
+                  <span className={`text-xs flex items-center gap-1 ${uploadResult.includes('failed') ? 'text-error' : 'text-success'}`}>
+                    {uploadResult.includes('failed') ? null : <Check size={12} />}
+                    {uploadResult}
+                  </span>
+                ) : (
+                  <span className="text-xs text-text-muted">PDF, images, or documents</span>
+                )}
+              </label>
+            </div>
+          </div>
         </motion.div>
 
         {/* Send To */}
