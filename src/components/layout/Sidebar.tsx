@@ -16,10 +16,13 @@ import {
 import { useAppStore } from '@/lib/store';
 import UserMenu from './UserMenu';
 
-type ViewId = 'dashboard' | 'accounts' | 'invoice' | 'draft-invoices' | 'reports';
+type ViewId = 'dashboard' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports';
 
 export default function Sidebar() {
   const { currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(
+    currentView === 'accounts' || currentView === 'account-detail' || currentView === 'create-account'
+  );
   const [invoiceMenuOpen, setInvoiceMenuOpen] = useState(
     currentView === 'invoice' || currentView === 'draft-invoices' || currentView === 'invoice-detail'
   );
@@ -29,6 +32,7 @@ export default function Sidebar() {
     setCurrentView(id);
   };
 
+  const isAccountActive = currentView === 'accounts' || currentView === 'account-detail' || currentView === 'create-account';
   const isInvoiceActive = currentView === 'invoice' || currentView === 'draft-invoices' || currentView === 'invoice-detail';
 
   return (
@@ -61,8 +65,59 @@ export default function Sidebar() {
         {/* Dashboard */}
         <NavItem id="dashboard" label="Dashboard" icon={LayoutDashboard} active={currentView === 'dashboard'} onClick={() => handleNavClick('dashboard')} open={sidebarOpen} />
 
-        {/* Accounts */}
-        <NavItem id="accounts" label="Accounts" icon={Building2} active={currentView === 'accounts' || currentView === 'account-detail'} onClick={() => handleNavClick('accounts')} open={sidebarOpen} />
+        {/* Accounts (with submenu) */}
+        <div>
+          <button
+            onClick={() => {
+              if (!sidebarOpen) {
+                handleNavClick('accounts');
+              } else {
+                setAccountMenuOpen(!accountMenuOpen);
+                if (!isAccountActive) handleNavClick('accounts');
+              }
+            }}
+            className={`
+              w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
+              transition-all duration-150 relative group rounded-xl cursor-pointer
+              ${isAccountActive
+                ? 'bg-csa-accent/15 text-csa-accent'
+                : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
+              }
+            `}
+          >
+            {isAccountActive && (
+              <motion.div layoutId="nav-indicator-acc" className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent rounded-r" transition={{ duration: 0.2 }} />
+            )}
+            <Building2 size={20} className="flex-shrink-0" />
+            <AnimatePresence>
+              {sidebarOpen && (
+                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">
+                  Accounts
+                </motion.span>
+              )}
+            </AnimatePresence>
+            {sidebarOpen && (
+              <ChevronDown size={14} className={`text-text-muted transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`} />
+            )}
+          </button>
+
+          <AnimatePresence>
+            {sidebarOpen && accountMenuOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="overflow-hidden"
+              >
+                <div className="ml-8 mt-1 space-y-0.5">
+                  <SubNavItem label="Browse" active={currentView === 'accounts' || currentView === 'account-detail'} onClick={() => handleNavClick('accounts')} />
+                  <SubNavItem label="Create Account" active={currentView === 'create-account'} onClick={() => handleNavClick('create-account')} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Invoices (with submenu) */}
         <div>

@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const result = await executeZohoTool('create_records', {
       module: 'Contacts',
       records: [contactData],
-      trigger: [],
+      trigger: ['workflow'],
     });
 
     const parsed = parseMcpResult(result);

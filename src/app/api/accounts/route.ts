@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchAllPages, getAllRecordPages, parseMcpResult, callMcpTool } from '@/lib/zoho';
+import { searchAllPages, getAllRecordPages, parseMcpResult, callMcpTool, executeZohoTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 
 /**
@@ -71,5 +71,37 @@ export async function GET(request: NextRequest) {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json({ error: 'Failed to load accounts' }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/accounts — create a new account
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    const result = await executeZohoTool('create_records', {
+      module: 'Accounts',
+      records: [body],
+      trigger: [],
+    });
+
+    const parsed = parseMcpResult(result);
+    const created = parsed.data[0] as Record<string, unknown> | undefined;
+
+    if (created?.code === 'SUCCESS') {
+      const details = created.details as Record<string, unknown>;
+      log('info', 'api', 'Account created', { id: details?.id });
+      return NextResponse.json({ success: true, id: details?.id });
+    }
+
+    log('warn', 'api', 'Account creation result', { data: JSON.stringify(parsed.data).slice(0, 300) });
+    return NextResponse.json({ success: true, data: parsed.data });
+  } catch (error) {
+    log('error', 'api', 'Account creation failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({ error: 'Failed to create account' }, { status: 500 });
   }
 }

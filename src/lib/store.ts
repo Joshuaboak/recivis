@@ -14,8 +14,8 @@ interface AppState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 
-  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports';
-  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports') => void;
+  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports';
+  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports') => void;
 
   newInvoiceContext: Record<string, unknown> | null;
   setNewInvoiceContext: (ctx: Record<string, unknown> | null) => void;

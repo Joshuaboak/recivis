@@ -5,6 +5,7 @@ import Sidebar from './Sidebar';
 import DashboardView from '../views/DashboardView';
 import AccountsView from '../views/AccountsView';
 import AccountDetailView from '../views/AccountDetailView';
+import CreateAccountView from '../views/CreateAccountView';
 import InvoiceView from '../views/InvoiceView';
 import InvoiceDetailView from '../views/InvoiceDetailView';
 import CreateInvoiceView from '../views/CreateInvoiceView';
@@ -17,6 +18,7 @@ const VIEW_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
   accounts: 'Accounts',
   'account-detail': 'Account',
+  'create-account': 'Create Account',
   invoice: 'Invoice Assistant',
   'invoice-detail': 'Invoice',
   'create-invoice': 'New Invoice',
@@ -35,6 +37,7 @@ export default function AppShell() {
     dashboard: DashboardView,
     accounts: AccountsView,
     'account-detail': AccountDetailView,
+    'create-account': CreateAccountView,
     invoice: InvoiceView,
     'invoice-detail': InvoiceDetailView,
     'create-invoice': CreateInvoiceView,
