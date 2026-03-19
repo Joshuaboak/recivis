@@ -1,35 +1,38 @@
 'use client';
 
+/**
+ * InvoiceDetailView — Orchestrator for the invoice detail page.
+ *
+ * Manages all shared state (invoice data, edit mode, line items, PO, coupon)
+ * and delegates rendering to focused sub-components:
+ *   - InvoiceHeader:       Back button, badges, action buttons
+ *   - InvoiceLineItems:    Line items table with edit support
+ *   - InvoicePurchaseOrder: PO number + file upload
+ *   - InvoiceSendTo:       Reseller vs Customer toggle
+ *   - InvoiceCoupon:       Coupon code entry and validation
+ *
+ * The small InfoCard, EditDateCard, and TotalRow helpers remain here
+ * since they're lightweight and only used in this component.
+ */
+
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  ArrowLeft,
-  FileText,
   Building2,
   User,
   Calendar,
   DollarSign,
   Globe,
-  Package,
   Loader2,
-  ExternalLink,
   MapPin,
-  Send,
-  CheckCircle2,
-  Lock,
-  Pencil,
-  Save,
-  X,
-  Replace,
-  Plus,
-  Trash2,
-  Upload,
-  Paperclip,
-  Check,
-  Ticket,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import SKUBuilder from '../SKUBuilder';
+import InvoiceHeader from '../invoice/InvoiceHeader';
+import InvoiceLineItems from '../invoice/InvoiceLineItems';
+import InvoicePurchaseOrder from '../invoice/InvoicePurchaseOrder';
+import InvoiceSendTo from '../invoice/InvoiceSendTo';
+import InvoiceCoupon from '../invoice/InvoiceCoupon';
 
 const CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'INR', 'NZD'];
 
@@ -62,9 +65,14 @@ export default function InvoiceDetailView() {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadResult, setUploadResult] = useState<string | null>(null);
 
+  // Derived permission flags
   const isEditor = user?.role === 'admin' || user?.role === 'ibm';
   const canEdit = isEditor && invoice?.Status === 'Draft';
   const isRenewal = invoice?.Invoice_Type === 'Renewal';
+
+  // -------------------------------------------------------------------
+  // Data fetching
+  // -------------------------------------------------------------------
 
   useEffect(() => {
     if (!selectedInvoiceId) return;
@@ -80,6 +88,10 @@ export default function InvoiceDetailView() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [selectedInvoiceId]);
+
+  // -------------------------------------------------------------------
+  // Edit mode handlers
+  // -------------------------------------------------------------------
 
   const enterEditMode = () => {
     if (!invoice) return;
@@ -157,6 +169,10 @@ export default function InvoiceDetailView() {
     setSaving(false);
   };
 
+  // -------------------------------------------------------------------
+  // Line item handlers
+  // -------------------------------------------------------------------
+
   const updateLineItem = (index: number, field: string, value: unknown) => {
     setEditLineItems(prev => prev.map((li, i) => i === index ? { ...li, [field]: value } : li));
   };
@@ -201,6 +217,10 @@ export default function InvoiceDetailView() {
     }));
     setSkuBuilderIndex(null);
   };
+
+  // -------------------------------------------------------------------
+  // PO handlers
+  // -------------------------------------------------------------------
 
   const savePO = async () => {
     if (!selectedInvoiceId) return;
@@ -250,6 +270,10 @@ export default function InvoiceDetailView() {
       setUploadingFile(false);
     }
   };
+
+  // -------------------------------------------------------------------
+  // Coupon handler
+  // -------------------------------------------------------------------
 
   const applyCoupon = async () => {
     if (!couponCode.trim() || !selectedInvoiceId || !invoice) return;
@@ -320,6 +344,10 @@ export default function InvoiceDetailView() {
     setCouponValidating(false);
   };
 
+  // -------------------------------------------------------------------
+  // Send-to (direct purchase) handler
+  // -------------------------------------------------------------------
+
   const toggleDirectPurchase = async (value: boolean) => {
     if (!selectedInvoiceId) return;
     setUpdatingDirectPurchase(true);
@@ -338,6 +366,10 @@ export default function InvoiceDetailView() {
     setUpdatingDirectPurchase(false);
   };
 
+  // -------------------------------------------------------------------
+  // Navigation
+  // -------------------------------------------------------------------
+
   const goBack = () => {
     if (invoiceReturnView === 'account-detail') {
       setCurrentView('account-detail');
@@ -346,7 +378,9 @@ export default function InvoiceDetailView() {
     }
   };
 
-  const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Invoices/${selectedInvoiceId}`;
+  // -------------------------------------------------------------------
+  // Formatting helpers
+  // -------------------------------------------------------------------
 
   const formatDate = (d: unknown) => {
     if (!d || typeof d !== 'string') return '\u2014';
@@ -360,6 +394,10 @@ export default function InvoiceDetailView() {
     if (c === 'INR') return '\u20B9';
     return '$';
   };
+
+  // -------------------------------------------------------------------
+  // Loading / not-found states
+  // -------------------------------------------------------------------
 
   if (loading) {
     return (
@@ -378,6 +416,10 @@ export default function InvoiceDetailView() {
     );
   }
 
+  // -------------------------------------------------------------------
+  // Derived values for rendering
+  // -------------------------------------------------------------------
+
   const account = invoice.Account_Name as { name?: string; id?: string } | null;
   const contact = invoice.Contact_Name as { name?: string; id?: string } | null;
   const reseller = invoice.Reseller as { name?: string; id?: string } | null;
@@ -391,110 +433,30 @@ export default function InvoiceDetailView() {
     user?.role === 'admin' || user?.role === 'ibm' || user?.permissions?.canModifyPrices
   );
 
-  const statusColor = (s: unknown) => {
-    switch (s) {
-      case 'Sent': return 'bg-success/20 text-success border-success/30';
-      case 'Approved': return 'bg-csa-accent/20 text-csa-accent border-csa-accent/30';
-      case 'Draft': return 'bg-warning/20 text-warning border-warning/30';
-      default: return 'bg-surface-raised text-text-muted border-border-subtle';
-    }
-  };
-
-  const typeColor = (type: unknown) => {
-    return type === 'Renewal'
-      ? 'bg-csa-purple/20 text-csa-purple border-csa-purple/30'
-      : 'bg-csa-accent/20 text-csa-accent border-csa-accent/30';
-  };
-
+  // In edit mode show the editable items (minus deleted); otherwise show fetched items
   const displayLineItems = editing ? editLineItems.filter(li => !li._deleted) : lineItems;
-  const canEditProduct = editing && !isRenewal; // Can't change product on renewals
-  const canEditQty = editing && !isRenewal;     // Can't change qty on renewals
-  const canEditPrice = editing;                  // Can always edit price
-  const canEditDates = editing;                  // Can always edit dates
+
+  // -------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-6">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-3">
-            <button onClick={goBack} className="w-9 h-9 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
-              <ArrowLeft size={18} className="text-text-secondary" />
-            </button>
-
-            {invoice.Reference_Number ? (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-success/10 border border-success/30 rounded-xl">
-                <span className="text-[10px] font-semibold text-success uppercase tracking-wider">Invoice Number</span>
-                <span className="text-sm font-bold text-success">#{invoice.Reference_Number as string}</span>
-              </div>
-            ) : null}
-
-            <span className={`px-2.5 py-1.5 text-[11px] font-bold uppercase rounded-lg border ${statusColor(status)}`}>
-              {status}
-            </span>
-            <span className={`px-2.5 py-1.5 text-[11px] font-bold uppercase rounded-lg border ${typeColor(invoice.Invoice_Type)}`}>
-              {invoice.Invoice_Type as string || 'New'}
-            </span>
-
-            <div className="flex-1" />
-
-            <div className="flex items-center gap-2">
-              {canEdit && !editing ? (
-                <button onClick={enterEditMode} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-warning bg-warning/10 border border-warning/30 rounded-xl hover:bg-warning/20 transition-colors cursor-pointer">
-                  <Pencil size={14} />
-                  Edit
-                </button>
-              ) : null}
-              {editing ? (
-                <>
-                  <button onClick={cancelEdit} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
-                    <X size={14} />
-                    Cancel
-                  </button>
-                  <button onClick={saveEdits} disabled={saving} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-50">
-                    {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                    {saving ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </>
-              ) : null}
-
-              {!editing && status === 'Draft' ? (() => {
-                const canApprove = isEditor || user?.permissions?.canApproveInvoices;
-                const canSend = isEditor || user?.permissions?.canSendInvoices;
-                return (
-                  <>
-                    {canApprove ? (
-                      <button className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer">
-                        <CheckCircle2 size={14} />
-                        Approve
-                      </button>
-                    ) : null}
-                    {canSend ? (
-                      <button className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-highlight bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
-                        <Send size={14} />
-                        Send Invoice
-                      </button>
-                    ) : null}
-                  </>
-                );
-              })() : null}
-              {!editing && status !== 'Draft' ? (
-                <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl">
-                  <Lock size={14} />
-                  Locked
-                </div>
-              ) : null}
-              <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
-                <ExternalLink size={14} />
-                Open in CRM
-              </a>
-            </div>
-          </div>
-
-          <h1 className="text-2xl font-bold text-text-primary ml-12">
-            {invoice.Subject as string || `Invoice ${selectedInvoiceId}`}
-          </h1>
-        </div>
+        {/* Header: back, badges, action buttons */}
+        <InvoiceHeader
+          invoice={invoice}
+          status={status}
+          editing={editing}
+          saving={saving}
+          canEdit={!!canEdit}
+          user={user}
+          selectedInvoiceId={selectedInvoiceId}
+          onGoBack={goBack}
+          onEdit={enterEditMode}
+          onCancelEdit={cancelEdit}
+          onSave={saveEdits}
+        />
 
         {/* Invoice Info Cards */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
@@ -553,339 +515,52 @@ export default function InvoiceDetailView() {
         </motion.div>
 
         {/* Purchase Order */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-8">
-          <div className="bg-surface border border-border-subtle rounded-xl px-5 py-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-text-muted uppercase tracking-wider">
-                <FileText size={14} />
-                Purchase Order
-              </div>
-              {status === 'Draft' && !editingPO && (
-                <button
-                  onClick={() => { setEditPONumber(invoice.Purchase_Order as string || ''); setEditingPO(true); }}
-                  className="text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer"
-                >
-                  <Pencil size={12} />
-                </button>
-              )}
-            </div>
+        <InvoicePurchaseOrder
+          invoice={invoice}
+          status={status}
+          editingPO={editingPO}
+          editPONumber={editPONumber}
+          savingPO={savingPO}
+          uploadingFile={uploadingFile}
+          uploadResult={uploadResult}
+          onStartEditPO={() => { setEditPONumber(invoice.Purchase_Order as string || ''); setEditingPO(true); }}
+          onCancelEditPO={() => setEditingPO(false)}
+          onChangePONumber={setEditPONumber}
+          onSavePO={savePO}
+          onFileUpload={handleFileUpload}
+        />
 
-            {/* PO Number */}
-            {editingPO ? (
-              <div className="flex items-center gap-2 mb-3">
-                <input
-                  type="text"
-                  value={editPONumber}
-                  onChange={e => setEditPONumber(e.target.value)}
-                  placeholder="Enter PO number..."
-                  className="flex-1 bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg"
-                  autoFocus
-                />
-                <button onClick={savePO} disabled={savingPO} className="p-2 text-success hover:text-success/80 transition-colors cursor-pointer disabled:opacity-50">
-                  {savingPO ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                </button>
-                <button onClick={() => setEditingPO(false)} className="p-2 text-text-muted hover:text-text-primary transition-colors cursor-pointer">
-                  <X size={14} />
-                </button>
-              </div>
-            ) : (
-              <p className="text-sm text-text-primary mb-3">
-                {invoice.Purchase_Order as string || <span className="text-text-muted">No PO number set</span>}
-              </p>
-            )}
+        {/* Send To toggle */}
+        <InvoiceSendTo
+          invoice={invoice}
+          status={status}
+          updatingDirectPurchase={updatingDirectPurchase}
+          onToggleDirectPurchase={toggleDirectPurchase}
+        />
 
-            {/* File Upload */}
-            <div className="border-t border-border-subtle pt-3">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <input
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx"
-                  className="hidden"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileUpload(file);
-                    e.target.value = '';
-                  }}
-                  disabled={uploadingFile}
-                />
-                <div className={`flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg border border-dashed transition-colors ${
-                  uploadingFile
-                    ? 'text-text-muted border-border-subtle'
-                    : 'text-csa-accent border-csa-accent/30 hover:bg-csa-accent/10 group-hover:border-csa-accent/50'
-                }`}>
-                  {uploadingFile ? (
-                    <><Loader2 size={13} className="animate-spin" /> Uploading...</>
-                  ) : (
-                    <><Upload size={13} /> Attach PO Document</>
-                  )}
-                </div>
-                {uploadResult ? (
-                  <span className={`text-xs flex items-center gap-1 ${uploadResult.includes('failed') ? 'text-error' : 'text-success'}`}>
-                    {uploadResult.includes('failed') ? null : <Check size={12} />}
-                    {uploadResult}
-                  </span>
-                ) : (
-                  <span className="text-xs text-text-muted">PDF, images, or documents</span>
-                )}
-              </label>
-            </div>
-          </div>
-        </motion.div>
+        {/* Line Items table */}
+        <InvoiceLineItems
+          displayLineItems={displayLineItems}
+          editing={editing}
+          isRenewal={!!isRenewal}
+          symbol={symbol}
+          formatDate={formatDate}
+          onUpdateLineItem={updateLineItem}
+          onAddLineItem={addLineItem}
+          onRemoveLineItem={removeLineItem}
+          onOpenSkuBuilder={setSkuBuilderIndex}
+        />
 
-        {/* Send To */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-8">
-          <div className="bg-surface border border-border-subtle rounded-xl px-5 py-4">
-            <div className="flex items-center gap-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
-              <Send size={14} />
-              Invoice and Licence Keys will be sent to
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => status === 'Draft' && !updatingDirectPurchase && toggleDirectPurchase(true)}
-                disabled={updatingDirectPurchase || status !== 'Draft'}
-                className={`flex-1 px-4 py-3 rounded-xl border-2 text-left transition-all ${
-                  invoice.Reseller_Direct_Purchase
-                    ? 'border-csa-accent bg-csa-accent/10'
-                    : 'border-border-subtle hover:border-border'
-                } ${status !== 'Draft' ? 'cursor-default' : 'cursor-pointer'}`}
-              >
-                <div className={`text-sm font-semibold mb-0.5 ${invoice.Reseller_Direct_Purchase ? 'text-csa-accent' : 'text-text-secondary'}`}>
-                  Reseller
-                </div>
-                <p className="text-xs text-text-muted">
-                  Sent to the reseller, CC the CSA Geo Sales Rep
-                </p>
-              </button>
-              <button
-                onClick={() => status === 'Draft' && !updatingDirectPurchase && toggleDirectPurchase(false)}
-                disabled={updatingDirectPurchase || status !== 'Draft'}
-                className={`flex-1 px-4 py-3 rounded-xl border-2 text-left transition-all ${
-                  !invoice.Reseller_Direct_Purchase
-                    ? 'border-csa-accent bg-csa-accent/10'
-                    : 'border-border-subtle hover:border-border'
-                } ${status !== 'Draft' ? 'cursor-default' : 'cursor-pointer'}`}
-              >
-                <div className={`text-sm font-semibold mb-0.5 ${!invoice.Reseller_Direct_Purchase ? 'text-csa-accent' : 'text-text-secondary'}`}>
-                  Customer
-                </div>
-                <p className="text-xs text-text-muted">
-                  Sent to the customer, CC the reseller and CSA Geo Sales Rep
-                </p>
-              </button>
-            </div>
-            {updatingDirectPurchase ? (
-              <div className="flex items-center gap-2 mt-2 text-xs text-text-muted">
-                <Loader2 size={12} className="animate-spin" />
-                Updating...
-              </div>
-            ) : null}
-          </div>
-        </motion.div>
-
-        {/* Line Items */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
-          <h2 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
-            <Package size={18} className="text-csa-accent" />
-            Line Items ({displayLineItems.length})
-            {editing && <span className="text-xs font-normal text-warning ml-2">Editing</span>}
-            {editing && isRenewal && <span className="text-xs font-normal text-text-muted ml-1">(You can not modify the product or quantity for a renewal)</span>}
-          </h2>
-          {displayLineItems.length > 0 ? (
-            <div className="border border-border-subtle rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-surface-raised">
-                    <th>Product</th>
-                    <th className="text-right">Qty</th>
-                    <th className="text-right">List Price</th>
-                    <th>Start</th>
-                    <th>Renewal</th>
-                    <th className="text-right">Total</th>
-                    {canEditProduct && <th className="w-10"></th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayLineItems.map((li, i) => {
-                    const product = li.Product_Name as { name?: string; id?: string } | string | null;
-                    const productName = typeof product === 'object' && product !== null ? product.name : (product as string);
-                    const qty = li.Quantity as number;
-                    const unitPrice = li.List_Price as number;
-                    const total = li.Net_Total as number;
-                    const desc = li.Description as string | undefined;
-                    return (
-                      <tr key={i}>
-                        {/* Product — clickable to change via SKU builder (not for renewals) */}
-                        <td>
-                          {canEditProduct && !productName ? (
-                            <button
-                              onClick={() => setSkuBuilderIndex(i)}
-                              className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 border-dashed rounded-lg hover:bg-csa-accent/20 transition-colors cursor-pointer"
-                            >
-                              <Plus size={12} />
-                              Select Product
-                            </button>
-                          ) : canEditProduct ? (
-                            <button
-                              onClick={() => setSkuBuilderIndex(i)}
-                              className="text-left group cursor-pointer"
-                            >
-                              <div className="font-semibold text-csa-accent group-hover:text-csa-highlight transition-colors flex items-center gap-1.5">
-                                {productName}
-                                <Replace size={12} className="text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                              {desc ? (
-                                <p className="text-xs text-text-muted mt-0.5 max-w-md truncate">{desc}</p>
-                              ) : null}
-                            </button>
-                          ) : (
-                            <>
-                              <div className="font-semibold text-text-primary">{productName || '\u2014'}</div>
-                              {desc ? (
-                                <p className="text-xs text-text-muted mt-0.5 max-w-md truncate">{desc}</p>
-                              ) : null}
-                            </>
-                          )}
-                        </td>
-
-                        {/* Quantity */}
-                        <td className="text-right">
-                          {canEditQty ? (
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              value={qty}
-                              onChange={(e) => updateLineItem(i, 'Quantity', parseInt(e.target.value.replace(/\D/g, '')) || 1)}
-                              className="bg-surface border border-csa-accent/50 rounded-lg px-3 py-1.5 text-sm text-text-primary outline-none focus:border-csa-accent w-[60px] text-right"
-                            />
-                          ) : (
-                            <span className="text-text-secondary">{qty}</span>
-                          )}
-                        </td>
-
-                        {/* List Price */}
-                        <td className="text-right">
-                          {canEditPrice ? (
-                            <div className="inline-flex items-center bg-surface border border-csa-accent/50 rounded-lg overflow-hidden focus-within:border-csa-accent">
-                              <span className="text-xs text-text-muted pl-2.5">{symbol}</span>
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={unitPrice}
-                                onChange={(e) => {
-                                  const val = e.target.value.replace(/[^\d.]/g, '');
-                                  updateLineItem(i, 'List_Price', val === '' ? 0 : parseFloat(val));
-                                }}
-                                style={{ outline: 'none', boxShadow: 'none' }}
-                                className="bg-transparent border-none px-1.5 py-1.5 text-sm text-text-primary w-[80px] text-right"
-                              />
-                            </div>
-                          ) : (
-                            <span className="text-text-secondary">{symbol}{unitPrice?.toFixed(2)}</span>
-                          )}
-                        </td>
-
-                        {/* Start Date */}
-                        <td>
-                          {editing ? (
-                            <input
-                              type="date"
-                              value={li.Start_Date as string || ''}
-                              onChange={(e) => updateLineItem(i, 'Start_Date', e.target.value)}
-                              className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent w-[130px]"
-                            />
-                          ) : (
-                            <span className="text-text-secondary">{formatDate(li.Start_Date)}</span>
-                          )}
-                        </td>
-
-                        {/* Renewal Date */}
-                        <td>
-                          {editing ? (
-                            <input
-                              type="date"
-                              value={li.Renewal_Date as string || ''}
-                              onChange={(e) => updateLineItem(i, 'Renewal_Date', e.target.value)}
-                              className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent w-[130px]"
-                            />
-                          ) : (
-                            <span className="text-text-secondary">{formatDate(li.Renewal_Date)}</span>
-                          )}
-                        </td>
-
-                        {/* Total */}
-                        <td className="text-right text-text-primary font-semibold">{symbol}{total?.toFixed(2)}</td>
-
-                        {/* Remove */}
-                        {canEditProduct ? (
-                          <td>
-                            <button
-                              onClick={() => removeLineItem(i)}
-                              className="p-1 text-text-muted hover:text-error transition-colors cursor-pointer"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
-                        ) : null}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-sm text-text-muted py-4">No line items found</p>
-          )}
-
-          {/* Add Line Item button — new invoices only */}
-          {canEditProduct ? (
-            <button
-              onClick={addLineItem}
-              className="mt-3 flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 border-dashed rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer w-full justify-center"
-            >
-              <Plus size={14} />
-              Add Line Item
-            </button>
-          ) : null}
-        </motion.div>
-
-        {/* Apply Coupon */}
-        {canApplyCoupon ? (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
-            <div className="bg-surface border border-border-subtle rounded-xl px-5 py-4">
-              <div className="flex items-center gap-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
-                <Ticket size={14} />
-                Apply Coupon
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={couponCode}
-                  onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponError(null); }}
-                  placeholder="Enter coupon code"
-                  className="flex-1 bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg font-mono"
-                  onKeyDown={e => e.key === 'Enter' && applyCoupon()}
-                />
-                <button
-                  onClick={applyCoupon}
-                  disabled={couponValidating || !couponCode.trim()}
-                  className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-lg hover:bg-csa-accent/20 transition-colors cursor-pointer disabled:opacity-40"
-                >
-                  {couponValidating ? <Loader2 size={13} className="animate-spin" /> : <Ticket size={13} />}
-                  {couponValidating ? 'Validating...' : 'Apply'}
-                </button>
-              </div>
-              {couponError ? (
-                <p className="text-xs text-error mt-2">{couponError}</p>
-              ) : null}
-              {couponApplied ? (
-                <p className="text-xs text-success mt-2 flex items-center gap-1">
-                  <Check size={12} />
-                  Coupon {couponApplied} applied
-                </p>
-              ) : null}
-            </div>
-          </motion.div>
-        ) : null}
+        {/* Coupon */}
+        <InvoiceCoupon
+          canApply={!!canApplyCoupon}
+          couponCode={couponCode}
+          couponValidating={couponValidating}
+          couponError={couponError}
+          couponApplied={couponApplied}
+          onChangeCouponCode={(v) => { setCouponCode(v); setCouponError(null); }}
+          onApplyCoupon={applyCoupon}
+        />
 
         {/* Totals */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-8">
@@ -927,7 +602,7 @@ export default function InvoiceDetailView() {
         ) : null}
       </div>
 
-      {/* SKU Builder Modal */}
+      {/* SKU Builder Modal — renders as overlay when a line item is being configured */}
       {skuBuilderIndex !== null && (
         <SKUBuilder
           region={resellerRegion}
@@ -939,6 +614,12 @@ export default function InvoiceDetailView() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Small helper components — kept here as they're lightweight and only used
+// in the info-cards grid above.
+// ---------------------------------------------------------------------------
+
+/** Read-only info card for the invoice metadata grid. */
 function InfoCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (
     <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
@@ -951,6 +632,7 @@ function InfoCard({ label, value, icon }: { label: string; value: string; icon: 
   );
 }
 
+/** Editable date card for Invoice Date / Due Date in edit mode. */
 function EditDateCard({ label, value, onChange, icon }: { label: string; value: string; onChange: (v: string) => void; icon: React.ReactNode }) {
   return (
     <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3">
@@ -968,6 +650,7 @@ function EditDateCard({ label, value, onChange, icon }: { label: string; value: 
   );
 }
 
+/** Single row in the totals summary card. */
 function TotalRow({ label, value, symbol, muted }: { label: string; value: number; symbol: string; muted?: boolean }) {
   return (
     <div className="flex items-center justify-between px-4 py-2.5">
