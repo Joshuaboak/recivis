@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Pencil, Save } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Pencil, Save, Download } from 'lucide-react';
+import { exportFullAccount, exportContacts, exportInvoices, exportAssets } from '@/lib/export-account';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
@@ -288,10 +289,19 @@ export default function AccountDetailView() {
             <h1 className="text-2xl font-bold text-text-primary">{account.Account_Name as string}</h1>
             <p className="text-sm text-text-muted">{account.Email_Domain as string || ''}</p>
           </div>
-          <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
-            <ExternalLink size={14} />
-            Open in CRM
-          </a>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => exportFullAccount(account, contacts, invoices, activeAssets, archivedAssets, primaryContact?.id, secondaryContact?.id)}
+              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer"
+            >
+              <Download size={14} />
+              Export All
+            </button>
+            <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+              <ExternalLink size={14} />
+              Open in CRM
+            </a>
+          </div>
         </div>
 
         {/* Account Info */}
@@ -412,15 +422,22 @@ export default function AccountDetailView() {
               <User size={18} className="text-csa-accent" />
               Contacts ({contacts.length})
             </h2>
-            {!showAddContact ? (
-              <button
-                onClick={() => setShowAddContact(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
-              >
-                <Plus size={13} />
-                Add Contact
-              </button>
-            ) : null}
+            <div className="flex items-center gap-2">
+              {contacts.length > 0 ? (
+                <button onClick={() => exportContacts(contacts, account.Account_Name as string, primaryContact?.id, secondaryContact?.id)} className="p-1.5 text-text-muted hover:text-success transition-colors cursor-pointer" title="Export Contacts">
+                  <Download size={14} />
+                </button>
+              ) : null}
+              {!showAddContact ? (
+                <button
+                  onClick={() => setShowAddContact(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
+                >
+                  <Plus size={13} />
+                  Add Contact
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {/* Add Contact Form */}
@@ -551,10 +568,16 @@ export default function AccountDetailView() {
               <FileText size={18} className="text-csa-purple" />
               Invoices ({invoices.length})
             </h2>
-            <button
-              onClick={() => {
-                setNewInvoiceContext({
-                  account: { name: account.Account_Name as string, id: selectedAccountId },
+            <div className="flex items-center gap-2">
+              {invoices.length > 0 ? (
+                <button onClick={() => exportInvoices(invoices, account.Account_Name as string)} className="p-1.5 text-text-muted hover:text-success transition-colors cursor-pointer" title="Export Invoices">
+                  <Download size={14} />
+                </button>
+              ) : null}
+              <button
+                onClick={() => {
+                  setNewInvoiceContext({
+                    account: { name: account.Account_Name as string, id: selectedAccountId },
                   contact: primaryContact ? { name: primaryContact.name, id: primaryContact.id } : null,
                   reseller: reseller ? { name: reseller.name, id: (account.Reseller as { id?: string })?.id } : null,
                   region: (account.Reseller_Region as string) || '',
@@ -568,7 +591,8 @@ export default function AccountDetailView() {
             >
               <Plus size={13} />
               New Product Invoice
-            </button>
+              </button>
+            </div>
           </div>
           {invoices.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-hidden">
@@ -629,10 +653,17 @@ export default function AccountDetailView() {
         {/* Active Assets */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="mb-8">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
-              <Package size={18} className="text-success" />
-              Active Assets ({activeAssets.length})
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+                <Package size={18} className="text-success" />
+                Active Assets ({activeAssets.length})
+              </h2>
+              {(activeAssets.length > 0 || archivedAssets.length > 0) ? (
+                <button onClick={() => exportAssets(activeAssets, archivedAssets, account.Account_Name as string)} className="p-1.5 text-text-muted hover:text-success transition-colors cursor-pointer" title="Export Assets">
+                  <Download size={14} />
+                </button>
+              ) : null}
+            </div>
             {selectedAssets.size > 0 ? (
               <button
                 onClick={generateRenewal}
