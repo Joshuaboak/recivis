@@ -111,7 +111,7 @@ function ResellerListView() {
   const openReseller = (id: string) => { setSelectedResellerId(id); setCurrentView('reseller-detail'); };
 
   const createReseller = async () => {
-    if (!newReseller.Name.trim()) return;
+    if (!String(newReseller.Name).trim()) return;
     setCreating(true); setCreateError('');
     try {
       const res = await fetch('/api/resellers', {
