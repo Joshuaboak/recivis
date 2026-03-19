@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Pencil, Save, Download } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Pencil, Save, Download, Ban } from 'lucide-react';
 import { exportFullAccount, exportContacts, exportInvoices, exportAssets } from '@/lib/export-account';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
@@ -103,11 +103,35 @@ export default function AccountDetailView() {
     });
   };
 
+  const isEligibleForRenewal = (a: Record<string, unknown>) => {
+    if (a.Upgraded_To_Key) return false;
+    if (a.Revoked) return false;
+    if (a.Evaluation_License) return false;
+    if (a.Educational_License) return false;
+    const productName = ((a.Product as { name?: string })?.name || a.Name as string || '').toLowerCase();
+    if (productName.includes('nfr')) return false;
+    if (productName.includes('home use') && !productName.includes('civil site design plus')) return false;
+    return true;
+  };
+
+  const getIneligibleReason = (a: Record<string, unknown>): string | null => {
+    if (a.Upgraded_To_Key) return 'Upgraded assets are not eligible for renewal';
+    if (a.Revoked) return `Revoked: ${(a.Revoked_Reason as string) || 'No reason provided'}`;
+    if (a.Evaluation_License) return 'Evaluation assets are not eligible for renewal';
+    if (a.Educational_License) return 'Educational assets are not eligible for renewal';
+    const productName = ((a.Product as { name?: string })?.name || a.Name as string || '').toLowerCase();
+    if (productName.includes('nfr')) return 'NFR assets are not eligible for renewal';
+    if (productName.includes('home use') && !productName.includes('civil site design plus')) return 'Home Use assets are not eligible for renewal';
+    return null;
+  };
+
+  const allEligible = [...activeAssets, ...archivedAssets].filter(isEligibleForRenewal);
+
   const toggleAllAssets = () => {
-    if (selectedAssets.size === activeAssets.length) {
+    if (selectedAssets.size === allEligible.length) {
       setSelectedAssets(new Set());
     } else {
-      setSelectedAssets(new Set(activeAssets.map(a => a.id as string)));
+      setSelectedAssets(new Set(allEligible.map(a => a.id as string)));
     }
   };
 
@@ -682,38 +706,51 @@ export default function AccountDetailView() {
                   <th className="w-10">
                     <input
                       type="checkbox"
-                      checked={selectedAssets.size === activeAssets.length && activeAssets.length > 0}
+                      checked={selectedAssets.size === allEligible.length && allEligible.length > 0}
                       onChange={toggleAllAssets}
                       className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
                     />
                   </th>
-                  <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Serial Key</th><th className="w-10"></th>
+                  <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Serial Key</th><th>Upgraded To</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
                   {activeAssets.map((a, i) => {
                     const product = a.Product as { name?: string } | null;
                     const assetId = a.id as string;
                     const isSelected = selectedAssets.has(assetId);
+                    const upgradedTo = a.Upgraded_To_Key as string | null;
+                    const eligible = isEligibleForRenewal(a);
+                    const ineligibleReason = getIneligibleReason(a);
                     return (
                       <tr
                         key={i}
-                        onClick={() => toggleAsset(assetId)}
-                        className={`cursor-pointer transition-colors ${isSelected ? 'bg-csa-purple/8' : 'hover:bg-csa-accent/5'}`}
+                        onClick={() => eligible && toggleAsset(assetId)}
+                        className={`transition-colors ${!eligible ? 'opacity-60' : 'cursor-pointer'} ${isSelected ? 'bg-csa-purple/8' : eligible ? 'hover:bg-csa-accent/5' : ''}`}
                       >
                         <td>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleAsset(assetId)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
-                          />
+                          {!eligible ? (
+                            <div className="relative group">
+                              <Ban size={16} className="text-text-muted/50" />
+                              <div className="absolute left-6 top-1/2 -translate-y-1/2 z-10 bg-csa-dark border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg">
+                                {ineligibleReason}
+                              </div>
+                            </div>
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleAsset(assetId)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
+                            />
+                          )}
                         </td>
                         <td className="text-text-primary">{product?.name || a.Name as string}</td>
                         <td className="text-text-secondary">{a.Quantity as number}</td>
                         <td className="text-text-secondary">{formatDate(a.Start_Date)}</td>
                         <td className="text-text-secondary">{formatDate(a.Renewal_Date)}</td>
                         <td className="text-text-muted text-xs font-mono">{a.Serial_Key as string || '\u2014'}</td>
+                        <td className="text-text-muted text-xs font-mono">{upgradedTo || '\u2014'}</td>
                         <td>
                           <button
                             onClick={(e) => { e.stopPropagation(); setViewingAsset(a); }}
@@ -743,21 +780,49 @@ export default function AccountDetailView() {
             <div className="border border-border-subtle rounded-xl overflow-hidden opacity-70">
               <table className="w-full">
                 <thead><tr className="bg-surface-raised">
-                  <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Status</th><th className="w-10"></th>
+                  <th className="w-10"></th><th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Status</th><th>Upgraded To</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
                   {archivedAssets.map((a, i) => {
                     const product = a.Product as { name?: string } | null;
+                    const assetId = a.id as string;
+                    const upgradedTo = a.Upgraded_To_Key as string | null;
+                    const isSelected = selectedAssets.has(assetId);
+                    const eligible = isEligibleForRenewal(a);
+                    const ineligibleReason = getIneligibleReason(a);
                     return (
-                      <tr key={i}>
+                      <tr
+                        key={i}
+                        onClick={() => eligible && toggleAsset(assetId)}
+                        className={`transition-colors ${!eligible ? '' : 'cursor-pointer'} ${isSelected ? 'bg-csa-purple/8' : eligible ? 'hover:bg-csa-accent/5' : ''}`}
+                      >
+                        <td>
+                          {!eligible ? (
+                            <div className="relative group">
+                              <Ban size={16} className="text-text-muted/50" />
+                              <div className="absolute left-6 top-1/2 -translate-y-1/2 z-10 bg-csa-dark border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg">
+                                {ineligibleReason}
+                              </div>
+                            </div>
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleAsset(assetId)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
+                            />
+                          )}
+                        </td>
                         <td className="text-text-secondary">{product?.name || a.Name as string}</td>
                         <td className="text-text-muted">{a.Quantity as number}</td>
                         <td className="text-text-muted">{formatDate(a.Start_Date)}</td>
                         <td className="text-text-muted">{formatDate(a.Renewal_Date)}</td>
                         <td className="text-text-muted">{a.Status as string}</td>
+                        <td className="text-text-muted text-xs font-mono">{upgradedTo || '\u2014'}</td>
                         <td>
                           <button
-                            onClick={() => setViewingAsset(a)}
+                            onClick={(e) => { e.stopPropagation(); setViewingAsset(a); }}
                             className="p-1 text-text-muted hover:text-csa-accent transition-colors cursor-pointer"
                           >
                             <Eye size={14} />

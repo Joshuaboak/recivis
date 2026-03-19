@@ -25,7 +25,7 @@ export async function GET(
         parent_module: 'Accounts',
         parent_id: id,
         related_list: 'Assets',
-        fields: 'Name,Product,Status,Start_Date,Renewal_Date,Quantity,Serial_Key,Reseller,Upgraded_To_Key,Renewal_Invoice_Generated,Not_Renewing_Asset,Record_Status__s',
+        fields: 'Name,Product,Status,Start_Date,Renewal_Date,Quantity,Serial_Key,Reseller,Upgraded_To_Key,Upgraded_From_Key,Renewal_Invoice_Generated,Not_Renewing_Asset,Revoked,Revoked_Reason,Evaluation_License,Educational_License,Record_Status__s',
       }),
       executeZohoTool('get_related_records', {
         parent_module: 'Accounts',
