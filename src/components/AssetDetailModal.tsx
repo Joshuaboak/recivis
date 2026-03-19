@@ -1,31 +1,43 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Package, Loader2, Key, AlertCircle, Calendar, Hash, User, Shield, Monitor } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, Package, Loader2, Key, AlertCircle, Calendar, User, Shield, Monitor, Pencil, Save, ShieldOff } from 'lucide-react';
+import { useAppStore } from '@/lib/store';
 
 interface AssetDetailModalProps {
   assetId: string;
   assetData: Record<string, unknown>;
   onClose: () => void;
+  onAssetUpdated?: () => void;
 }
 
-export default function AssetDetailModal({ assetId, assetData, onClose }: AssetDetailModalProps) {
+export default function AssetDetailModal({ assetId, assetData, onClose, onAssetUpdated }: AssetDetailModalProps) {
+  const { user } = useAppStore();
   const [asset, setAsset] = useState<Record<string, unknown> | null>(null);
   const [keyDetails, setKeyDetails] = useState<Record<string, string> | null>(null);
   const [activationError, setActivationError] = useState<string | null>(null);
   const [loadingAsset, setLoadingAsset] = useState(true);
   const [loadingKey, setLoadingKey] = useState(true);
 
-  // Fetch full asset record and key details in parallel
-  useEffect(() => {
-    // Fetch full asset record
+  // Edit state
+  const isEditor = user?.role === 'admin' || user?.role === 'ibm';
+  const [editingDate, setEditingDate] = useState(false);
+  const [editRenewalDate, setEditRenewalDate] = useState('');
+  const [savingDate, setSavingDate] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
+  const [deactivateMessage, setDeactivateMessage] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const loadData = useCallback(() => {
+    setLoadingAsset(true);
+    setLoadingKey(true);
+
     fetch(`/api/assets?id=${assetId}`)
       .then(res => res.json())
       .then(data => setAsset(data.asset))
       .catch(() => setAsset(assetData))
       .finally(() => setLoadingAsset(false));
 
-    // Fetch QLM key details
     fetch('/api/assets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -39,6 +51,8 @@ export default function AssetDetailModal({ assetId, assetData, onClose }: AssetD
       .catch(() => setActivationError('Failed to load key details'))
       .finally(() => setLoadingKey(false));
   }, [assetId, assetData]);
+
+  useEffect(() => { loadData(); }, [loadData, refreshKey]);
 
   const record = asset || assetData;
   const product = record.Product as { name?: string } | null;
@@ -59,6 +73,59 @@ export default function AssetDetailModal({ assetId, assetData, onClose }: AssetD
     } catch { return d; }
   };
 
+  const startEditDate = () => {
+    setEditRenewalDate(record.Renewal_Date as string || '');
+    setEditingDate(true);
+  };
+
+  const saveRenewalDate = async () => {
+    if (!editRenewalDate) return;
+    setSavingDate(true);
+
+    const body: Record<string, unknown> = {
+      assetId,
+      Renewal_Date: editRenewalDate,
+    };
+
+    // If new date is after today, set status to Active
+    if (new Date(editRenewalDate) > new Date()) {
+      body.Status = 'Active';
+    }
+
+    try {
+      const res = await fetch('/api/assets', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        setEditingDate(false);
+        setRefreshKey(k => k + 1);
+        onAssetUpdated?.();
+      }
+    } catch { /* handled */ }
+    setSavingDate(false);
+  };
+
+  const deactivateLicence = async () => {
+    setDeactivating(true);
+    setDeactivateMessage(null);
+    try {
+      const res = await fetch('/api/assets', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetId }),
+      });
+      const data = await res.json();
+      setDeactivateMessage(data.message || 'Licence released');
+      // Refresh key details after deactivation
+      setRefreshKey(k => k + 1);
+    } catch {
+      setDeactivateMessage('Failed to deactivate licence');
+    }
+    setDeactivating(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-csa-dark border-2 border-border rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
@@ -73,9 +140,21 @@ export default function AssetDetailModal({ assetId, assetData, onClose }: AssetD
               ) : null}
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-text-muted hover:text-text-primary transition-colors cursor-pointer">
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            {isEditor && keyDetails ? (
+              <button
+                onClick={deactivateLicence}
+                disabled={deactivating}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-error bg-error/10 border border-error/30 rounded-xl hover:bg-error/20 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {deactivating ? <Loader2 size={13} className="animate-spin" /> : <ShieldOff size={13} />}
+                {deactivating ? 'Releasing...' : 'Deactivate Licence'}
+              </button>
+            ) : null}
+            <button onClick={onClose} className="p-1.5 text-text-muted hover:text-text-primary transition-colors cursor-pointer">
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -95,7 +174,45 @@ export default function AssetDetailModal({ assetId, assetData, onClose }: AssetD
                 } />
                 <DetailField label="Quantity" value={String(record.Quantity || 1)} />
                 <DetailField label="Start Date" value={formatDate(record.Start_Date)} />
-                <DetailField label="Renewal Date" value={formatDate(record.Renewal_Date)} />
+
+                {/* Renewal Date — editable for admin/ibm */}
+                <div>
+                  <div className="flex items-center gap-1 text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-0.5">
+                    <Calendar size={12} />
+                    Renewal Date
+                    {isEditor && !editingDate ? (
+                      <button onClick={startEditDate} className="ml-1 text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer">
+                        <Pencil size={10} />
+                      </button>
+                    ) : null}
+                  </div>
+                  {editingDate ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={editRenewalDate}
+                        onChange={(e) => setEditRenewalDate(e.target.value)}
+                        className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent"
+                      />
+                      <button
+                        onClick={saveRenewalDate}
+                        disabled={savingDate}
+                        className="p-1 text-success hover:text-success/80 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        {savingDate ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                      </button>
+                      <button
+                        onClick={() => setEditingDate(false)}
+                        className="p-1 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-text-primary">{formatDate(record.Renewal_Date)}</div>
+                  )}
+                </div>
+
                 <DetailField label="Upgraded To" value={upgradedTo || '\u2014'} />
                 <DetailField label="Upgraded From" value={
                   typeof upgradedFrom === 'object' && upgradedFrom !== null
@@ -103,6 +220,18 @@ export default function AssetDetailModal({ assetId, assetData, onClose }: AssetD
                     : (upgradedFrom as string) || '\u2014'
                 } />
               </div>
+
+              {/* Deactivation message */}
+              {deactivateMessage ? (
+                <div className={`flex items-center gap-2 text-xs rounded-lg px-3 py-2 mb-4 ${
+                  deactivateMessage.toLowerCase().includes('error') || deactivateMessage.toLowerCase().includes('warning')
+                    ? 'text-warning bg-warning/10 border border-warning/20'
+                    : 'text-success bg-success/10 border border-success/20'
+                }`}>
+                  <AlertCircle size={14} />
+                  {deactivateMessage}
+                </div>
+              ) : null}
 
               {/* QLM Key Details */}
               <div className="border-t border-border-subtle pt-5">
@@ -118,10 +247,9 @@ export default function AssetDetailModal({ assetId, assetData, onClose }: AssetD
                   </div>
                 ) : keyDetails ? (
                   <div className="space-y-4">
-                    {/* Key Info */}
                     <div className="grid grid-cols-2 gap-3">
                       <DetailField label="Licence Model" value={keyDetails.LicenseModel} icon={<Shield size={12} />} />
-                      <DetailField label="Product" value={`${keyDetails.ProductName} v${keyDetails.MajorVersion}.${keyDetails.MinorVersion}`} icon={<Package size={12} />} />
+                      <DetailField label="Version Activated" value={`${keyDetails.ProductName} v${keyDetails.MajorVersion}.${keyDetails.MinorVersion}`} icon={<Package size={12} />} />
                       <DetailField label="Available Seats" value={keyDetails.AvailableLicenses} icon={<Monitor size={12} />} />
                       <DetailField label="Activations" value={keyDetails.ActivationCount} />
                       <DetailField label="Created" value={formatDateTime(keyDetails.CreationDate)} icon={<Calendar size={12} />} />
@@ -146,14 +274,12 @@ export default function AssetDetailModal({ assetId, assetData, onClose }: AssetD
                       </div>
                     </div>
 
-                    {/* Affiliate */}
                     {keyDetails.CreatedByAffiliate ? (
                       <div className="text-xs text-text-muted">
                         Created by: {keyDetails.CreatedByAffiliate}
                       </div>
                     ) : null}
 
-                    {/* Activation Error */}
                     {activationError ? (
                       <div className="flex items-center gap-2 text-xs text-warning bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
                         <AlertCircle size={14} />

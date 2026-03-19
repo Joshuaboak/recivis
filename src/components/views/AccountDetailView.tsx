@@ -558,6 +558,17 @@ export default function AccountDetailView() {
           assetId={viewingAsset.id as string}
           assetData={viewingAsset}
           onClose={() => setViewingAsset(null)}
+          onAssetUpdated={() => {
+            // Reload account data to refresh assets
+            fetch(`/api/accounts/${selectedAccountId}`)
+              .then(res => res.json())
+              .then(data => {
+                setAccount(data.account);
+                setActiveAssets(data.activeAssets || []);
+                setArchivedAssets(data.archivedAssets || []);
+              })
+              .catch(() => {});
+          }}
         />
       ) : null}
     </div>
