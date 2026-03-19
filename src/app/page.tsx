@@ -7,7 +7,7 @@ const AppShell = dynamic(() => import('@/components/layout/AppShell'), {
   loading: () => (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#021A26' }}>
       <div className="flex flex-col items-center gap-4">
-        <img src="/logo.svg" alt="CSA" style={{ width: 64, height: 64 }} />
+        <img src="/logo.svg" alt="Civil Survey Applications" style={{ width: 36, height: 72 }} />
         <div className="flex gap-1">
           <div className="w-2 h-2 animate-pulse" style={{ background: '#0077B7' }} />
           <div className="w-2 h-2 animate-pulse" style={{ background: '#0077B7', animationDelay: '0.15s' }} />

@@ -175,12 +175,12 @@ export default function LoginView() {
           transition={{ delay: 0.1, duration: 0.5 }}
           className="text-center mb-10"
         >
-          <img src="/logo.svg" alt="Civil Survey Applications" className="w-20 h-20 mx-auto mb-6" />
+          <img src="/logo.svg" alt="Civil Survey Applications" className="w-14 h-28 mx-auto mb-6" />
           <h1 className="text-2xl font-bold text-text-primary tracking-tight mb-1">
             Civil Survey Applications
           </h1>
           <p className="text-lg font-semibold text-csa-accent mb-1">
-            Reseller Portal
+            Partner Portal
           </p>
           <p className="text-xs text-text-muted">
             Invoice, licence, and account management

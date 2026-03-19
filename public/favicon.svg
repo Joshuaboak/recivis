@@ -1,15 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#042637"/>
-  <g transform="translate(32,32)" stroke="#8BB8CF" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Outer hexagonal shape -->
-    <path d="M0-22L19-11L19 11L0 22L-19 11L-19-11Z" stroke-width="3"/>
-    <!-- Inner rotated hexagon -->
-    <path d="M0-15L13-7.5L13 7.5L0 15L-13 7.5L-13-7.5Z" transform="rotate(30)" stroke-width="2.5" opacity="0.6"/>
-    <!-- Circular arrows in centre -->
-    <path d="M-6-2A7 7 0 0 1 6-2" stroke-width="2.5"/>
-    <path d="M6 2A7 7 0 0 1-6 2" stroke-width="2.5"/>
-    <!-- Arrow heads -->
-    <path d="M5-5L6-2L3-1.5" stroke-width="2" fill="none"/>
-    <path d="M-5 5L-6 2L-3 1.5" stroke-width="2" fill="none"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="32" fill="#042637"/>
+  <g transform="translate(62 20) scale(0.72)">
+    <polygon fill="#b2dfee" points="91.98 263.38 46.2 236.31 46.2 185.42 92.04 211.97 136.06 184.53 134.88 79.29 181.92 52.13 181.99 157.82 181.85 157.9 181.85 210.46 91.98 263.38"/>
+    <polygon fill="#0077b7" points=".06 158.7 92.04 211.97 136.06 184.53 45.93 133.65 45.93 79.97 47.04 79.29 90.89 52.18 90.96 52.13 134.81 79.25 134.88 79.29 181.92 52.13 90.96 0 90.89 .05 0 52.13 .06 158.7"/>
+    <polygon fill="#0077b7" points="181.85 210.46 135.99 237.47 135.99 290.94 181.85 319.84 181.85 210.46"/>
+    <polygon fill="#004c6d" points="46.2 291.86 90.96 319.89 91.03 319.84 135.99 290.94 181.78 319.8 181.85 319.84 91.03 372.64 90.96 372.68 0 319.89 .06 158.7 46.2 185.42 46.2 291.86"/>
   </g>
 </svg>
