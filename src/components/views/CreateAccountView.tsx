@@ -93,6 +93,7 @@ export default function CreateAccountView() {
 
   const selectedResellerName = resellers.find(r => r.id === selectedReseller)?.name || user?.resellerName || '';
 
+  const [attempted, setAttempted] = useState(false);
   const isValid = accountName.trim() && country.trim() && selectedReseller && firstName.trim() && lastName.trim() && email.trim();
 
   // Check for duplicates
@@ -147,6 +148,7 @@ export default function CreateAccountView() {
   };
 
   const handleSave = async () => {
+    setAttempted(true);
     if (!isValid) return;
 
     // Check duplicates first
@@ -251,6 +253,14 @@ export default function CreateAccountView() {
           </button>
         </div>
 
+        {/* Validation message */}
+        {attempted && !isValid ? (
+          <div className="flex items-center gap-2 text-xs text-error bg-error/10 border border-error/20 rounded-xl px-4 py-2.5 mb-6">
+            <AlertTriangle size={14} />
+            Please fill in all required fields: Account Name, Country, Reseller, First Name, Last Name, and Email.
+          </div>
+        ) : null}
+
         {/* Duplicate Warning */}
         {showDuplicateWarning && duplicates.length > 0 ? (
           <motion.div
@@ -312,7 +322,7 @@ export default function CreateAccountView() {
                 value={accountName}
                 onChange={e => setAccountName(e.target.value)}
                 placeholder="Company name"
-                className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
+                className={`w-full bg-surface border-2 px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl ${attempted && !accountName.trim() ? 'border-error' : 'border-border-subtle'}`}
               />
             </div>
             <div>
@@ -322,7 +332,7 @@ export default function CreateAccountView() {
                 value={country}
                 onChange={e => setCountry(e.target.value)}
                 placeholder="e.g. Australia"
-                className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
+                className={`w-full bg-surface border-2 px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl ${attempted && !country.trim() ? 'border-error' : 'border-border-subtle'}`}
               />
             </div>
 
@@ -338,7 +348,7 @@ export default function CreateAccountView() {
                     onChange={e => { setResellerSearch(e.target.value); setSelectedReseller(''); }}
                     onFocus={() => { if (selectedReseller) { setResellerSearch(selectedResellerName); setSelectedReseller(''); } }}
                     placeholder="Search resellers..."
-                    className="w-full bg-surface border-2 border-border-subtle pl-9 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
+                    className={`w-full bg-surface border-2 pl-9 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl ${attempted && !selectedReseller ? 'border-error' : 'border-border-subtle'}`}
                   />
                   {!selectedReseller && resellerSearch && (
                     <div className="absolute left-0 right-0 top-full mt-1 z-10 bg-csa-dark border border-border rounded-xl max-h-[200px] overflow-y-auto shadow-lg">
@@ -405,19 +415,19 @@ export default function CreateAccountView() {
             <div>
               <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">First Name *</label>
               <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First name"
-                className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl" />
+                className={`w-full bg-surface border-2 px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl ${attempted && !firstName.trim() ? 'border-error' : 'border-border-subtle'}`} />
             </div>
             <div>
               <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Last Name *</label>
               <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last name"
-                className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl" />
+                className={`w-full bg-surface border-2 px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl ${attempted && !lastName.trim() ? 'border-error' : 'border-border-subtle'}`} />
             </div>
             <div>
               <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Email *</label>
               <div className="relative">
                 <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com"
-                  className="w-full bg-surface border-2 border-border-subtle pl-9 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl" />
+                  className={`w-full bg-surface border-2 pl-9 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl ${attempted && !email.trim() ? 'border-error' : 'border-border-subtle'}`} />
               </div>
             </div>
             <div>
