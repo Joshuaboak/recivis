@@ -57,6 +57,9 @@ export default function CouponDetailView() {
   const regions = toArray(coupon.Regions);
   const products = toArray(coupon.Allowed_Products);
   const orderTypes = toArray(coupon.Order_Type);
+  const partners = Array.isArray(coupon.Partners)
+    ? (coupon.Partners as { name?: string }[]).map(p => p.name || '').filter(Boolean)
+    : [];
   const discountProduct = coupon.Discount_Product as { name?: string; id?: string } | null;
 
   return (
@@ -159,6 +162,23 @@ export default function CouponDetailView() {
                 </div>
               ) : (
                 <p className="text-sm text-text-secondary">All regions</p>
+              )}
+            </div>
+
+            {/* Partners */}
+            <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
+                <Globe size={14} />
+                Partners
+              </div>
+              {coupon.Partner_Restrictions && partners.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {partners.map(p => (
+                    <span key={p} className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-success/15 text-success">{p}</span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-text-secondary">{coupon.Partner_Restrictions ? 'None specified' : 'All partners'}</p>
               )}
             </div>
 

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Ticket, Save, Loader2, ChevronDown } from 'lucide-react';
+import { Ticket, Save, Loader2, ChevronDown, Search } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 
 const CURRENCIES = ['AUD', 'USD', 'EUR', 'INR'];
@@ -30,6 +30,10 @@ export default function CreateCouponView() {
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [productRestrictions, setProductRestrictions] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [partnerRestrictions, setPartnerRestrictions] = useState(false);
+  const [selectedPartners, setSelectedPartners] = useState<{ id: string; name: string }[]>([]);
+  const [partnerSearch, setPartnerSearch] = useState('');
+  const [allResellers, setAllResellers] = useState<{ id: string; name: string }[]>([]);
   const [orderTypeRestrictions, setOrderTypeRestrictions] = useState(false);
   const [selectedOrderTypes, setSelectedOrderTypes] = useState<string[]>([]);
   const [usageRestrictions, setUsageRestrictions] = useState(false);
@@ -38,6 +42,20 @@ export default function CreateCouponView() {
 
   const [saving, setSaving] = useState(false);
   const [attempted, setAttempted] = useState(false);
+
+  // Load resellers for partner restrictions
+  useEffect(() => {
+    if (!partnerRestrictions || allResellers.length > 0) return;
+    fetch('/api/resellers')
+      .then(res => res.json())
+      .then(data => setAllResellers((data.resellers || []).map((r: { id: string; name: string }) => ({ id: r.id, name: r.name }))))
+      .catch(() => {});
+  }, [partnerRestrictions, allResellers.length]);
+
+  const filteredPartners = useMemo(() => {
+    if (!partnerSearch) return allResellers;
+    return allResellers.filter(r => r.name.toLowerCase().includes(partnerSearch.toLowerCase()));
+  }, [allResellers, partnerSearch]);
 
   const isValid = couponCode.trim() && couponName.trim() && discountType &&
     (discountType === 'Percentage Based' ? discountPercentage : discountAmount);
@@ -82,6 +100,8 @@ export default function CreateCouponView() {
       if (regionRestrictions && selectedRegions.length > 0) data.Regions = selectedRegions.join(';');
       data.Product_Restrictions = productRestrictions;
       if (productRestrictions && selectedProducts.length > 0) data.Allowed_Products = selectedProducts.join(';');
+      data.Partner_Restrictions = partnerRestrictions;
+      if (partnerRestrictions && selectedPartners.length > 0) data.Partners = selectedPartners.map(p => ({ id: p.id }));
       data.Order_Type_Restrictions = orderTypeRestrictions;
       if (orderTypeRestrictions && selectedOrderTypes.length > 0) data.Order_Type = selectedOrderTypes.join(';');
       data.Usage_Restrictions = usageRestrictions;
@@ -235,6 +255,40 @@ export default function CreateCouponView() {
                 {REGIONS.map(r => (
                   <ToggleChip key={r} label={REGION_LABELS[r] || r} active={selectedRegions.includes(r)} onClick={() => toggleMulti(selectedRegions, r, setSelectedRegions)} />
                 ))}
+              </div>
+            </RestrictionToggle>
+
+            {/* Partners */}
+            <RestrictionToggle label="Partner Restrictions" enabled={partnerRestrictions} onToggle={setPartnerRestrictions}>
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                  <input
+                    type="text"
+                    value={partnerSearch}
+                    onChange={e => setPartnerSearch(e.target.value)}
+                    placeholder="Search resellers..."
+                    className="w-full bg-csa-dark border border-border-subtle pl-9 pr-4 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg"
+                  />
+                </div>
+                {selectedPartners.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-1">
+                    {selectedPartners.map(p => (
+                      <button key={p.id} onClick={() => setSelectedPartners(prev => prev.filter(x => x.id !== p.id))}
+                        className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-csa-accent/15 text-csa-accent border border-csa-accent/40 hover:bg-error/15 hover:text-error hover:border-error/40 transition-colors cursor-pointer">
+                        {p.name} &times;
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="max-h-[140px] overflow-y-auto space-y-0.5">
+                  {filteredPartners.filter(r => !selectedPartners.some(s => s.id === r.id)).map(r => (
+                    <button key={r.id} onClick={() => setSelectedPartners(prev => [...prev, r])}
+                      className="w-full text-left px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-raised rounded-lg transition-colors cursor-pointer">
+                      {r.name}
+                    </button>
+                  ))}
+                </div>
               </div>
             </RestrictionToggle>
 
