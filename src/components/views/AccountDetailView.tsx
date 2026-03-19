@@ -111,9 +111,9 @@ export default function AccountDetailView() {
   const isEligibleForRenewal = (a: Record<string, unknown>) => {
     if (a.Upgraded_To_Key) return false;
     if (a.Revoked) return false;
-    if (a.Evaluation_License) return false;
-    if (a.Educational_License) return false;
     const productName = ((a.Product as { name?: string })?.name || a.Name as string || '').toLowerCase();
+    if (a.Evaluation_License || productName.includes('evaluation')) return false;
+    if (a.Educational_License || productName.includes('educational')) return false;
     if (productName.includes('nfr')) return false;
     if (productName.includes('home use') && !productName.includes('civil site design plus')) return false;
     return true;
@@ -122,9 +122,9 @@ export default function AccountDetailView() {
   const getIneligibleReason = (a: Record<string, unknown>): string | null => {
     if (a.Upgraded_To_Key) return 'Upgraded assets are not eligible for renewal';
     if (a.Revoked) return `Revoked: ${(a.Revoked_Reason as string) || 'No reason provided'}`;
-    if (a.Evaluation_License) return 'Evaluation assets are not eligible for renewal';
-    if (a.Educational_License) return 'Educational assets are not eligible for renewal';
     const productName = ((a.Product as { name?: string })?.name || a.Name as string || '').toLowerCase();
+    if (a.Evaluation_License || productName.includes('evaluation')) return 'Evaluation assets are not eligible for renewal';
+    if (a.Educational_License || productName.includes('educational')) return 'Educational assets are not eligible for renewal';
     if (productName.includes('nfr')) return 'NFR assets are not eligible for renewal';
     if (productName.includes('home use') && !productName.includes('civil site design plus')) return 'Home Use assets are not eligible for renewal';
     return null;
