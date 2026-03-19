@@ -46,7 +46,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="h-16 flex items-center px-4 border-b-4 border-border">
         <motion.div className="flex items-center gap-3 overflow-hidden" animate={{ opacity: 1 }}>
-          <img src="/logo.svg" alt="Civil Survey Applications" className="w-8 h-16 flex-shrink-0" />
+          <img src="/logo.svg" alt="Civil Survey Applications" className="w-6 h-12 flex-shrink-0" />
           <AnimatePresence>
             {sidebarOpen && (
               <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="overflow-hidden whitespace-nowrap">
