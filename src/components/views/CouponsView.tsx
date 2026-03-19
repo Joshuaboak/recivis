@@ -154,9 +154,9 @@ export default function CouponsView() {
                       <td className="text-text-primary">{c.Coupon_Name || '\u2014'}</td>
                       <td className="text-text-primary whitespace-nowrap">
                         {c.Discount_Type === 'Percentage Based' ? (
-                          <span className="flex items-center gap-1"><Percent size={12} className="text-text-muted" />{c.Discount_Percentage}%</span>
+                          <span className="font-semibold">{c.Discount_Percentage}%</span>
                         ) : c.Discount_Type === 'Fixed Amount' ? (
-                          <span className="flex items-center gap-1"><DollarSign size={12} className="text-text-muted" />{c.Discount_Amount?.toFixed(2)} {c.Currency}</span>
+                          <span className="font-semibold">{c.Currency === 'EUR' ? '\u20AC' : c.Currency === 'GBP' ? '\u00A3' : '$'}{c.Discount_Amount?.toFixed(2)}</span>
                         ) : '\u2014'}
                       </td>
                       <td>
@@ -172,7 +172,7 @@ export default function CouponsView() {
                       <td className="text-text-secondary">
                         {c.Remaining_Uses != null ? `${c.Remaining_Uses}/${c.Total_Usage_Allowance}` : '\u2014'}
                       </td>
-                      <td className="text-text-muted text-xs">{c.Allowed_Products || 'All'}</td>
+                      <td className="text-text-muted text-xs">{Array.isArray(c.Allowed_Products) ? c.Allowed_Products.join(', ') : c.Allowed_Products || 'All'}</td>
                     </motion.tr>
                   ))}
                 </tbody>
