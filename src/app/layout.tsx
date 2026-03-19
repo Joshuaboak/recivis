@@ -5,7 +5,10 @@ export const metadata: Metadata = {
   title: "Partner Portal — Civil Survey Applications",
   description: "Partner portal for Civil Survey Applications — invoices, licences, and account management",
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/favicon.svg",
   },
 };
 
