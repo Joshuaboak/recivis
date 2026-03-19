@@ -223,10 +223,6 @@ export default function InvoiceDetailView() {
     }
   };
 
-  const canApplyCoupon = status === 'Draft' && (
-    user?.role === 'admin' || user?.role === 'ibm' || user?.permissions?.canModifyPrices
-  );
-
   const applyCoupon = async () => {
     if (!couponCode.trim() || !selectedInvoiceId || !invoice) return;
     setCouponValidating(true);
@@ -362,6 +358,10 @@ export default function InvoiceDetailView() {
   const activeCurrency = editing ? editCurrency : (invoice.Currency as string || 'AUD');
   const symbol = getCurrencySymbol(activeCurrency);
   const resellerRegion = (invoice.Reseller_Region as string) || 'AU';
+
+  const canApplyCoupon = status === 'Draft' && (
+    user?.role === 'admin' || user?.role === 'ibm' || user?.permissions?.canModifyPrices
+  );
 
   const statusColor = (s: unknown) => {
     switch (s) {
