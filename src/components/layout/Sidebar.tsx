@@ -18,7 +18,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import UserMenu from './UserMenu';
 
-type ViewId = 'dashboard' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'users';
+type ViewId = 'dashboard' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'resellers' | 'reseller-detail';
 
 export default function Sidebar() {
   const { currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
@@ -181,8 +181,8 @@ export default function Sidebar() {
         {/* Coupons */}
         <NavItem id="coupons" label="Coupons" icon={Ticket} active={currentView === 'coupons' || currentView === 'create-coupon' || currentView === 'coupon-detail'} onClick={() => handleNavClick('coupons')} open={sidebarOpen} />
 
-        {/* Users — only for managers+ */}
-        <NavItem id="users" label="Users" icon={Users} active={currentView === 'users'} onClick={() => handleNavClick('users')} open={sidebarOpen} />
+        {/* Reseller Management */}
+        <NavItem id="resellers" label="Resellers" icon={Users} active={currentView === 'resellers' || currentView === 'reseller-detail'} onClick={() => handleNavClick('resellers')} open={sidebarOpen} />
       </nav>
 
       {/* CRM Status */}

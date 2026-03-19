@@ -14,8 +14,11 @@ interface AppState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 
-  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'users';
-  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'users') => void;
+  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail';
+  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail') => void;
+
+  selectedResellerId: string | null;
+  setSelectedResellerId: (id: string | null) => void;
 
   selectedCouponId: string | null;
   setSelectedCouponId: (id: string | null) => void;
@@ -82,6 +85,9 @@ export const useAppStore = create<AppState>()(
 
       selectedCouponId: null,
       setSelectedCouponId: (id) => set({ selectedCouponId: id }),
+
+      selectedResellerId: null,
+      setSelectedResellerId: (id) => set({ selectedResellerId: id }),
     }),
     {
       name: 'recivis-storage',

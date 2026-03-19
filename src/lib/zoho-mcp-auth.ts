@@ -1,6 +1,6 @@
 /**
  * Zoho MCP Client — Preauthorized endpoint.
- * No OAuth needed. Just the MCP URL with key.
+ * No OAuth needed. MCP URL with embedded key.
  */
 
 const MCP_URL = process.env.ZOHO_MCP_URL ||

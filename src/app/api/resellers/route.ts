@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callMcpTool } from '@/lib/zoho';
+import { query } from '@/lib/db';
 import { log } from '@/lib/logger';
+
+const CSA_ZOHO_ID = '55779000000560184';
+const CSA_INTERNAL_ID = 'csa-internal';
 
 /**
  * GET /api/resellers?resellerId=id&includeChildren=true
@@ -65,6 +69,24 @@ export async function GET(request: NextRequest) {
 
     // Sort by name
     resellers.sort((a, b) => a.name.localeCompare(b.name));
+
+    // Get user counts from PostgreSQL
+    try {
+      const countsResult = await query(
+        `SELECT reseller_id, COUNT(*) as count FROM users WHERE is_active = true GROUP BY reseller_id`
+      );
+      const counts: Record<string, number> = {};
+      for (const row of countsResult.rows) {
+        counts[row.reseller_id] = parseInt(row.count);
+      }
+      // Map csa-internal counts to the Zoho CSA ID
+      if (counts[CSA_INTERNAL_ID]) {
+        counts[CSA_ZOHO_ID] = (counts[CSA_ZOHO_ID] || 0) + counts[CSA_INTERNAL_ID];
+      }
+      for (const r of resellers) {
+        (r as Record<string, unknown>).user_count = counts[r.id] || 0;
+      }
+    } catch { /* non-critical */ }
 
     return NextResponse.json({ resellers });
   } catch (error) {
