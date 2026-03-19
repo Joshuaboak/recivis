@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth } from '@/lib/api-auth';
+import { createContactSchema, validateBody } from '@/lib/validation';
 
 /**
  * POST /api/contacts — create a new contact
@@ -13,7 +14,13 @@ export async function POST(request: NextRequest) {
   const user = authResult;
 
   try {
-    const body = await request.json();
+    // Validate request body with Zod schema
+    const rawBody = await request.json();
+    const validation = validateBody(createContactSchema, rawBody);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+    const body = validation.data;
 
     const contactData: Record<string, unknown> = {
       First_Name: body.First_Name,

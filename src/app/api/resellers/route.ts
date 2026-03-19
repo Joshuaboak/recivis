@@ -4,6 +4,7 @@ import { query } from '@/lib/db';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
 import { CSA_ZOHO_ID, CSA_INTERNAL_ID } from '@/lib/constants';
+import { cacheGet, cacheSet, cacheInvalidatePattern } from '@/lib/cache';
 
 /**
  * GET /api/resellers?resellerId=id&includeChildren=true
@@ -22,6 +23,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const resellerId = searchParams.get('resellerId');
     const includeChildren = searchParams.get('includeChildren') === 'true';
+
+    // Check Redis cache before hitting Zoho API (5-minute TTL)
+    const cacheKey = `resellers:${resellerId || 'all'}:${includeChildren}`;
+    const cached = await cacheGet<{ resellers: unknown[] }>(cacheKey);
+    if (cached) return NextResponse.json(cached);
 
     const fields = 'Name,Region,Currency,Partner_Category,Distributor,Record_Status__s';
 
@@ -91,7 +97,11 @@ export async function GET(request: NextRequest) {
       }
     } catch { /* non-critical */ }
 
-    return NextResponse.json({ resellers });
+    // Cache the response in Redis for 5 minutes (300s)
+    const response = { resellers };
+    await cacheSet(cacheKey, response, 300);
+
+    return NextResponse.json(response);
   } catch (error) {
     log('error', 'api', 'Resellers fetch failed', {
       error: error instanceof Error ? error.message : String(error),
@@ -130,6 +140,10 @@ export async function POST(request: NextRequest) {
     if (created?.code === 'SUCCESS') {
       const details = created.details as Record<string, unknown>;
       log('info', 'api', 'Reseller created', { id: details?.id });
+
+      // Invalidate all cached reseller lists since a new reseller was created
+      await cacheInvalidatePattern('resellers:*');
+
       return NextResponse.json({ success: true, id: details?.id });
     }
 

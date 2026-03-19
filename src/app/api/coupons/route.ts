@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllRecordPages } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
+import { cacheGet, cacheSet, cacheInvalidatePattern } from '@/lib/cache';
 
 const FIELDS = 'Name,Coupon_Name,Coupon_Description,Discount_Type,Discount_Percentage,Discount_Amount,Currency,Status,Coupon_Start_Date,Coupon_End_Date,Total_Usage_Allowance,Remaining_Uses,Region_Restrictions,Regions,Partner_Restrictions,Partners,Product_Restrictions,Allowed_Products,Order_Type_Restrictions,Order_Type,Usage_Restrictions,Minimum_Order_Value,Maximum_Order_Value,Discount_Product,Record_Status__s';
 
@@ -32,9 +33,19 @@ export async function GET(request: NextRequest) {
   const user = authResult;
 
   try {
+    // Check Redis cache before hitting Zoho API (2-minute TTL)
+    const cacheKey = 'coupons:all';
+    const cached = await cacheGet<{ coupons: unknown[] }>(cacheKey);
+    if (cached) return NextResponse.json(cached);
+
     const allRecords = await getAllRecordPages('Coupons', FIELDS, 'Created_Time', 'desc');
     const coupons = allRecords.filter(r => r.Record_Status__s !== 'Trash');
-    return NextResponse.json({ coupons });
+
+    // Cache the response in Redis for 2 minutes (120s)
+    const response = { coupons };
+    await cacheSet(cacheKey, response, 120);
+
+    return NextResponse.json(response);
   } catch (error) {
     log('error', 'api', 'Coupons fetch failed', {
       error: error instanceof Error ? error.message : String(error),
@@ -92,6 +103,9 @@ export async function POST(request: NextRequest) {
     const fnRes = await fetch(fnUrl, { method: 'POST' });
     const fnResult = await fnRes.json();
     log('info', 'api', 'Coupon product created', { couponId, result: JSON.stringify(fnResult).slice(0, 300) });
+
+    // Invalidate cached coupon list since a new coupon was created
+    await cacheInvalidatePattern('coupons:*');
 
     return NextResponse.json({ success: true, id: couponId, productResult: fnResult });
   } catch (error) {

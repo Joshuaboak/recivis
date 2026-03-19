@@ -4,6 +4,7 @@ import { auditLog } from '@/lib/auth';
 import { log } from '@/lib/logger';
 import bcrypt from 'bcryptjs';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
+import { resetPasswordSchema, updateUserSchema, validateBody } from '@/lib/validation';
 
 /**
  * PATCH /api/users/[id] — update user (role, reseller, active status, name)
@@ -23,7 +24,14 @@ export async function PATCH(
   const { id } = await params;
 
   try {
-    const body = await request.json();
+    // Validate request body with Zod schema
+    const rawBody = await request.json();
+    const validation = validateBody(updateUserSchema, rawBody);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+    const body = validation.data;
+
     const updates: string[] = [];
     const values: unknown[] = [];
     let paramIdx = 1;
@@ -93,12 +101,13 @@ export async function PUT(
   const { id } = await params;
 
   try {
+    // Validate request body with Zod schema (replaces manual password check)
     const body = await request.json();
-    const { password } = body;
-
-    if (!password || password.length < 8) {
-      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
+    const validation = validateBody(resetPasswordSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
+    const { password } = validation.data;
 
     const passwordHash = await bcrypt.hash(password, 12);
     await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, id]);

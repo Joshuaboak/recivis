@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { requireAuth } from '@/lib/api-auth';
+import { cacheGet, cacheSet } from '@/lib/cache';
 
 /**
  * GET /api/products?sku=CSD-SU-CL-COM-1YR-SUB-ANZ
@@ -19,6 +20,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Check Redis cache before hitting Zoho API (10-minute TTL)
+    const cacheKey = `products:${sku}`;
+    const cached = await cacheGet<{ products: unknown[] }>(cacheKey);
+    if (cached) return NextResponse.json(cached);
+
     const result = await executeZohoTool('search_records', {
       module: 'Products',
       criteria: `(Product_Code:equals:${sku})`,
@@ -30,7 +36,11 @@ export async function GET(request: NextRequest) {
       (p) => p.Product_Active !== false
     );
 
-    return NextResponse.json({ products });
+    // Cache the response in Redis for 10 minutes (600s)
+    const response = { products };
+    await cacheSet(cacheKey, response, 600);
+
+    return NextResponse.json(response);
   } catch {
     return NextResponse.json({ products: [] });
   }

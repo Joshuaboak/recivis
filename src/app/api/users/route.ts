@@ -3,6 +3,7 @@ import { createUser, auditLog } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
+import { createUserSchema, validateBody } from '@/lib/validation';
 
 /**
  * GET /api/users — list users (for admins/managers)
@@ -63,15 +64,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { email, password, name, resellerId, userRoleName } = await request.json();
-
-    if (!email || !password || !name) {
-      return NextResponse.json({ error: 'Email, password, and name are required' }, { status: 400 });
+    // Validate request body with Zod schema (replaces manual checks)
+    const body = await request.json();
+    const validation = validateBody(createUserSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-
-    if (password.length < 8) {
-      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
-    }
+    const { email, password, name, resellerId, userRoleName } = validation.data;
 
     // Look up user_role by name
     let userRoleId: number | undefined;
