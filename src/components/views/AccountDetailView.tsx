@@ -209,10 +209,27 @@ export default function AccountDetailView() {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           <InfoCard label="Country" value={account.Billing_Country as string} icon={<MapPin size={14} />} />
           <InfoCard label="Reseller" value={reseller?.name || '—'} icon={<Building2 size={14} />} />
-          <InfoCard label="Owner" value={owner?.name || '—'} icon={<User size={14} />} />
+          <InfoCard label="CSA Sales Rep" value={owner?.name || '—'} icon={<User size={14} />} />
           <InfoCard label="Primary Contact" value={primaryContact?.name || '—'} icon={<User size={14} />} />
           <InfoCard label="Secondary Contact" value={secondaryContact?.name || '—'} icon={<User size={14} />} />
           <InfoCard label="Email Domain" value={account.Email_Domain as string || '—'} icon={<Mail size={14} />} />
+          <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group relative">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+              <MapPin size={14} />
+              Address
+            </div>
+            <p className="text-sm text-text-primary truncate">
+              {[account.Billing_Street, account.Billing_City, account.Billing_State, account.Billing_Code].filter(Boolean).join(', ') || '\u2014'}
+            </p>
+            {(account.Billing_Street || account.Billing_City || account.Billing_State || account.Billing_Code) ? (
+              <div className="absolute left-0 top-full mt-1 z-10 bg-csa-dark border border-border rounded-xl px-4 py-3 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity w-max max-w-xs">
+                {account.Billing_Street ? <div className="text-xs text-text-secondary mb-1"><span className="text-text-muted">Street:</span> {account.Billing_Street as string}</div> : null}
+                {account.Billing_City ? <div className="text-xs text-text-secondary mb-1"><span className="text-text-muted">City:</span> {account.Billing_City as string}</div> : null}
+                {account.Billing_State ? <div className="text-xs text-text-secondary mb-1"><span className="text-text-muted">State:</span> {account.Billing_State as string}</div> : null}
+                {account.Billing_Code ? <div className="text-xs text-text-secondary"><span className="text-text-muted">Post Code:</span> {account.Billing_Code as string}</div> : null}
+              </div>
+            ) : null}
+          </div>
         </motion.div>
 
         {/* Contacts */}
