@@ -96,25 +96,8 @@ export async function GET(request: NextRequest) {
       } else if (resellerCriteria) {
         zohoLeads = await searchAllPages('Leads', resellerCriteria, LEAD_FIELDS, 'desc');
       } else {
-        // Use the dedicated Leads endpoint with converted=false
-        zohoLeads = [];
-        for (let page = 1; page <= 10; page++) {
-          try {
-            const result = await callMcpTool('ZohoCRM_getLeadsRecords', {
-              query_params: {
-                fields: LEAD_FIELDS,
-                converted: 'false',
-                per_page: 200,
-                page,
-                sort_by: 'Modified_Time',
-                sort_order: 'desc',
-              },
-            });
-            const parsed = parseMcpResult(result);
-            zohoLeads.push(...parsed.data);
-            if (!parsed.moreRecords) break;
-          } catch { break; }
-        }
+        // No filter — get all leads using the standard getRecords tool
+        zohoLeads = await getAllRecordPages('Leads', LEAD_FIELDS, 'Modified_Time', 'desc');
       }
     } catch (err) {
       log('warn', 'api', 'Leads fetch failed, continuing with prospects only', {
