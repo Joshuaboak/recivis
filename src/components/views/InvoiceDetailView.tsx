@@ -26,6 +26,7 @@ import {
   Upload,
   Paperclip,
   Check,
+  Ticket,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import SKUBuilder from '../SKUBuilder';
@@ -47,6 +48,12 @@ export default function InvoiceDetailView() {
   const [editLineItems, setEditLineItems] = useState<Record<string, unknown>[]>([]);
   const [skuBuilderIndex, setSkuBuilderIndex] = useState<number | null>(null);
   const [updatingDirectPurchase, setUpdatingDirectPurchase] = useState(false);
+
+  // Coupon
+  const [couponCode, setCouponCode] = useState('');
+  const [couponValidating, setCouponValidating] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponApplied, setCouponApplied] = useState<string | null>(null);
 
   // PO
   const [editingPO, setEditingPO] = useState(false);
@@ -214,6 +221,79 @@ export default function InvoiceDetailView() {
       setUploadResult('Upload failed');
       setUploadingFile(false);
     }
+  };
+
+  const canApplyCoupon = status === 'Draft' && (
+    user?.role === 'admin' || user?.role === 'ibm' || user?.permissions?.canModifyPrices
+  );
+
+  const applyCoupon = async () => {
+    if (!couponCode.trim() || !selectedInvoiceId || !invoice) return;
+    setCouponValidating(true);
+    setCouponError(null);
+
+    try {
+      const reseller = invoice.Reseller as { id?: string } | null;
+      const subtotal = invoice.Sub_Total as number || 0;
+      const resellerRegion = invoice.Reseller_Region as string || '';
+
+      const res = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: couponCode.trim().toUpperCase(),
+          resellerRegion,
+          resellerId: reseller?.id,
+          invoiceType: invoice.Invoice_Type as string,
+          subtotal,
+        }),
+      });
+      const data = await res.json();
+
+      if (!data.valid) {
+        setCouponError(data.error || 'Invalid coupon');
+        setCouponValidating(false);
+        return;
+      }
+
+      if (!data.discountProductId) {
+        setCouponError('Coupon has no discount product configured');
+        setCouponValidating(false);
+        return;
+      }
+
+      // Add the discount product as a line item with negative price
+      const currentItems = invoice.Invoiced_Items as Record<string, unknown>[] || lineItems;
+      const discountItem: Record<string, unknown> = {
+        Product_Name: { id: data.discountProductId, name: data.discountProductName },
+        Quantity: 1,
+        List_Price: -Math.abs(data.discountAmount),
+        Contract_Term_Years: 0,
+      };
+
+      const updatedItems = [...currentItems, discountItem];
+
+      const patchRes = await fetch(`/api/invoices/${selectedInvoiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Invoiced_Items: updatedItems }),
+      });
+
+      if (patchRes.ok) {
+        // Reload invoice
+        const reload = await fetch(`/api/invoices/${selectedInvoiceId}`);
+        const reloadData = await reload.json();
+        setInvoice(reloadData.invoice);
+        setLineItems(reloadData.lineItems || []);
+        setCouponApplied(couponCode.trim().toUpperCase());
+        setCouponCode('');
+      } else {
+        setCouponError('Failed to apply coupon to invoice');
+      }
+    } catch {
+      setCouponError('Failed to validate coupon');
+    }
+    setCouponValidating(false);
   };
 
   const toggleDirectPurchase = async (value: boolean) => {
@@ -739,6 +819,45 @@ export default function InvoiceDetailView() {
             </button>
           ) : null}
         </motion.div>
+
+        {/* Apply Coupon */}
+        {canApplyCoupon ? (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
+            <div className="bg-surface border border-border-subtle rounded-xl px-5 py-4">
+              <div className="flex items-center gap-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
+                <Ticket size={14} />
+                Apply Coupon
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={couponCode}
+                  onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponError(null); }}
+                  placeholder="Enter coupon code"
+                  className="flex-1 bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg font-mono"
+                  onKeyDown={e => e.key === 'Enter' && applyCoupon()}
+                />
+                <button
+                  onClick={applyCoupon}
+                  disabled={couponValidating || !couponCode.trim()}
+                  className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-lg hover:bg-csa-accent/20 transition-colors cursor-pointer disabled:opacity-40"
+                >
+                  {couponValidating ? <Loader2 size={13} className="animate-spin" /> : <Ticket size={13} />}
+                  {couponValidating ? 'Validating...' : 'Apply'}
+                </button>
+              </div>
+              {couponError ? (
+                <p className="text-xs text-error mt-2">{couponError}</p>
+              ) : null}
+              {couponApplied ? (
+                <p className="text-xs text-success mt-2 flex items-center gap-1">
+                  <Check size={12} />
+                  Coupon {couponApplied} applied
+                </p>
+              ) : null}
+            </div>
+          </motion.div>
+        ) : null}
 
         {/* Totals */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-8">
