@@ -6,26 +6,36 @@ import Sidebar from './Sidebar';
 import LoginView from '../views/LoginView';
 import { AnimatePresence, motion } from 'framer-motion';
 
+/** Loading spinner shown while a code-split view is being loaded. */
+function ViewLoader() {
+  return (
+    <div className="flex items-center justify-center h-full">
+      <div className="w-6 h-6 border-2 border-csa-accent/30 border-t-csa-accent rounded-full animate-spin" />
+    </div>
+  );
+}
+
 /**
  * Dynamically imported view components.
  * Code-split so each view bundle is loaded on demand rather than included
- * in the initial page load. Sidebar and LoginView remain static imports
- * because they are always rendered immediately.
+ * in the initial page load. Each has a loading fallback to prevent layout
+ * shifts while the chunk loads.
  */
-const DashboardView = dynamic(() => import('../views/DashboardView'));
-const AccountsView = dynamic(() => import('../views/AccountsView'));
-const AccountDetailView = dynamic(() => import('../views/AccountDetailView'));
-const CreateAccountView = dynamic(() => import('../views/CreateAccountView'));
-const InvoiceView = dynamic(() => import('../views/InvoiceView'));
-const InvoiceDetailView = dynamic(() => import('../views/InvoiceDetailView'));
-const CreateInvoiceView = dynamic(() => import('../views/CreateInvoiceView'));
-const DraftInvoicesView = dynamic(() => import('../views/DraftInvoicesView'));
-const ReportsView = dynamic(() => import('../views/ReportsView'));
-const CouponsView = dynamic(() => import('../views/CouponsView'));
-const CreateCouponView = dynamic(() => import('../views/CreateCouponView'));
-const CouponDetailView = dynamic(() => import('../views/CouponDetailView'));
-const ResellerManagementView = dynamic(() => import('../views/ResellerManagementView'));
-const PartnerResourcesView = dynamic(() => import('../views/PartnerResourcesView'));
+const opts = { loading: ViewLoader };
+const DashboardView = dynamic(() => import('../views/DashboardView'), opts);
+const AccountsView = dynamic(() => import('../views/AccountsView'), opts);
+const AccountDetailView = dynamic(() => import('../views/AccountDetailView'), opts);
+const CreateAccountView = dynamic(() => import('../views/CreateAccountView'), opts);
+const InvoiceView = dynamic(() => import('../views/InvoiceView'), opts);
+const InvoiceDetailView = dynamic(() => import('../views/InvoiceDetailView'), opts);
+const CreateInvoiceView = dynamic(() => import('../views/CreateInvoiceView'), opts);
+const DraftInvoicesView = dynamic(() => import('../views/DraftInvoicesView'), opts);
+const ReportsView = dynamic(() => import('../views/ReportsView'), opts);
+const CouponsView = dynamic(() => import('../views/CouponsView'), opts);
+const CreateCouponView = dynamic(() => import('../views/CreateCouponView'), opts);
+const CouponDetailView = dynamic(() => import('../views/CouponDetailView'), opts);
+const ResellerManagementView = dynamic(() => import('../views/ResellerManagementView'), opts);
+const PartnerResourcesView = dynamic(() => import('../views/PartnerResourcesView'), opts);
 
 const VIEW_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -85,14 +95,14 @@ export default function AppShell() {
         </header>
 
         <div className="flex-1 overflow-hidden">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="popLayout">
             {ViewComponent && (
               <motion.div
                 key={currentView}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
                 className="h-full"
               >
                 <ViewComponent />
