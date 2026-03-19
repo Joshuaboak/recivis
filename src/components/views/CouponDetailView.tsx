@@ -49,9 +49,14 @@ export default function CouponDetailView() {
 
   const status = coupon.Status as string;
   const discountType = coupon.Discount_Type as string;
-  const regions = (coupon.Regions as string || '').split(';').filter(Boolean);
-  const products = (coupon.Allowed_Products as string || '').split(';').filter(Boolean);
-  const orderTypes = (coupon.Order_Type as string || '').split(';').filter(Boolean);
+  const toArray = (v: unknown): string[] => {
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string') return v.split(';').filter(Boolean);
+    return [];
+  };
+  const regions = toArray(coupon.Regions);
+  const products = toArray(coupon.Allowed_Products);
+  const orderTypes = toArray(coupon.Order_Type);
   const discountProduct = coupon.Discount_Product as { name?: string; id?: string } | null;
 
   return (
