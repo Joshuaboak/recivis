@@ -311,7 +311,7 @@ function ResellerDetailView() {
           </button>
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-text-primary">{reseller.Name as string}</h1>
-            <p className="text-sm text-text-muted">{REGION_LABELS[reseller.Region as string] || reseller.Region as string} \u2022 {reseller.Partner_Category as string}</p>
+            <p className="text-sm text-text-muted">{REGION_LABELS[reseller.Region as string] || reseller.Region as string} &bull; {reseller.Partner_Category as string}</p>
           </div>
           <div className="flex items-center gap-2">
             {isAdmin && !editingReseller ? (

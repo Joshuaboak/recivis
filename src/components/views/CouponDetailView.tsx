@@ -121,7 +121,7 @@ export default function CouponDetailView() {
               Validity Period
             </div>
             <p className="text-sm text-text-primary">
-              {formatDate(coupon.Coupon_Start_Date)} \u2013 {formatDate(coupon.Coupon_End_Date)}
+              {formatDate(coupon.Coupon_Start_Date)} &ndash; {formatDate(coupon.Coupon_End_Date)}
             </p>
           </div>
 

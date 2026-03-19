@@ -167,7 +167,7 @@ export default function CouponsView() {
                         }`}>{c.Status || '\u2014'}</span>
                       </td>
                       <td className="text-text-secondary text-sm whitespace-nowrap">
-                        {formatDate(c.Coupon_Start_Date)} \u2013 {formatDate(c.Coupon_End_Date)}
+                        {formatDate(c.Coupon_Start_Date)} &ndash; {formatDate(c.Coupon_End_Date)}
                       </td>
                       <td className="text-text-secondary">
                         {c.Remaining_Uses != null ? `${c.Remaining_Uses}/${c.Total_Usage_Allowance}` : '\u2014'}
