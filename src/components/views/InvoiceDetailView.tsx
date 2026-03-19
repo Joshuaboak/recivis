@@ -110,17 +110,23 @@ export default function InvoiceDetailView() {
 
       // Build line items for Zoho — only send fields Zoho accepts
       const updatedItems = editLineItems.map(li => {
-        const priceChanged = li._originalPrice !== li.List_Price;
-        const product = li.Product_Name as { id?: string } | null;
         const isExisting = !!li.id;
 
+        // Deleted existing items — tell Zoho to remove them
+        if (li._deleted && isExisting) {
+          return { id: li.id, _delete: true };
+        }
+
+        // Skip deleted new items (shouldn't exist, but safety)
+        if (li._deleted) return null;
+
+        const priceChanged = li._originalPrice !== li.List_Price;
+        const product = li.Product_Name as { id?: string } | null;
+
         const cleaned: Record<string, unknown> = {};
-        // Keep subform row ID for existing items (required for Zoho to match/delete)
         if (isExisting) cleaned.id = li.id;
-        // Only send Product_Name for NEW items — sending it for existing items
-        // triggers Zoho's lookup filter re-validation which fails
+        // Only send Product_Name for NEW items
         if (!isExisting && product?.id) cleaned.Product_Name = { id: product.id };
-        // Editable fields
         cleaned.Quantity = li.Quantity;
         cleaned.List_Price = li.List_Price;
         cleaned.Contract_Term_Years = priceChanged ? 0 : (li.Contract_Term_Years ?? 1);
@@ -131,7 +137,7 @@ export default function InvoiceDetailView() {
         if (li.Align_to) cleaned.Align_to = li.Align_to;
 
         return cleaned;
-      });
+      }).filter(Boolean);
       body.Invoiced_Items = updatedItems;
 
       const res = await fetch(`/api/invoices/${selectedInvoiceId}`, {
@@ -172,7 +178,15 @@ export default function InvoiceDetailView() {
   };
 
   const removeLineItem = (index: number) => {
-    setEditLineItems(prev => prev.filter((_, i) => i !== index));
+    setEditLineItems(prev => {
+      const item = prev[index];
+      if (item.id) {
+        // Existing item — mark for deletion instead of removing
+        return prev.map((li, i) => i === index ? { ...li, _deleted: true } : li);
+      }
+      // New item — just remove from array
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleProductSelect = (index: number, product: { id: string; name: string; sku: string; unitPrice: number }) => {
@@ -392,7 +406,7 @@ export default function InvoiceDetailView() {
       : 'bg-csa-accent/20 text-csa-accent border-csa-accent/30';
   };
 
-  const displayLineItems = editing ? editLineItems : lineItems;
+  const displayLineItems = editing ? editLineItems.filter(li => !li._deleted) : lineItems;
   const canEditProduct = editing && !isRenewal; // Can't change product on renewals
   const canEditQty = editing && !isRenewal;     // Can't change qty on renewals
   const canEditPrice = editing;                  // Can always edit price
