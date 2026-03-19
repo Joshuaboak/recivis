@@ -14,8 +14,8 @@ interface AppState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 
-  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail';
-  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail') => void;
+  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'users';
+  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'users') => void;
 
   selectedCouponId: string | null;
   setSelectedCouponId: (id: string | null) => void;

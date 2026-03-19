@@ -8,17 +8,33 @@ import { log } from '@/lib/logger';
  * POST /api/users — create a new user
  */
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const result = await query(`
+    const { searchParams } = new URL(request.url);
+    const resellerId = searchParams.get('resellerId');
+    const includeChildren = searchParams.get('includeChildren') === 'true';
+
+    let sql = `
       SELECT u.id, u.email, u.name, u.is_active, u.last_login, u.created_at,
              ur.name AS user_role, ur.display_name AS user_role_display,
              r.name AS reseller_name, r.id AS reseller_id
       FROM users u
       LEFT JOIN user_roles ur ON ur.id = u.user_role_id
       LEFT JOIN resellers r ON r.id = u.reseller_id
-      ORDER BY u.created_at DESC
-    `);
+    `;
+    const params: unknown[] = [];
+
+    if (resellerId && includeChildren) {
+      sql += ` WHERE u.reseller_id = $1 OR u.reseller_id IN (SELECT id FROM resellers WHERE distributor_id = $1)`;
+      params.push(resellerId);
+    } else if (resellerId) {
+      sql += ` WHERE u.reseller_id = $1`;
+      params.push(resellerId);
+    }
+
+    sql += ` ORDER BY u.created_at DESC`;
+
+    const result = await query(sql, params);
     return NextResponse.json({ users: result.rows });
   } catch (error) {
     log('error', 'api', 'Failed to list users', {
