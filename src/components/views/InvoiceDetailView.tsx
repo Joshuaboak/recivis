@@ -108,7 +108,7 @@ export default function InvoiceDetailView() {
       if (editDueDate !== (invoice?.Due_Date as string || '')) body.Due_Date = editDueDate;
       if (editCurrency !== (invoice?.Currency as string || '')) body.Currency = editCurrency;
 
-      // Build line items — set Contract_Term_Years to 0 if price was changed
+      // Build line items — clean internal fields, set Contract_Term_Years to 0 if price changed
       const updatedItems = editLineItems.map(li => {
         const item: Record<string, unknown> = { ...li };
         const priceChanged = item._originalPrice !== item.List_Price;
@@ -116,7 +116,16 @@ export default function InvoiceDetailView() {
           item.Contract_Term_Years = 0;
         }
         delete item._originalPrice;
-        return item;
+        delete item._isNew;
+        delete item._unitPrice;
+        // Remove Zoho system fields that can't be sent back
+        const cleaned: Record<string, unknown> = {};
+        for (const [key, val] of Object.entries(item)) {
+          if (!key.startsWith('$') && key !== 'Net_Total' && key !== 'Total') {
+            cleaned[key] = val;
+          }
+        }
+        return cleaned;
       });
       body.Invoiced_Items = updatedItems;
 
