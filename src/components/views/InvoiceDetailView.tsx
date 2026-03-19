@@ -108,23 +108,26 @@ export default function InvoiceDetailView() {
       if (editDueDate !== (invoice?.Due_Date as string || '')) body.Due_Date = editDueDate;
       if (editCurrency !== (invoice?.Currency as string || '')) body.Currency = editCurrency;
 
-      // Build line items — clean internal fields, set Contract_Term_Years to 0 if price changed
+      // Build line items for Zoho — only send fields Zoho accepts
       const updatedItems = editLineItems.map(li => {
-        const item: Record<string, unknown> = { ...li };
-        const priceChanged = item._originalPrice !== item.List_Price;
-        if (priceChanged) {
-          item.Contract_Term_Years = 0;
-        }
-        delete item._originalPrice;
-        delete item._isNew;
-        delete item._unitPrice;
-        // Remove Zoho system fields that can't be sent back
+        const priceChanged = li._originalPrice !== li.List_Price;
+        const product = li.Product_Name as { id?: string } | null;
+
         const cleaned: Record<string, unknown> = {};
-        for (const [key, val] of Object.entries(item)) {
-          if (!key.startsWith('$') && key !== 'Net_Total' && key !== 'Total') {
-            cleaned[key] = val;
-          }
-        }
+        // Keep subform row ID for existing items (required for Zoho to match/delete)
+        if (li.id) cleaned.id = li.id;
+        // Product as simple lookup
+        if (product?.id) cleaned.Product_Name = { id: product.id };
+        // Editable fields
+        cleaned.Quantity = li.Quantity;
+        cleaned.List_Price = li.List_Price;
+        cleaned.Contract_Term_Years = priceChanged ? 0 : (li.Contract_Term_Years ?? 1);
+        if (li.Start_Date) cleaned.Start_Date = li.Start_Date;
+        if (li.Renewal_Date) cleaned.Renewal_Date = li.Renewal_Date;
+        if (li.Description) cleaned.Description = li.Description;
+        if (li.Asset_Code) cleaned.Asset_Code = li.Asset_Code;
+        if (li.Align_to) cleaned.Align_to = li.Align_to;
+
         return cleaned;
       });
       body.Invoiced_Items = updatedItems;
