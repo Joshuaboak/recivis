@@ -36,6 +36,11 @@ export default function AccountDetailView() {
   const [generatingRenewal, setGeneratingRenewal] = useState(false);
   const [viewingAsset, setViewingAsset] = useState<Record<string, unknown> | null>(null);
 
+  // Asset pagination
+  const [activeAssetPage, setActiveAssetPage] = useState(1);
+  const [archivedAssetPage, setArchivedAssetPage] = useState(1);
+  const assetPageSize = 20;
+
   // Address editing
   const [editingAddress, setEditingAddress] = useState(false);
   const [editAddress, setEditAddress] = useState({ street: '', city: '', state: '', code: '', country: '' });
@@ -700,6 +705,7 @@ export default function AccountDetailView() {
             ) : null}
           </div>
           {activeAssets.length > 0 ? (
+            <>
             <div className="border border-border-subtle rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead><tr className="bg-surface-raised">
@@ -714,7 +720,7 @@ export default function AccountDetailView() {
                   <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Serial Key</th><th>Upgraded To</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
-                  {activeAssets.map((a, i) => {
+                  {activeAssets.slice((activeAssetPage - 1) * assetPageSize, activeAssetPage * assetPageSize).map((a, i) => {
                     const product = a.Product as { name?: string } | null;
                     const assetId = a.id as string;
                     const isSelected = selectedAssets.has(assetId);
@@ -765,6 +771,10 @@ export default function AccountDetailView() {
                 </tbody>
               </table>
             </div>
+            <div className="mt-2">
+              <Pagination currentPage={Math.min(activeAssetPage, Math.max(1, Math.ceil(activeAssets.length / assetPageSize)))} totalItems={activeAssets.length} pageSize={assetPageSize} onPageChange={setActiveAssetPage} />
+            </div>
+            </>
           ) : (
             <p className="text-sm text-text-muted py-4">No active assets</p>
           )}
@@ -783,7 +793,7 @@ export default function AccountDetailView() {
                   <th className="w-10"></th><th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Status</th><th>Upgraded To</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
-                  {archivedAssets.map((a, i) => {
+                  {archivedAssets.slice((archivedAssetPage - 1) * assetPageSize, archivedAssetPage * assetPageSize).map((a, i) => {
                     const product = a.Product as { name?: string } | null;
                     const assetId = a.id as string;
                     const upgradedTo = a.Upgraded_To_Key as string | null;
@@ -833,6 +843,9 @@ export default function AccountDetailView() {
                   })}
                 </tbody>
               </table>
+            </div>
+            <div className="mt-2">
+              <Pagination currentPage={Math.min(archivedAssetPage, Math.max(1, Math.ceil(archivedAssets.length / assetPageSize)))} totalItems={archivedAssets.length} pageSize={assetPageSize} onPageChange={setArchivedAssetPage} />
             </div>
           </motion.div>
         )}
