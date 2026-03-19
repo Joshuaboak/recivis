@@ -120,18 +120,18 @@ export default function AssetDetailModal({ assetId, assetData, onClose }: AssetD
                   <div className="space-y-4">
                     {/* Key Info */}
                     <div className="grid grid-cols-2 gap-3">
-                      <DetailField label="Licence ID" value={keyDetails.LicenseID} icon={<Hash size={12} />} />
                       <DetailField label="Licence Model" value={keyDetails.LicenseModel} icon={<Shield size={12} />} />
                       <DetailField label="Product" value={`${keyDetails.ProductName} v${keyDetails.MajorVersion}.${keyDetails.MinorVersion}`} icon={<Package size={12} />} />
-                      <DetailField label="Order Status" value={keyDetails.OrderStatus} />
-                      <DetailField label="Seats" value={`${keyDetails.AvailableLicenses} / ${keyDetails.NumLicenses}`} icon={<Monitor size={12} />} />
+                      <DetailField label="Available Seats" value={keyDetails.AvailableLicenses} icon={<Monitor size={12} />} />
                       <DetailField label="Activations" value={keyDetails.ActivationCount} />
                       <DetailField label="Created" value={formatDateTime(keyDetails.CreationDate)} icon={<Calendar size={12} />} />
-                      <DetailField label="Maintenance Expiry" value={formatDateTime(keyDetails.MaintenanceRenewalDate)} icon={<Calendar size={12} />} />
-                      {keyDetails.SubscriptionExpiryDate !== keyDetails.MaintenanceRenewalDate ? (
+                      {keyDetails.SubscriptionExpiryDate ? (
                         <DetailField label="Subscription Expiry" value={formatDateTime(keyDetails.SubscriptionExpiryDate)} icon={<Calendar size={12} />} />
                       ) : null}
-                      <DetailField label="Disabled" value={keyDetails.Disabled === 'true' ? 'Yes' : 'No'} />
+                      <DetailField label="Computer Name" value={keyDetails.ComputerName || '\u2014'} icon={<Monitor size={12} />} />
+                      {keyDetails.LicenseModel?.toLowerCase() === 'on_premise' || keyDetails.LicenseModel?.toLowerCase() === 'on premise' ? (
+                        <DetailField label="Path" value={keyDetails.ComputerKey || keyDetails.Path || '\u2014'} />
+                      ) : null}
                     </div>
 
                     {/* Registered To */}
