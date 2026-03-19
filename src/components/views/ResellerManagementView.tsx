@@ -695,9 +695,10 @@ function EditablePercentCard({ label, value, resellerId, onSaved, canEdit }: { l
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function EditSection({ label, fields, values, onChange }: {
   label: string; fields: { key: string; label: string; span?: number }[];
-  values: Record<string, string | boolean>; onChange: (v: Record<string, string | boolean>) => void;
+  values: Record<string, any>; onChange: (v: Record<string, any>) => void;
 }) {
   const inputCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg";
   return (
