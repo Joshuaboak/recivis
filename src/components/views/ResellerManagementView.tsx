@@ -70,6 +70,12 @@ function ResellerListView() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 24;
 
+  // Create reseller
+  const [showCreate, setShowCreate] = useState(false);
+  const [newReseller, setNewReseller] = useState({ Name: '', Email: '', Region: 'AU', Currency: 'AUD', Partner_Category: 'Reseller' });
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+
   useEffect(() => {
     setLoading(true);
     let url = '/api/resellers';
@@ -97,11 +103,39 @@ function ResellerListView() {
 
   const openReseller = (id: string) => { setSelectedResellerId(id); setCurrentView('reseller-detail'); };
 
+  const createReseller = async () => {
+    if (!newReseller.Name.trim()) return;
+    setCreating(true); setCreateError('');
+    try {
+      const res = await fetch('/api/resellers', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newReseller),
+      });
+      const data = await res.json();
+      if (data.id) {
+        setShowCreate(false);
+        setNewReseller({ Name: '', Email: '', Region: 'AU', Currency: 'AUD', Partner_Category: 'Reseller' });
+        openReseller(data.id);
+      } else {
+        setCreateError(data.error || 'Failed to create reseller');
+      }
+    } catch { setCreateError('Failed to create reseller'); }
+    setCreating(false);
+  };
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-6">
         <div className="flex flex-col gap-4 mb-6">
-          <h1 className="text-2xl font-bold text-text-primary">Partners</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-text-primary">Partners</h1>
+            {isAdmin ? (
+              <button onClick={() => setShowCreate(true)}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+                <Building2 size={14} /> Add Partner
+              </button>
+            ) : null}
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex-1 min-w-[220px] relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
@@ -152,6 +186,70 @@ function ResellerListView() {
           </div>
         )}
       </div>
+
+      {/* Create Reseller Modal */}
+      {showCreate ? (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowCreate(false)}>
+          <div className="bg-csa-dark border-2 border-border rounded-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2"><Building2 size={18} className="text-csa-accent" /><h3 className="text-base font-bold text-text-primary">Add Partner</h3></div>
+              <button onClick={() => setShowCreate(false)} className="p-1 text-text-muted hover:text-text-primary cursor-pointer"><X size={16} /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Name *</label>
+                <input type="text" value={newReseller.Name} onChange={e => setNewReseller(p => ({ ...p, Name: e.target.value }))} placeholder="Company name" autoFocus
+                  className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent rounded-xl" />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Email</label>
+                <input type="email" value={newReseller.Email} onChange={e => setNewReseller(p => ({ ...p, Email: e.target.value }))} placeholder="contact@company.com"
+                  className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent rounded-xl" />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Region</label>
+                  <div className="relative">
+                    <select value={newReseller.Region} onChange={e => setNewReseller(p => ({ ...p, Region: e.target.value }))}
+                      className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10">
+                      {Object.entries(REGION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Currency</label>
+                  <div className="relative">
+                    <select value={newReseller.Currency} onChange={e => setNewReseller(p => ({ ...p, Currency: e.target.value }))}
+                      className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10">
+                      {['AUD', 'USD', 'EUR', 'INR', 'GBP', 'NZD'].map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Category</label>
+                  <div className="relative">
+                    <select value={newReseller.Partner_Category} onChange={e => setNewReseller(p => ({ ...p, Partner_Category: e.target.value }))}
+                      className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10">
+                      {['Reseller', 'Distributor', 'Distributor/Reseller', 'Affiliate', 'Platinum Partner'].map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+              {createError ? <p className="text-xs text-error flex items-center gap-1"><AlertCircle size={12} />{createError}</p> : null}
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl cursor-pointer">Cancel</button>
+              <button onClick={createReseller} disabled={creating || !newReseller.Name.trim()}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl cursor-pointer disabled:opacity-40">
+                {creating ? <Loader2 size={14} className="animate-spin" /> : <Building2 size={14} />} Create Partner
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

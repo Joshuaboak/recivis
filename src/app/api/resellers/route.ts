@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callMcpTool } from '@/lib/zoho';
+import { callMcpTool, executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { query } from '@/lib/db';
 import { log } from '@/lib/logger';
 
@@ -97,6 +97,38 @@ export async function GET(request: NextRequest) {
       { error: error instanceof Error ? error.message : 'Failed to load resellers' },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * POST /api/resellers — create a new reseller in Zoho
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    const result = await executeZohoTool('create_records', {
+      module: 'Resellers',
+      records: [body],
+      trigger: [],
+    });
+
+    const parsed = parseMcpResult(result);
+    const created = parsed.data[0] as Record<string, unknown> | undefined;
+
+    if (created?.code === 'SUCCESS') {
+      const details = created.details as Record<string, unknown>;
+      log('info', 'api', 'Reseller created', { id: details?.id });
+      return NextResponse.json({ success: true, id: details?.id });
+    }
+
+    log('warn', 'api', 'Reseller creation result', { data: JSON.stringify(parsed.data).slice(0, 300) });
+    return NextResponse.json({ success: false, error: 'Failed to create reseller', data: parsed.data }, { status: 400 });
+  } catch (error) {
+    log('error', 'api', 'Reseller creation failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({ error: 'Failed to create reseller' }, { status: 500 });
   }
 }
 
