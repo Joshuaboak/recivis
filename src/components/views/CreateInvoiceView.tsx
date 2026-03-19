@@ -138,6 +138,12 @@ export default function CreateInvoiceView() {
         return item;
       });
 
+      // Map reseller region to the SKU region format for Zoho
+      const REGION_MAP: Record<string, string> = {
+        AU: 'ANZ', NZ: 'ANZ', AF: 'AF', AS: 'AS', EU: 'EU', NA: 'NA', WW: 'WW',
+      };
+      const skuRegion = REGION_MAP[resellerRegion] || resellerRegion;
+
       const invoiceData: Record<string, unknown> = {
         Subject: subject,
         Account_Name: { id: account.id },
@@ -146,6 +152,7 @@ export default function CreateInvoiceView() {
         Status: 'Draft',
         Invoice_Type: 'New Product',
         Currency: currency,
+        Reseller_Region: skuRegion,
         Send_Invoice: false,
         Don_t_Make_Keys: false,
         Automatically_Send_Email: false,
