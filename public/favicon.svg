@@ -1,4 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" fill="#0077B7"/>
-  <text x="16" y="23" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="22" fill="white">R</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#042637"/>
+  <g transform="translate(32,32)" stroke="#8BB8CF" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Outer hexagonal shape -->
+    <path d="M0-22L19-11L19 11L0 22L-19 11L-19-11Z" stroke-width="3"/>
+    <!-- Inner rotated hexagon -->
+    <path d="M0-15L13-7.5L13 7.5L0 15L-13 7.5L-13-7.5Z" transform="rotate(30)" stroke-width="2.5" opacity="0.6"/>
+    <!-- Circular arrows in centre -->
+    <path d="M-6-2A7 7 0 0 1 6-2" stroke-width="2.5"/>
+    <path d="M6 2A7 7 0 0 1-6 2" stroke-width="2.5"/>
+    <!-- Arrow heads -->
+    <path d="M5-5L6-2L3-1.5" stroke-width="2" fill="none"/>
+    <path d="M-5 5L-6 2L-3 1.5" stroke-width="2" fill="none"/>
+  </g>
 </svg>

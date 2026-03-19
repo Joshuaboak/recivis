@@ -46,14 +46,13 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="h-16 flex items-center px-4 border-b-4 border-border">
         <motion.div className="flex items-center gap-3 overflow-hidden" animate={{ opacity: 1 }}>
-          <div className="w-10 h-10 bg-csa-accent flex items-center justify-center flex-shrink-0 rounded-xl">
-            <span className="text-white font-bold text-lg">R</span>
-          </div>
+          <img src="/logo.svg" alt="CSA" className="w-10 h-10 flex-shrink-0" />
           <AnimatePresence>
             {sidebarOpen && (
               <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="overflow-hidden whitespace-nowrap">
-                <h1 className="text-xl font-bold text-text-primary tracking-tight">
-                  Re<span className="text-csa-accent">Civis</span>
+                <h1 className="text-sm font-bold text-text-primary tracking-tight leading-tight">
+                  CSA <span className="text-csa-accent">Reseller</span>
+                  <span className="block text-[10px] font-semibold text-text-muted tracking-wider">PORTAL</span>
                 </h1>
               </motion.div>
             )}

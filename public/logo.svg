@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+  <g transform="translate(20,20)" stroke="#8BB8CF" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Outer hexagonal shape -->
+    <path d="M0-16L13.9-8L13.9 8L0 16L-13.9 8L-13.9-8Z" stroke-width="2.2" fill="none"/>
+    <!-- Inner rotated hexagon -->
+    <path d="M0-11L9.5-5.5L9.5 5.5L0 11L-9.5 5.5L-9.5-5.5Z" transform="rotate(30)" stroke-width="2" fill="none" opacity="0.5"/>
+    <!-- Circular arrows -->
+    <path d="M-4.5-1.5A5 5 0 0 1 4.5-1.5" stroke-width="2" fill="none"/>
+    <path d="M4.5 1.5A5 5 0 0 1-4.5 1.5" stroke-width="2" fill="none"/>
+    <path d="M3.5-4L4.5-1.5L2-1" stroke-width="1.6" fill="none"/>
+    <path d="M-3.5 4L-4.5 1.5L-2 1" stroke-width="1.6" fill="none"/>
+  </g>
+</svg>

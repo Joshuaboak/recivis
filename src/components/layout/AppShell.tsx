@@ -64,7 +64,7 @@ export default function AppShell() {
               {VIEW_TITLES[currentView] || currentView}
             </h2>
             <span className="h-4 w-px bg-border-subtle" />
-            <span className="text-xs text-text-muted">Civil Survey Applications</span>
+            <span className="text-xs text-text-muted">CSA Reseller Portal</span>
           </div>
         </header>
 

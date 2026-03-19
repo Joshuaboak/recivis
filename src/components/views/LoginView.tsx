@@ -175,14 +175,15 @@ export default function LoginView() {
           transition={{ delay: 0.1, duration: 0.5 }}
           className="text-center mb-10"
         >
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-csa-accent mb-6 rounded-2xl">
-            <span className="text-white text-4xl font-bold">R</span>
-          </div>
-          <h1 className="text-4xl font-bold text-text-primary tracking-tight mb-2">
-            Re<span className="text-csa-accent">Civis</span>
+          <img src="/logo.svg" alt="Civil Survey Applications" className="w-20 h-20 mx-auto mb-6" />
+          <h1 className="text-2xl font-bold text-text-primary tracking-tight mb-1">
+            Civil Survey Applications
           </h1>
-          <p className="text-sm text-text-muted">
-            Invoice Management — Civil Survey Applications
+          <p className="text-lg font-semibold text-csa-accent mb-1">
+            Reseller Portal
+          </p>
+          <p className="text-xs text-text-muted">
+            Invoice, licence, and account management
           </p>
         </motion.div>
 
