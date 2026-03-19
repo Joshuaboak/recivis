@@ -13,6 +13,7 @@ const resources = [
     bgColor: 'bg-csa-accent/10',
     borderColor: 'border-csa-accent/30',
     hoverBorder: 'hover:border-csa-accent/60',
+    url: 'https://drive.google.com/drive/folders/1XBqoxK5CVGAbUZBQBIXdYeqJrTFgtTzy',
     items: [
       'Product brochures and datasheets',
       'Co-branded email templates',
@@ -29,6 +30,7 @@ const resources = [
     bgColor: 'bg-error/10',
     borderColor: 'border-error/30',
     hoverBorder: 'hover:border-error/60',
+    url: 'https://www.youtube.com/@CivilSurveyApplications/featured',
     items: [
       'Getting started tutorials',
       'Feature deep-dives',
@@ -45,6 +47,7 @@ const resources = [
     bgColor: 'bg-success/10',
     borderColor: 'border-success/30',
     hoverBorder: 'hover:border-success/60',
+    url: 'https://helpdesk.civilsurveyapplications.com/',
     items: [
       'Knowledge base articles',
       'Submit a support ticket',
@@ -86,10 +89,13 @@ export default function PartnerResourcesView() {
           className="grid grid-cols-1 lg:grid-cols-3 gap-6"
         >
           {resources.map((resource) => (
-            <motion.div
+            <motion.a
               key={resource.id}
+              href={resource.url}
+              target="_blank"
+              rel="noopener noreferrer"
               variants={item}
-              className={`bg-csa-dark border-2 ${resource.borderColor} ${resource.hoverBorder} rounded-2xl overflow-hidden transition-all duration-200 group cursor-pointer`}
+              className={`bg-csa-dark border-2 ${resource.borderColor} ${resource.hoverBorder} rounded-2xl overflow-hidden transition-all duration-200 group cursor-pointer block`}
               whileHover={{ y: -4 }}
             >
               {/* Accent bar */}
@@ -129,7 +135,7 @@ export default function PartnerResourcesView() {
                   </span>
                 </div>
               </div>
-            </motion.div>
+            </motion.a>
           ))}
         </motion.div>
 
