@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Building2, Loader2, MapPin, ExternalLink, ChevronDown } from 'lucide-react';
+import { Search, Building2, Loader2, MapPin, ExternalLink, ChevronDown, Download } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
+import { exportAccountsList } from '@/lib/export-lists';
 
 interface Account {
   id: string;
@@ -37,6 +38,9 @@ export default function AccountsView() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
+
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState('');
 
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
   const hasChildResellers = user?.permissions?.canViewChildRecords;
@@ -157,7 +161,29 @@ export default function AccountsView() {
       <div className="max-w-6xl mx-auto px-6 py-6">
         {/* Header + Filters */}
         <div className="flex flex-col gap-4 mb-6">
-          <h1 className="text-2xl font-bold text-text-primary">Accounts</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-text-primary">Accounts</h1>
+            {accounts.length > 0 ? (
+              <button
+                onClick={async () => {
+                  setExporting(true);
+                  setExportProgress('Preparing...');
+                  await exportAccountsList(accounts, {
+                    search: searchDebounced || undefined,
+                    region: selectedRegion || undefined,
+                    reseller: filteredResellers.find(r => r.id === selectedReseller)?.name || undefined,
+                  }, (current, total) => setExportProgress(`${current}/${total} accounts`));
+                  setExporting(false);
+                  setExportProgress('');
+                }}
+                disabled={exporting}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-60"
+              >
+                {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                {exporting ? exportProgress : 'Export'}
+              </button>
+            ) : null}
+          </div>
 
           <div className="flex flex-wrap items-center gap-3">
             {/* Search */}

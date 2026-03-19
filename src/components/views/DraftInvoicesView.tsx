@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { FileText, Loader2, ExternalLink, ChevronDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
+import { FileText, Loader2, ExternalLink, ChevronDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
+import { exportInvoicesList } from '@/lib/export-lists';
 
 interface Invoice {
   id: string;
@@ -217,7 +218,24 @@ export default function DraftInvoicesView() {
       <div className="max-w-6xl mx-auto px-6 py-6">
         {/* Header + Filters */}
         <div className="flex flex-col gap-4 mb-6">
-          <h1 className="text-2xl font-bold text-text-primary">Existing Invoices</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-text-primary">Existing Invoices</h1>
+            {processedInvoices.length > 0 ? (
+              <button
+                onClick={() => exportInvoicesList(processedInvoices, {
+                  status: statusFilter,
+                  type: typeFilter || undefined,
+                  region: selectedRegion || undefined,
+                  reseller: filteredResellers.find(r => r.id === selectedReseller)?.name || undefined,
+                  search: searchText || undefined,
+                })}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer"
+              >
+                <Download size={14} />
+                Export
+              </button>
+            ) : null}
+          </div>
 
           <div className="flex flex-wrap items-center gap-3">
             {/* Search */}
