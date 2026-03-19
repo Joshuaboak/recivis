@@ -14,8 +14,8 @@ interface AppState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 
-  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail';
-  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail') => void;
+  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail' | 'partner-resources';
+  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail' | 'partner-resources') => void;
 
   selectedResellerId: string | null;
   setSelectedResellerId: (id: string | null) => void;

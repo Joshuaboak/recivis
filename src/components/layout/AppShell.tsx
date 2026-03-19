@@ -15,6 +15,7 @@ import CouponsView from '../views/CouponsView';
 import CreateCouponView from '../views/CreateCouponView';
 import CouponDetailView from '../views/CouponDetailView';
 import ResellerManagementView from '../views/ResellerManagementView';
+import PartnerResourcesView from '../views/PartnerResourcesView';
 import LoginView from '../views/LoginView';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -33,6 +34,7 @@ const VIEW_TITLES: Record<string, string> = {
   'coupon-detail': 'Coupon',
   resellers: 'Partners',
   'reseller-detail': 'Partner',
+  'partner-resources': 'Partner Resources',
 };
 
 export default function AppShell() {
@@ -57,6 +59,7 @@ export default function AppShell() {
     'coupon-detail': CouponDetailView,
     resellers: ResellerManagementView,
     'reseller-detail': ResellerManagementView,
+    'partner-resources': PartnerResourcesView,
   }[currentView];
 
   return (

@@ -18,7 +18,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import UserMenu from './UserMenu';
 
-type ViewId = 'dashboard' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'resellers' | 'reseller-detail';
+type ViewId = 'dashboard' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'resellers' | 'reseller-detail' | 'partner-resources';
 
 export default function Sidebar() {
   const { currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
@@ -27,6 +27,9 @@ export default function Sidebar() {
   );
   const [invoiceMenuOpen, setInvoiceMenuOpen] = useState(
     currentView === 'invoice' || currentView === 'draft-invoices' || currentView === 'invoice-detail'
+  );
+  const [partnerMenuOpen, setPartnerMenuOpen] = useState(
+    currentView === 'resellers' || currentView === 'reseller-detail' || currentView === 'partner-resources'
   );
 
   const handleNavClick = (id: ViewId) => {
@@ -181,8 +184,43 @@ export default function Sidebar() {
         {/* Coupons */}
         <NavItem id="coupons" label="Coupons" icon={Ticket} active={currentView === 'coupons' || currentView === 'create-coupon' || currentView === 'coupon-detail'} onClick={() => handleNavClick('coupons')} open={sidebarOpen} />
 
-        {/* Partners */}
-        <NavItem id="resellers" label="Partners" icon={Users} active={currentView === 'resellers' || currentView === 'reseller-detail'} onClick={() => handleNavClick('resellers')} open={sidebarOpen} />
+        {/* Partners (with submenu) */}
+        {(() => {
+          const isPartnerActive = currentView === 'resellers' || currentView === 'reseller-detail' || currentView === 'partner-resources';
+          return (
+            <div>
+              <button
+                onClick={() => {
+                  if (!sidebarOpen) { handleNavClick('resellers'); }
+                  else {
+                    setPartnerMenuOpen(!partnerMenuOpen);
+                    if (!isPartnerActive) handleNavClick('resellers');
+                  }
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold transition-all duration-150 relative group rounded-xl cursor-pointer ${
+                  isPartnerActive ? 'bg-csa-accent/15 text-csa-accent' : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
+                }`}
+              >
+                {isPartnerActive && <motion.div layoutId="nav-indicator-partner" className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent rounded-r" transition={{ duration: 0.2 }} />}
+                <Users size={20} className="flex-shrink-0" />
+                <AnimatePresence>
+                  {sidebarOpen && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">Partners</motion.span>}
+                </AnimatePresence>
+                {sidebarOpen && <ChevronDown size={14} className={`text-text-muted transition-transform ${partnerMenuOpen ? 'rotate-180' : ''}`} />}
+              </button>
+              <AnimatePresence>
+                {sidebarOpen && partnerMenuOpen && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
+                    <div className="ml-8 mt-1 space-y-0.5">
+                      <SubNavItem label="Manage Partners" active={currentView === 'resellers' || currentView === 'reseller-detail'} onClick={() => handleNavClick('resellers')} />
+                      <SubNavItem label="Partner Resources" active={currentView === 'partner-resources'} onClick={() => handleNavClick('partner-resources')} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })()}
       </nav>
 
       {/* CRM Status */}
