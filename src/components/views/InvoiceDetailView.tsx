@@ -112,19 +112,21 @@ export default function InvoiceDetailView() {
       const updatedItems = editLineItems.map(li => {
         const priceChanged = li._originalPrice !== li.List_Price;
         const product = li.Product_Name as { id?: string } | null;
+        const isExisting = !!li.id;
 
         const cleaned: Record<string, unknown> = {};
         // Keep subform row ID for existing items (required for Zoho to match/delete)
-        if (li.id) cleaned.id = li.id;
-        // Product as simple lookup
-        if (product?.id) cleaned.Product_Name = { id: product.id };
+        if (isExisting) cleaned.id = li.id;
+        // Only send Product_Name for NEW items — sending it for existing items
+        // triggers Zoho's lookup filter re-validation which fails
+        if (!isExisting && product?.id) cleaned.Product_Name = { id: product.id };
         // Editable fields
         cleaned.Quantity = li.Quantity;
         cleaned.List_Price = li.List_Price;
         cleaned.Contract_Term_Years = priceChanged ? 0 : (li.Contract_Term_Years ?? 1);
         if (li.Start_Date) cleaned.Start_Date = li.Start_Date;
         if (li.Renewal_Date) cleaned.Renewal_Date = li.Renewal_Date;
-        if (li.Description) cleaned.Description = li.Description;
+        if (li.Description !== undefined) cleaned.Description = li.Description;
         if (li.Asset_Code) cleaned.Asset_Code = li.Asset_Code;
         if (li.Align_to) cleaned.Align_to = li.Align_to;
 
