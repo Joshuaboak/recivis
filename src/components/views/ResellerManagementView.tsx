@@ -101,7 +101,7 @@ function ResellerListView() {
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-6">
         <div className="flex flex-col gap-4 mb-6">
-          <h1 className="text-2xl font-bold text-text-primary">Reseller Management</h1>
+          <h1 className="text-2xl font-bold text-text-primary">Partners</h1>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex-1 min-w-[220px] relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
@@ -140,7 +140,7 @@ function ResellerListView() {
                     <span>{REGION_LABELS[r.region] || r.region || '\u2014'}</span>
                     <span className="font-semibold text-text-secondary">{r.user_count || 0} users</span>
                   </div>
-                  <div className="text-[10px] text-text-muted mt-1">{r.partner_category} \u2022 {r.currency}</div>
+                  <div className="text-[10px] text-text-muted mt-1">{r.partner_category} &bull; {r.currency}</div>
                 </motion.button>
               ))}
             </div>
@@ -383,7 +383,19 @@ function ResellerDetailView() {
             <InfoCard label="Currency" value={reseller.Currency as string || '\u2014'} icon={<DollarSign size={14} />} />
             <InfoCard label="Partner Category" value={reseller.Partner_Category as string || '\u2014'} icon={<Building2 size={14} />} />
             {distributor ? <InfoCard label="Distributor" value={distributor.name || '\u2014'} icon={<Building2 size={14} />} /> : null}
-            <InfoCard label="Direct Customer Contact" value={reseller.Direct_Customer_Contact ? 'Yes' : 'No'} icon={<Phone size={14} />} />
+            {reseller.Reseller_Sale !== undefined && reseller.Reseller_Sale !== null ? (
+              <InfoCard label="Reseller Percentage" value={`${reseller.Reseller_Sale}%`} icon={<DollarSign size={14} />} />
+            ) : null}
+            <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group relative">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+                <Mail size={14} />
+                Direct Customer Communication
+              </div>
+              <p className="text-sm text-text-primary">{reseller.Direct_Customer_Contact ? 'Yes' : 'No'}</p>
+              <div className="absolute left-0 bottom-full mb-1 z-10 bg-csa-dark border border-border rounded-lg px-3 py-2 text-[10px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg">
+                This controls if invoices and keys are sent directly to the customer or not
+              </div>
+            </div>
             {reseller.Street_Address || reseller.City ? (
               <InfoCard label="Address" value={[reseller.Street_Address, reseller.City, reseller.State, reseller.Post_Code, reseller.Country].filter(Boolean).join(', ') as string} icon={<Building2 size={14} />} />
             ) : null}

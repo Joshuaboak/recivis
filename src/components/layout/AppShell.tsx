@@ -31,8 +31,8 @@ const VIEW_TITLES: Record<string, string> = {
   coupons: 'Coupons',
   'create-coupon': 'Create Coupon',
   'coupon-detail': 'Coupon',
-  resellers: 'Reseller Management',
-  'reseller-detail': 'Reseller',
+  resellers: 'Partners',
+  'reseller-detail': 'Partner',
 };
 
 export default function AppShell() {

@@ -181,8 +181,8 @@ export default function Sidebar() {
         {/* Coupons */}
         <NavItem id="coupons" label="Coupons" icon={Ticket} active={currentView === 'coupons' || currentView === 'create-coupon' || currentView === 'coupon-detail'} onClick={() => handleNavClick('coupons')} open={sidebarOpen} />
 
-        {/* Reseller Management */}
-        <NavItem id="resellers" label="Resellers" icon={Users} active={currentView === 'resellers' || currentView === 'reseller-detail'} onClick={() => handleNavClick('resellers')} open={sidebarOpen} />
+        {/* Partners */}
+        <NavItem id="resellers" label="Partners" icon={Users} active={currentView === 'resellers' || currentView === 'reseller-detail'} onClick={() => handleNavClick('resellers')} open={sidebarOpen} />
       </nav>
 
       {/* CRM Status */}
