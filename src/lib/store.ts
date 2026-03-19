@@ -37,8 +37,8 @@ interface AppState {
 
   // --- Navigation ---
   /** Active view in the SPA — drives which component AppShell renders. */
-  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail' | 'partner-resources';
-  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail' | 'partner-resources') => void;
+  currentView: 'dashboard' | 'leads' | 'lead-detail' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail' | 'partner-resources';
+  setCurrentView: (view: 'dashboard' | 'leads' | 'lead-detail' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail' | 'partner-resources') => void;
 
   // --- Selected Record IDs (for detail views) ---
   /** Zoho CRM record ID of the currently selected reseller. */
@@ -61,6 +61,14 @@ interface AppState {
   /** Purchase order file staged for upload (base64-encoded). */
   pendingPOFile: { fileName: string; base64: string } | null;
   setPendingPOFile: (file: { fileName: string; base64: string } | null) => void;
+
+  /** Zoho CRM record ID of the currently selected lead/prospect. */
+  selectedLeadId: string | null;
+  setSelectedLeadId: (id: string | null) => void;
+
+  /** Source of the selected lead — 'lead' (Leads module) or 'prospect' (Account with type Prospect). */
+  selectedLeadSource: 'lead' | 'prospect' | null;
+  setSelectedLeadSource: (source: 'lead' | 'prospect' | null) => void;
 
   /** Zoho CRM record ID of the currently selected account. */
   selectedAccountId: string | null;
@@ -107,6 +115,12 @@ export const useAppStore = create<AppState>()(
 
       pendingPOFile: null,
       setPendingPOFile: (file) => set({ pendingPOFile: file }),
+
+      selectedLeadId: null,
+      setSelectedLeadId: (id) => set({ selectedLeadId: id }),
+
+      selectedLeadSource: null,
+      setSelectedLeadSource: (source) => set({ selectedLeadSource: source }),
 
       selectedAccountId: null,
       setSelectedAccountId: (id) => set({ selectedAccountId: id }),

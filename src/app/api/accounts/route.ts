@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   const resellerIds = searchParams.get('resellerIds');
 
   try {
-    const fields = 'Account_Name,Billing_Country,Reseller,Email_Domain,Owner,Record_Status__s';
+    const fields = 'Account_Name,Billing_Country,Reseller,Email_Domain,Owner,Account_Type,Record_Status__s';
     let allRecords: Record<string, unknown>[];
 
     // Build reseller criteria fragment if needed
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     }
 
     const accounts = allRecords.filter(
-      (r) => r.Record_Status__s !== 'Trash'
+      (r) => r.Record_Status__s !== 'Trash' && r.Account_Type !== 'Prospect'
     );
 
     return NextResponse.json({ accounts });

@@ -28,11 +28,12 @@ import {
   Check,
   Ticket,
   Users,
+  UserSearch,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import UserMenu from './UserMenu';
 
-type ViewId = 'dashboard' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'resellers' | 'reseller-detail' | 'partner-resources';
+type ViewId = 'dashboard' | 'leads' | 'lead-detail' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'resellers' | 'reseller-detail' | 'partner-resources';
 
 export default function Sidebar() {
   const { currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
@@ -82,6 +83,9 @@ export default function Sidebar() {
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
         {/* Dashboard */}
         <NavItem id="dashboard" label="Dashboard" icon={LayoutDashboard} active={currentView === 'dashboard'} onClick={() => handleNavClick('dashboard')} open={sidebarOpen} />
+
+        {/* Leads */}
+        <NavItem id="leads" label="Leads" icon={UserSearch} active={currentView === 'leads' || currentView === 'lead-detail'} onClick={() => handleNavClick('leads')} open={sidebarOpen} />
 
         {/* Accounts (with submenu) */}
         <div>

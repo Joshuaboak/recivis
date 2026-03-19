@@ -67,6 +67,7 @@ export const MAX_ZOHO_PAGES = 10;
  * Used by frontend components and API routes for consistent pagination.
  */
 export const ITEMS_PER_PAGE = {
+  leads: 50,
   accounts: 50,
   invoices: 50,
   assets: 20,

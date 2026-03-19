@@ -35,6 +35,8 @@ function ViewLoader() {
  * shifts while the chunk loads.
  */
 const DashboardView = dynamic(() => import('../views/DashboardView'), { loading: ViewLoader });
+const LeadsView = dynamic(() => import('../views/LeadsView'), { loading: ViewLoader });
+const LeadDetailView = dynamic(() => import('../views/LeadDetailView'), { loading: ViewLoader });
 const AccountsView = dynamic(() => import('../views/AccountsView'), { loading: ViewLoader });
 const AccountDetailView = dynamic(() => import('../views/AccountDetailView'), { loading: ViewLoader });
 const CreateAccountView = dynamic(() => import('../views/CreateAccountView'), { loading: ViewLoader });
@@ -52,6 +54,8 @@ const PartnerResourcesView = dynamic(() => import('../views/PartnerResourcesView
 /** Human-readable titles shown in the header bar for each view. */
 const VIEW_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
+  leads: 'Leads',
+  'lead-detail': 'Lead',
   accounts: 'Accounts',
   'account-detail': 'Account',
   'create-account': 'Create Account',
@@ -77,6 +81,8 @@ export default function AppShell() {
 
   const ViewComponent = {
     dashboard: DashboardView,
+    leads: LeadsView,
+    'lead-detail': LeadDetailView,
     accounts: AccountsView,
     'account-detail': AccountDetailView,
     'create-account': CreateAccountView,
