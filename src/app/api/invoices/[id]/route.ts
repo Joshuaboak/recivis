@@ -68,6 +68,7 @@ export async function PATCH(
     if (body.Due_Date) updateData.Due_Date = body.Due_Date;
     if (body.Currency) updateData.Currency = body.Currency;
     if (body.Invoiced_Items) updateData.Invoiced_Items = body.Invoiced_Items;
+    if (body.Reseller_Direct_Purchase !== undefined) updateData.Reseller_Direct_Purchase = body.Reseller_Direct_Purchase;
 
     const result = await executeZohoTool('update_records', {
       module: 'Invoices',

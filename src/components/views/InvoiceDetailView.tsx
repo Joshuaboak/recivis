@@ -43,6 +43,7 @@ export default function InvoiceDetailView() {
   const [editCurrency, setEditCurrency] = useState('');
   const [editLineItems, setEditLineItems] = useState<Record<string, unknown>[]>([]);
   const [skuBuilderIndex, setSkuBuilderIndex] = useState<number | null>(null);
+  const [updatingDirectPurchase, setUpdatingDirectPurchase] = useState(false);
 
   const isEditor = user?.role === 'admin' || user?.role === 'ibm';
   const canEdit = isEditor && invoice?.Status === 'Draft';
@@ -154,6 +155,24 @@ export default function InvoiceDetailView() {
       };
     }));
     setSkuBuilderIndex(null);
+  };
+
+  const toggleDirectPurchase = async (value: boolean) => {
+    if (!selectedInvoiceId) return;
+    setUpdatingDirectPurchase(true);
+    try {
+      await fetch(`/api/invoices/${selectedInvoiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Reseller_Direct_Purchase: value }),
+      });
+      // Reload invoice
+      const res = await fetch(`/api/invoices/${selectedInvoiceId}`);
+      const data = await res.json();
+      setInvoice(data.invoice);
+      setLineItems(data.lineItems || []);
+    } catch { /* handled */ }
+    setUpdatingDirectPurchase(false);
   };
 
   const goBack = () => {
@@ -365,6 +384,56 @@ export default function InvoiceDetailView() {
           {owner ? <InfoCard label="Owner" value={owner.name || '\u2014'} icon={<User size={14} />} /> : null}
           {invoice.Billing_Country ? <InfoCard label="Billing Country" value={invoice.Billing_Country as string} icon={<MapPin size={14} />} /> : null}
           {invoice.Purchase_Order ? <InfoCard label="Purchase Order" value={invoice.Purchase_Order as string} icon={<FileText size={14} />} /> : null}
+        </motion.div>
+
+        {/* Send To */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-8">
+          <div className="bg-surface border border-border-subtle rounded-xl px-5 py-4">
+            <div className="flex items-center gap-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
+              <Send size={14} />
+              Invoice and Licence Keys will be sent to
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => status === 'Draft' && !updatingDirectPurchase && toggleDirectPurchase(true)}
+                disabled={updatingDirectPurchase || status !== 'Draft'}
+                className={`flex-1 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                  invoice.Reseller_Direct_Purchase
+                    ? 'border-csa-accent bg-csa-accent/10'
+                    : 'border-border-subtle hover:border-border'
+                } ${status !== 'Draft' ? 'cursor-default' : 'cursor-pointer'}`}
+              >
+                <div className={`text-sm font-semibold mb-0.5 ${invoice.Reseller_Direct_Purchase ? 'text-csa-accent' : 'text-text-secondary'}`}>
+                  Reseller
+                </div>
+                <p className="text-xs text-text-muted">
+                  Sent to the reseller, CC the CSA Geo Sales Rep
+                </p>
+              </button>
+              <button
+                onClick={() => status === 'Draft' && !updatingDirectPurchase && toggleDirectPurchase(false)}
+                disabled={updatingDirectPurchase || status !== 'Draft'}
+                className={`flex-1 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                  !invoice.Reseller_Direct_Purchase
+                    ? 'border-csa-accent bg-csa-accent/10'
+                    : 'border-border-subtle hover:border-border'
+                } ${status !== 'Draft' ? 'cursor-default' : 'cursor-pointer'}`}
+              >
+                <div className={`text-sm font-semibold mb-0.5 ${!invoice.Reseller_Direct_Purchase ? 'text-csa-accent' : 'text-text-secondary'}`}>
+                  Customer
+                </div>
+                <p className="text-xs text-text-muted">
+                  Sent to the customer, CC the reseller and CSA Geo Sales Rep
+                </p>
+              </button>
+            </div>
+            {updatingDirectPurchase ? (
+              <div className="flex items-center gap-2 mt-2 text-xs text-text-muted">
+                <Loader2 size={12} className="animate-spin" />
+                Updating...
+              </div>
+            ) : null}
+          </div>
         </motion.div>
 
         {/* Line Items */}
