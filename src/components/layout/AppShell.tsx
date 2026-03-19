@@ -11,6 +11,9 @@ import InvoiceDetailView from '../views/InvoiceDetailView';
 import CreateInvoiceView from '../views/CreateInvoiceView';
 import DraftInvoicesView from '../views/DraftInvoicesView';
 import ReportsView from '../views/ReportsView';
+import CouponsView from '../views/CouponsView';
+import CreateCouponView from '../views/CreateCouponView';
+import CouponDetailView from '../views/CouponDetailView';
 import LoginView from '../views/LoginView';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -24,6 +27,9 @@ const VIEW_TITLES: Record<string, string> = {
   'create-invoice': 'New Invoice',
   'draft-invoices': 'Existing Invoices',
   reports: 'Reports',
+  coupons: 'Coupons',
+  'create-coupon': 'Create Coupon',
+  'coupon-detail': 'Coupon',
 };
 
 export default function AppShell() {
@@ -43,6 +49,9 @@ export default function AppShell() {
     'create-invoice': CreateInvoiceView,
     'draft-invoices': DraftInvoicesView,
     reports: ReportsView,
+    coupons: CouponsView,
+    'create-coupon': CreateCouponView,
+    'coupon-detail': CouponDetailView,
   }[currentView];
 
   return (

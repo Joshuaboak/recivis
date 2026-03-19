@@ -14,8 +14,11 @@ interface AppState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 
-  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports';
-  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports') => void;
+  currentView: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail';
+  setCurrentView: (view: 'dashboard' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'coupon-detail') => void;
+
+  selectedCouponId: string | null;
+  setSelectedCouponId: (id: string | null) => void;
 
   newInvoiceContext: Record<string, unknown> | null;
   setNewInvoiceContext: (ctx: Record<string, unknown> | null) => void;
@@ -76,6 +79,9 @@ export const useAppStore = create<AppState>()(
 
       newInvoiceContext: null,
       setNewInvoiceContext: (ctx) => set({ newInvoiceContext: ctx }),
+
+      selectedCouponId: null,
+      setSelectedCouponId: (id) => set({ selectedCouponId: id }),
     }),
     {
       name: 'recivis-storage',

@@ -12,11 +12,12 @@ import {
   ChevronRight,
   ChevronDown,
   Check,
+  Ticket,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import UserMenu from './UserMenu';
 
-type ViewId = 'dashboard' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports';
+type ViewId = 'dashboard' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon';
 
 export default function Sidebar() {
   const { currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
@@ -176,6 +177,9 @@ export default function Sidebar() {
 
         {/* Reports */}
         <NavItem id="reports" label="Reports" icon={BarChart3} active={currentView === 'reports'} onClick={() => handleNavClick('reports')} open={sidebarOpen} />
+
+        {/* Coupons */}
+        <NavItem id="coupons" label="Coupons" icon={Ticket} active={currentView === 'coupons' || currentView === 'create-coupon' || currentView === 'coupon-detail'} onClick={() => handleNavClick('coupons')} open={sidebarOpen} />
       </nav>
 
       {/* CRM Status */}
