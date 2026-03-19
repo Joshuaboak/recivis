@@ -140,7 +140,9 @@ export async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_users_role ON users(user_role_id);
       CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
       CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
+      CREATE INDEX IF NOT EXISTS idx_audit_log_email ON audit_log(email);
       CREATE INDEX IF NOT EXISTS idx_reset_tokens_token ON password_reset_tokens(token);
+      CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
     `);
   } finally {
     client.release();

@@ -29,6 +29,13 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  /** Close the modal when the Escape key is pressed. */
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
   const loadData = useCallback(() => {
     setLoadingAsset(true);
     setLoadingKey(true);

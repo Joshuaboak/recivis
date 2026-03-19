@@ -253,6 +253,14 @@ export async function seedAdminUsers() {
 // PASSWORD RESET
 // ============================================================
 
+/**
+ * Request a password reset for the given email.
+ *
+ * Generates a random token, hashes it with SHA-256, and stores only the
+ * hash in the database. The plain token is sent to the user via email.
+ * This way, even if the database is compromised, the tokens cannot be
+ * used directly — the attacker would need the unhashed value from the email.
+ */
 export async function requestPasswordReset(email: string): Promise<boolean> {
   await ensureDB();
   const normalizedEmail = email.toLowerCase().trim();
@@ -263,8 +271,11 @@ export async function requestPasswordReset(email: string): Promise<boolean> {
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
+  /** Hash the token with SHA-256 before storing — only the hash goes in the DB. */
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
   await query('UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false', [user.id]);
-  await query('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, token, expiresAt]);
+  await query('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, tokenHash, expiresAt]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://recivis-production.up.railway.app';
   const resetUrl = `${appUrl}?reset=${token}`;
@@ -274,14 +285,23 @@ export async function requestPasswordReset(email: string): Promise<boolean> {
   return true;
 }
 
+/**
+ * Reset a user's password using a previously issued reset token.
+ *
+ * The incoming plain token is hashed with SHA-256 and compared against
+ * the stored hash in the database (we never store plain tokens).
+ */
 export async function resetPassword(token: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
   await ensureDB();
+
+  /** Hash the incoming token to match against the stored hash. */
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
   const result = await query(
     `SELECT t.id AS token_id, t.user_id, t.expires_at, u.email, u.name
      FROM password_reset_tokens t JOIN users u ON u.id = t.user_id
      WHERE t.token = $1 AND t.used = false AND u.is_active = true`,
-    [token]
+    [tokenHash]
   );
 
   if (result.rows.length === 0) return { success: false, error: 'Invalid or expired reset link.' };

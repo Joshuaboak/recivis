@@ -1,23 +1,31 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useAppStore } from '@/lib/store';
 import Sidebar from './Sidebar';
-import DashboardView from '../views/DashboardView';
-import AccountsView from '../views/AccountsView';
-import AccountDetailView from '../views/AccountDetailView';
-import CreateAccountView from '../views/CreateAccountView';
-import InvoiceView from '../views/InvoiceView';
-import InvoiceDetailView from '../views/InvoiceDetailView';
-import CreateInvoiceView from '../views/CreateInvoiceView';
-import DraftInvoicesView from '../views/DraftInvoicesView';
-import ReportsView from '../views/ReportsView';
-import CouponsView from '../views/CouponsView';
-import CreateCouponView from '../views/CreateCouponView';
-import CouponDetailView from '../views/CouponDetailView';
-import ResellerManagementView from '../views/ResellerManagementView';
-import PartnerResourcesView from '../views/PartnerResourcesView';
 import LoginView from '../views/LoginView';
 import { AnimatePresence, motion } from 'framer-motion';
+
+/**
+ * Dynamically imported view components.
+ * Code-split so each view bundle is loaded on demand rather than included
+ * in the initial page load. Sidebar and LoginView remain static imports
+ * because they are always rendered immediately.
+ */
+const DashboardView = dynamic(() => import('../views/DashboardView'));
+const AccountsView = dynamic(() => import('../views/AccountsView'));
+const AccountDetailView = dynamic(() => import('../views/AccountDetailView'));
+const CreateAccountView = dynamic(() => import('../views/CreateAccountView'));
+const InvoiceView = dynamic(() => import('../views/InvoiceView'));
+const InvoiceDetailView = dynamic(() => import('../views/InvoiceDetailView'));
+const CreateInvoiceView = dynamic(() => import('../views/CreateInvoiceView'));
+const DraftInvoicesView = dynamic(() => import('../views/DraftInvoicesView'));
+const ReportsView = dynamic(() => import('../views/ReportsView'));
+const CouponsView = dynamic(() => import('../views/CouponsView'));
+const CreateCouponView = dynamic(() => import('../views/CreateCouponView'));
+const CouponDetailView = dynamic(() => import('../views/CouponDetailView'));
+const ResellerManagementView = dynamic(() => import('../views/ResellerManagementView'));
+const PartnerResourcesView = dynamic(() => import('../views/PartnerResourcesView'));
 
 const VIEW_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',

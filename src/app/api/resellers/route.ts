@@ -3,9 +3,7 @@ import { callMcpTool, executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { query } from '@/lib/db';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
-
-const CSA_ZOHO_ID = '55779000000560184';
-const CSA_INTERNAL_ID = 'csa-internal';
+import { CSA_ZOHO_ID, CSA_INTERNAL_ID } from '@/lib/constants';
 
 /**
  * GET /api/resellers?resellerId=id&includeChildren=true

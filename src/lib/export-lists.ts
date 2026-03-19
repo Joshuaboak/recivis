@@ -59,47 +59,67 @@ export async function exportAccountsList(
   const allContacts: (string | number)[][] = [];
   const allAssets: (string | number)[][] = [];
 
-  for (let i = 0; i < accounts.length; i++) {
-    const acc = accounts[i];
-    const accName = acc.Account_Name as string || '';
-    const accId = acc.id as string;
-    onProgress?.(i + 1, accounts.length);
+  /**
+   * Process accounts in parallel batches of BATCH_SIZE.
+   * This dramatically speeds up exports for large account lists by making
+   * concurrent API calls, while capping concurrency to avoid overwhelming
+   * the API or browser network limits.
+   */
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < accounts.length; i += BATCH_SIZE) {
+    const batch = accounts.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(batch.map(async (acc) => {
+      const accName = acc.Account_Name as string || '';
+      const accId = acc.id as string;
+      const batchContacts: (string | number)[][] = [];
+      const batchAssets: (string | number)[][] = [];
 
-    try {
-      const res = await fetch(`/api/accounts/${accId}`);
-      const data = await res.json();
+      try {
+        const res = await fetch(`/api/accounts/${accId}`);
+        const data = await res.json();
 
-      // Contacts
-      const contacts = (data.contacts || []) as R[];
-      for (const c of contacts) {
-        if ((c.Record_Status__s as string) === 'Trash') continue;
-        allContacts.push([
-          accName,
-          c.Full_Name as string || '',
-          c.Email as string || '',
-          c.Phone as string || '',
-          c.Title as string || '',
-        ]);
-      }
+        // Contacts
+        const contacts = (data.contacts || []) as R[];
+        for (const c of contacts) {
+          if ((c.Record_Status__s as string) === 'Trash') continue;
+          batchContacts.push([
+            accName,
+            c.Full_Name as string || '',
+            c.Email as string || '',
+            c.Phone as string || '',
+            c.Title as string || '',
+          ]);
+        }
 
-      // Assets (active only, excluding NFR/Educational/Home Use)
-      const active = (data.activeAssets || []) as R[];
-      for (const a of active) {
-        const product = a.Product as { name?: string } | null;
-        const productName = product?.name || a.Name as string || '';
-        const nameLower = productName.toLowerCase();
-        if (nameLower.includes('nfr') || nameLower.includes('educational') || nameLower.includes('home use')) continue;
-        allAssets.push([
-          accName,
-          productName,
-          a.Quantity as number || 0,
-          formatDate(a.Start_Date),
-          formatDate(a.Renewal_Date),
-          a.Serial_Key as string || '',
-          a.Status as string || '',
-        ]);
-      }
-    } catch { /* skip failed accounts */ }
+        // Assets (active only, excluding NFR/Educational/Home Use)
+        const active = (data.activeAssets || []) as R[];
+        for (const a of active) {
+          const product = a.Product as { name?: string } | null;
+          const productName = product?.name || a.Name as string || '';
+          const nameLower = productName.toLowerCase();
+          if (nameLower.includes('nfr') || nameLower.includes('educational') || nameLower.includes('home use')) continue;
+          batchAssets.push([
+            accName,
+            productName,
+            a.Quantity as number || 0,
+            formatDate(a.Start_Date),
+            formatDate(a.Renewal_Date),
+            a.Serial_Key as string || '',
+            a.Status as string || '',
+          ]);
+        }
+      } catch { /* skip failed accounts */ }
+
+      return { contacts: batchContacts, assets: batchAssets };
+    }));
+
+    // Merge batch results into the main arrays
+    for (const result of results) {
+      allContacts.push(...result.contacts);
+      allAssets.push(...result.assets);
+    }
+
+    onProgress?.(Math.min(i + BATCH_SIZE, accounts.length), accounts.length);
   }
 
   // --- Contacts sheet ---

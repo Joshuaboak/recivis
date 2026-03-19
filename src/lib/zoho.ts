@@ -5,6 +5,7 @@
 
 import { getMcpEndpoint } from './zoho-mcp-auth';
 import { log } from './logger';
+import { MAX_ZOHO_PAGES } from './constants';
 
 let sessionId: string | null = null;
 let initialized = false;
@@ -168,14 +169,14 @@ export function parseMcpResult(result: unknown): { data: Record<string, unknown>
 
 /**
  * Search records across all pages (auto-paginates).
- * Max 10 pages (2000 records) to avoid runaway loops.
+ * Defaults to MAX_ZOHO_PAGES (2000 records at 200/page) to avoid runaway loops.
  */
 export async function searchAllPages(
   module: string,
   criteria: string,
   fields: string,
   sortOrder: string = 'desc',
-  maxPages: number = 10
+  maxPages: number = MAX_ZOHO_PAGES
 ): Promise<Record<string, unknown>[]> {
   const allRecords: Record<string, unknown>[] = [];
 
@@ -204,14 +205,14 @@ export async function searchAllPages(
 
 /**
  * Get records across all pages using Get_Records (browse mode).
- * Max 10 pages (2000 records).
+ * Defaults to MAX_ZOHO_PAGES (2000 records at 200/page).
  */
 export async function getAllRecordPages(
   module: string,
   fields: string,
   sortBy: string = 'Modified_Time',
   sortOrder: string = 'desc',
-  maxPages: number = 10
+  maxPages: number = MAX_ZOHO_PAGES
 ): Promise<Record<string, unknown>[]> {
   const allRecords: Record<string, unknown>[] = [];
 

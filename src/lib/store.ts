@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User, ChatMessage } from './types';
+import { CHAT_MESSAGE_LIMIT } from './constants';
 
 interface AppState {
   user: User | null;
@@ -50,7 +51,11 @@ export const useAppStore = create<AppState>()(
 
       messages: [],
       addMessage: (message) =>
-        set((state) => ({ messages: [...state.messages, message] })),
+        set((state) => {
+          const messages = [...state.messages, message];
+          // Keep only the last CHAT_MESSAGE_LIMIT messages to prevent memory bloat
+          return { messages: messages.slice(-CHAT_MESSAGE_LIMIT) };
+        }),
       updateMessage: (id, updates) =>
         set((state) => ({
           messages: state.messages.map((m) =>
