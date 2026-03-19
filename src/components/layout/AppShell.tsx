@@ -21,21 +21,20 @@ function ViewLoader() {
  * in the initial page load. Each has a loading fallback to prevent layout
  * shifts while the chunk loads.
  */
-const opts = { loading: ViewLoader };
-const DashboardView = dynamic(() => import('../views/DashboardView'), opts);
-const AccountsView = dynamic(() => import('../views/AccountsView'), opts);
-const AccountDetailView = dynamic(() => import('../views/AccountDetailView'), opts);
-const CreateAccountView = dynamic(() => import('../views/CreateAccountView'), opts);
-const InvoiceView = dynamic(() => import('../views/InvoiceView'), opts);
-const InvoiceDetailView = dynamic(() => import('../views/InvoiceDetailView'), opts);
-const CreateInvoiceView = dynamic(() => import('../views/CreateInvoiceView'), opts);
-const DraftInvoicesView = dynamic(() => import('../views/DraftInvoicesView'), opts);
-const ReportsView = dynamic(() => import('../views/ReportsView'), opts);
-const CouponsView = dynamic(() => import('../views/CouponsView'), opts);
-const CreateCouponView = dynamic(() => import('../views/CreateCouponView'), opts);
-const CouponDetailView = dynamic(() => import('../views/CouponDetailView'), opts);
-const ResellerManagementView = dynamic(() => import('../views/ResellerManagementView'), opts);
-const PartnerResourcesView = dynamic(() => import('../views/PartnerResourcesView'), opts);
+const DashboardView = dynamic(() => import('../views/DashboardView'), { loading: ViewLoader });
+const AccountsView = dynamic(() => import('../views/AccountsView'), { loading: ViewLoader });
+const AccountDetailView = dynamic(() => import('../views/AccountDetailView'), { loading: ViewLoader });
+const CreateAccountView = dynamic(() => import('../views/CreateAccountView'), { loading: ViewLoader });
+const InvoiceView = dynamic(() => import('../views/InvoiceView'), { loading: ViewLoader });
+const InvoiceDetailView = dynamic(() => import('../views/InvoiceDetailView'), { loading: ViewLoader });
+const CreateInvoiceView = dynamic(() => import('../views/CreateInvoiceView'), { loading: ViewLoader });
+const DraftInvoicesView = dynamic(() => import('../views/DraftInvoicesView'), { loading: ViewLoader });
+const ReportsView = dynamic(() => import('../views/ReportsView'), { loading: ViewLoader });
+const CouponsView = dynamic(() => import('../views/CouponsView'), { loading: ViewLoader });
+const CreateCouponView = dynamic(() => import('../views/CreateCouponView'), { loading: ViewLoader });
+const CouponDetailView = dynamic(() => import('../views/CouponDetailView'), { loading: ViewLoader });
+const ResellerManagementView = dynamic(() => import('../views/ResellerManagementView'), { loading: ViewLoader });
+const PartnerResourcesView = dynamic(() => import('../views/PartnerResourcesView'), { loading: ViewLoader });
 
 const VIEW_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
