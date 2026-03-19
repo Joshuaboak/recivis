@@ -72,7 +72,14 @@ function ResellerListView() {
 
   // Create reseller
   const [showCreate, setShowCreate] = useState(false);
-  const [newReseller, setNewReseller] = useState({ Name: '', Email: '', Region: 'AU', Currency: 'AUD', Partner_Category: 'Reseller' });
+  const [newReseller, setNewReseller] = useState<Record<string, string | boolean>>({
+    Name: '', Email: '', Secondary_Email: '', Phone: '', Region: 'AU', Currency: 'AUD',
+    Partner_Category: 'Reseller', Reseller_First_Name: '', Reseller_Last_Name: '',
+    Street_Address: '', City: '', State: '', Post_Code: '', Country: '',
+    Reseller_Reference_Code: '', Reseller_Sale: '', Distributor_Percentage_Rate: '',
+    Reseller_Purchase_Limit: '', Direct_Customer_Contact: false,
+    Evaluation_Direct_to_Customer: false, Can_Purchase_on_Credit: false, QLM_User_Group: false,
+  });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
@@ -195,47 +202,39 @@ function ResellerListView() {
               <div className="flex items-center gap-2"><Building2 size={18} className="text-csa-accent" /><h3 className="text-base font-bold text-text-primary">Add Partner</h3></div>
               <button onClick={() => setShowCreate(false)} className="p-1 text-text-muted hover:text-text-primary cursor-pointer"><X size={16} /></button>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+              <EditSection label="Details" fields={[
+                { key: 'Name', label: 'Name *' }, { key: 'Email', label: 'Email' }, { key: 'Secondary_Email', label: 'Secondary Email' },
+                { key: 'Phone', label: 'Phone' }, { key: 'Region', label: 'Region' }, { key: 'Currency', label: 'Currency' },
+                { key: 'Partner_Category', label: 'Category' }, { key: 'Reseller_Reference_Code', label: 'Reference Code' },
+              ]} values={newReseller} onChange={v => setNewReseller(v as Record<string, string | boolean>)} />
+              <EditSection label="Contact" fields={[
+                { key: 'Reseller_First_Name', label: 'First Name' }, { key: 'Reseller_Last_Name', label: 'Last Name' },
+              ]} values={newReseller} onChange={v => setNewReseller(v as Record<string, string | boolean>)} />
+              <EditSection label="Address" fields={[
+                { key: 'Street_Address', label: 'Street', span: 2 }, { key: 'City', label: 'City' },
+                { key: 'State', label: 'State' }, { key: 'Post_Code', label: 'Post Code' }, { key: 'Country', label: 'Country' },
+              ]} values={newReseller} onChange={v => setNewReseller(v as Record<string, string | boolean>)} />
+              <EditSection label="Commercial" fields={[
+                { key: 'Reseller_Sale', label: 'Reseller %' }, { key: 'Distributor_Percentage_Rate', label: 'Distributor %' },
+                { key: 'Reseller_Purchase_Limit', label: 'Purchase Limit' },
+              ]} values={newReseller} onChange={v => setNewReseller(v as Record<string, string | boolean>)} />
               <div>
-                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Name *</label>
-                <input type="text" value={newReseller.Name} onChange={e => setNewReseller(p => ({ ...p, Name: e.target.value }))} placeholder="Company name" autoFocus
-                  className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent rounded-xl" />
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Email</label>
-                <input type="email" value={newReseller.Email} onChange={e => setNewReseller(p => ({ ...p, Email: e.target.value }))} placeholder="contact@company.com"
-                  className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent rounded-xl" />
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Region</label>
-                  <div className="relative">
-                    <select value={newReseller.Region} onChange={e => setNewReseller(p => ({ ...p, Region: e.target.value }))}
-                      className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10">
-                      {Object.entries(REGION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Currency</label>
-                  <div className="relative">
-                    <select value={newReseller.Currency} onChange={e => setNewReseller(p => ({ ...p, Currency: e.target.value }))}
-                      className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10">
-                      {['AUD', 'USD', 'EUR', 'INR', 'GBP', 'NZD'].map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Category</label>
-                  <div className="relative">
-                    <select value={newReseller.Partner_Category} onChange={e => setNewReseller(p => ({ ...p, Partner_Category: e.target.value }))}
-                      className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10">
-                      {['Reseller', 'Distributor', 'Distributor/Reseller', 'Affiliate', 'Platinum Partner'].map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-                  </div>
+                <h3 className="text-sm font-bold text-csa-accent mb-3">Settings</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { key: 'Direct_Customer_Contact', label: 'Direct Customer Communication' },
+                    { key: 'Evaluation_Direct_to_Customer', label: 'Eval Direct to Customer' },
+                    { key: 'Can_Purchase_on_Credit', label: 'Can Purchase on Credit' },
+                    { key: 'QLM_User_Group', label: 'QLM User Group' },
+                  ].map(f => (
+                    <label key={f.key} className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={newReseller[f.key] === true || newReseller[f.key] === 'true'}
+                        onChange={e => setNewReseller(p => ({ ...p, [f.key]: e.target.checked }))}
+                        className="w-4 h-4 rounded accent-csa-accent cursor-pointer" />
+                      <span className="text-xs text-text-primary">{f.label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
               {createError ? <p className="text-xs text-error flex items-center gap-1"><AlertCircle size={12} />{createError}</p> : null}
@@ -321,16 +320,26 @@ function ResellerDetailView() {
       Name: reseller.Name as string || '',
       Email: reseller.Email as string || '',
       Secondary_Email: reseller.Secondary_Email as string || '',
+      Phone: reseller.Phone as string || '',
       Region: reseller.Region as string || '',
       Currency: reseller.Currency as string || '',
       Partner_Category: reseller.Partner_Category as string || '',
+      Reseller_First_Name: reseller.Reseller_First_Name as string || '',
+      Reseller_Last_Name: reseller.Reseller_Last_Name as string || '',
       Street_Address: reseller.Street_Address as string || '',
       City: reseller.City as string || '',
       State: reseller.State as string || '',
       Post_Code: reseller.Post_Code as string || '',
       Country: reseller.Country as string || '',
-      Reseller_First_Name: reseller.Reseller_First_Name as string || '',
-      Reseller_Last_Name: reseller.Reseller_Last_Name as string || '',
+      Reseller_Reference_Code: reseller.Reseller_Reference_Code as string || '',
+      Reseller_Sale: String(reseller.Reseller_Sale ?? ''),
+      Distributor_Percentage_Rate: String(reseller.Distributor_Percentage_Rate ?? ''),
+      Reseller_Purchase_Limit: String(reseller.Reseller_Purchase_Limit ?? ''),
+      Xero_Contact_ID: reseller.Xero_Contact_ID as string || '',
+      Direct_Customer_Contact: String(reseller.Direct_Customer_Contact ?? false),
+      Evaluation_Direct_to_Customer: String(reseller.Evaluation_Direct_to_Customer ?? false),
+      Can_Purchase_on_Credit: String(reseller.Can_Purchase_on_Credit ?? false),
+      QLM_User_Group: String(reseller.QLM_User_Group ?? false),
     });
     setEditingReseller(true);
   };
@@ -426,43 +435,38 @@ function ResellerDetailView() {
         {/* Info Cards / Edit Form */}
         {editingReseller ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-surface border border-csa-accent/40 rounded-xl p-5 mb-8">
-            <h3 className="text-sm font-bold text-csa-accent mb-3">Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-              {[
-                { key: 'Name', label: 'Name' }, { key: 'Email', label: 'Email' }, { key: 'Secondary_Email', label: 'Secondary Email' },
-                { key: 'Region', label: 'Region' }, { key: 'Currency', label: 'Currency' }, { key: 'Partner_Category', label: 'Partner Category' },
-              ].map(f => (
-                <div key={f.key}>
-                  <label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">{f.label}</label>
-                  <input type="text" value={editFields[f.key] || ''} onChange={e => setEditFields(p => ({ ...p, [f.key]: e.target.value }))}
-                    className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" />
-                </div>
-              ))}
-            </div>
-            <h3 className="text-sm font-bold text-csa-accent mb-3">Contact</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-              <div><label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">First Name</label>
-                <input type="text" value={editFields.Reseller_First_Name || ''} onChange={e => setEditFields(p => ({ ...p, Reseller_First_Name: e.target.value }))}
-                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" /></div>
-              <div><label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">Last Name</label>
-                <input type="text" value={editFields.Reseller_Last_Name || ''} onChange={e => setEditFields(p => ({ ...p, Reseller_Last_Name: e.target.value }))}
-                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" /></div>
-            </div>
-            <h3 className="text-sm font-bold text-csa-accent mb-3">Address</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-              <div className="md:col-span-2"><label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">Street</label>
-                <input type="text" value={editFields.Street_Address || ''} onChange={e => setEditFields(p => ({ ...p, Street_Address: e.target.value }))}
-                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" /></div>
-              <div><label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">City</label>
-                <input type="text" value={editFields.City || ''} onChange={e => setEditFields(p => ({ ...p, City: e.target.value }))}
-                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" /></div>
-              <div className="flex gap-2">
-                <div className="flex-1"><label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">State</label>
-                  <input type="text" value={editFields.State || ''} onChange={e => setEditFields(p => ({ ...p, State: e.target.value }))}
-                    className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" /></div>
-                <div className="flex-1"><label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">Post Code</label>
-                  <input type="text" value={editFields.Post_Code || ''} onChange={e => setEditFields(p => ({ ...p, Post_Code: e.target.value }))}
-                    className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" /></div>
+            <EditSection label="Details" fields={[
+              { key: 'Name', label: 'Name' }, { key: 'Email', label: 'Email' }, { key: 'Secondary_Email', label: 'Secondary Email' },
+              { key: 'Phone', label: 'Phone' }, { key: 'Region', label: 'Region' }, { key: 'Currency', label: 'Currency' },
+              { key: 'Partner_Category', label: 'Partner Category' }, { key: 'Reseller_Reference_Code', label: 'Reference Code' },
+            ]} values={editFields} onChange={setEditFields} />
+            <EditSection label="Contact" fields={[
+              { key: 'Reseller_First_Name', label: 'First Name' }, { key: 'Reseller_Last_Name', label: 'Last Name' },
+            ]} values={editFields} onChange={setEditFields} />
+            <EditSection label="Address" fields={[
+              { key: 'Street_Address', label: 'Street', span: 2 }, { key: 'City', label: 'City' },
+              { key: 'State', label: 'State' }, { key: 'Post_Code', label: 'Post Code' }, { key: 'Country', label: 'Country' },
+            ]} values={editFields} onChange={setEditFields} />
+            <EditSection label="Commercial" fields={[
+              { key: 'Reseller_Sale', label: 'Reseller %' }, { key: 'Distributor_Percentage_Rate', label: 'Distributor %' },
+              { key: 'Reseller_Purchase_Limit', label: 'Purchase Limit' }, { key: 'Xero_Contact_ID', label: 'Xero Contact ID' },
+            ]} values={editFields} onChange={setEditFields} />
+            <div className="mb-4">
+              <h3 className="text-sm font-bold text-csa-accent mb-3">Settings</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { key: 'Direct_Customer_Contact', label: 'Direct Customer Communication' },
+                  { key: 'Evaluation_Direct_to_Customer', label: 'Eval Direct to Customer' },
+                  { key: 'Can_Purchase_on_Credit', label: 'Can Purchase on Credit' },
+                  { key: 'QLM_User_Group', label: 'QLM User Group' },
+                ].map(f => (
+                  <label key={f.key} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={editFields[f.key] === 'true' || editFields[f.key] === true as unknown as string}
+                      onChange={e => setEditFields(p => ({ ...p, [f.key]: String(e.target.checked) }))}
+                      className="w-4 h-4 rounded accent-csa-accent cursor-pointer" />
+                    <span className="text-xs text-text-primary">{f.label}</span>
+                  </label>
+                ))}
               </div>
             </div>
             <div className="flex gap-2">
@@ -477,11 +481,15 @@ function ResellerDetailView() {
             <InfoCard label="Contact" value={[reseller.Reseller_First_Name, reseller.Reseller_Last_Name].filter(Boolean).join(' ') || '\u2014'} icon={<Users size={14} />} />
             <InfoCard label="Email" value={reseller.Email as string || '\u2014'} icon={<Mail size={14} />} />
             {reseller.Secondary_Email ? <InfoCard label="Secondary Email" value={reseller.Secondary_Email as string} icon={<Mail size={14} />} /> : null}
+            {reseller.Phone ? <InfoCard label="Phone" value={reseller.Phone as string} icon={<Phone size={14} />} /> : null}
             <InfoCard label="Region" value={REGION_LABELS[reseller.Region as string] || (reseller.Region as string) || '\u2014'} icon={<Globe size={14} />} />
             <InfoCard label="Currency" value={reseller.Currency as string || '\u2014'} icon={<DollarSign size={14} />} />
             <InfoCard label="Partner Category" value={reseller.Partner_Category as string || '\u2014'} icon={<Building2 size={14} />} />
+            {reseller.Reseller_Reference_Code ? <InfoCard label="Reference Code" value={reseller.Reseller_Reference_Code as string} icon={<Building2 size={14} />} /> : null}
             {distributor ? <InfoCard label="Distributor" value={distributor.name || '\u2014'} icon={<Building2 size={14} />} /> : null}
             <EditablePercentCard label="Reseller Percentage" value={reseller.Reseller_Sale as number} resellerId={selectedResellerId!} onSaved={loadData} canEdit={isAdmin} />
+            {reseller.Distributor_Percentage_Rate != null ? <InfoCard label="Distributor Percentage" value={`${reseller.Distributor_Percentage_Rate}%`} icon={<DollarSign size={14} />} /> : null}
+            {reseller.Reseller_Purchase_Limit ? <InfoCard label="Purchase Limit" value={`$${reseller.Reseller_Purchase_Limit}`} icon={<DollarSign size={14} />} /> : null}
             <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group relative">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                 <Mail size={14} />
@@ -492,9 +500,13 @@ function ResellerDetailView() {
                 This controls if invoices and keys are sent directly to the customer or not
               </div>
             </div>
+            <InfoCard label="Eval Direct to Customer" value={reseller.Evaluation_Direct_to_Customer ? 'Yes' : 'No'} icon={<Mail size={14} />} />
+            <InfoCard label="Can Purchase on Credit" value={reseller.Can_Purchase_on_Credit ? 'Yes' : 'No'} icon={<DollarSign size={14} />} />
+            <InfoCard label="QLM User Group" value={reseller.QLM_User_Group ? 'Yes' : 'No'} icon={<Shield size={14} />} />
             {reseller.Street_Address || reseller.City ? (
               <InfoCard label="Address" value={[reseller.Street_Address, reseller.City, reseller.State, reseller.Post_Code, reseller.Country].filter(Boolean).join(', ') as string} icon={<Building2 size={14} />} />
             ) : null}
+            {reseller.Xero_Contact_ID ? <InfoCard label="Xero Contact ID" value={reseller.Xero_Contact_ID as string} icon={<Building2 size={14} />} /> : null}
             {reseller.Owner ? <InfoCard label="CSA Account Manager" value={(reseller.Owner as { name?: string })?.name || '\u2014'} icon={<Users size={14} />} /> : null}
             <InfoCard label="Portal Users" value={String(users.length)} icon={<Users size={14} />} />
           </motion.div>
@@ -679,6 +691,26 @@ function EditablePercentCard({ label, value, resellerId, onSaved, canEdit }: { l
       ) : (
         <p className="text-sm text-text-primary">{value !== undefined && value !== null ? `${value}%` : '\u2014'}</p>
       )}
+    </div>
+  );
+}
+
+function EditSection({ label, fields, values, onChange }: {
+  label: string; fields: { key: string; label: string; span?: number }[];
+  values: Record<string, string | boolean>; onChange: (v: Record<string, string | boolean>) => void;
+}) {
+  const inputCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg";
+  return (
+    <div className="mb-4">
+      <h3 className="text-sm font-bold text-csa-accent mb-3">{label}</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {fields.map(f => (
+          <div key={f.key} className={f.span === 2 ? 'md:col-span-2' : ''}>
+            <label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">{f.label}</label>
+            <input type="text" value={String(values[f.key] || '')} onChange={e => onChange({ ...values, [f.key]: e.target.value })} className={inputCls} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
