@@ -1,3 +1,14 @@
+/**
+ * /api/accounts/[id] — Account detail and update.
+ *
+ * GET: Fetches the full account record plus related contacts, assets, and invoices
+ *      in parallel. Filters out trashed records and separates assets into active
+ *      vs archived. Excludes upgraded assets (Upgraded_To_Key is set).
+ *
+ * PATCH: Updates account fields (billing address, reseller, primary/secondary contact).
+ *        Contact references are converted to Zoho lookup format { id: "..." }.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';

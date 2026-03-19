@@ -1,3 +1,18 @@
+/**
+ * POST /api/auth — Authenticate a user with email + password.
+ *
+ * Flow:
+ * 1. Seeds default roles and admin users on first request (idempotent)
+ * 2. Validates email + password against bcrypt hashes in PostgreSQL
+ * 3. Returns the user object and sets a JWT as an HTTP-only cookie
+ *
+ * Fallback: If the database is unavailable, known admin emails can
+ * authenticate without a password (demo mode, no JWT issued).
+ *
+ * Security: Failed login attempts are audit-logged. Error messages
+ * do not reveal whether the email exists.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, seedAdminUsers, auditLog } from '@/lib/auth';
 import { log } from '@/lib/logger';

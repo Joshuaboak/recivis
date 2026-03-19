@@ -1,3 +1,19 @@
+/**
+ * CreateCouponView — Create a discount coupon for invoices.
+ *
+ * Admin-only form with sections:
+ * - Basic info: code (auto-uppercased), name, description
+ * - Discount: percentage-based or fixed amount, with currency
+ * - Validity: status (Draft/Active), date range, total usage limit
+ * - Restrictions: region, partner, product, order type, and order value filters
+ *
+ * Restrictions use toggle switches that reveal their options when enabled.
+ * Partner restrictions include a searchable reseller selector.
+ * Zoho stores multi-select values as semicolon-delimited strings.
+ *
+ * Data: Creates via /api/coupons (POST), then navigates to CouponDetailView.
+ */
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';

@@ -1,16 +1,36 @@
 /**
- * Zoho CRM MCP Client
- * Preauthorized MCP endpoint — no OAuth needed.
+ * zoho.ts — Zoho CRM client via the Model Context Protocol (MCP).
+ *
+ * Communicates with CSA's Zoho CRM instance through a preauthorized MCP endpoint.
+ * The MCP protocol uses JSON-RPC 2.0 over HTTP, with an optional SSE transport
+ * for streaming responses. The endpoint URL contains an embedded API key, so no
+ * OAuth dance is needed.
+ *
+ * Architecture:
+ * - mcpRequest()        — Low-level JSON-RPC transport (handles SSE + JSON responses)
+ * - ensureInitialized() — One-time MCP handshake (protocol version negotiation)
+ * - callMcpTool()       — Calls any MCP tool by name, with auto-retry on stale sessions
+ * - executeZohoTool()   — Maps simplified tool names to MCP tool names + args
+ * - searchAllPages()    — Auto-paginating search across all Zoho pages
+ * - getAllRecordPages()  — Auto-paginating browse (Get_Records) across all pages
  */
 
 import { getMcpEndpoint } from './zoho-mcp-auth';
 import { log } from './logger';
 import { MAX_ZOHO_PAGES } from './constants';
 
+// --- MCP Session State ---
+// These are module-level singletons — one active MCP session per server process.
+
 let sessionId: string | null = null;
 let initialized = false;
 let initPromise: Promise<void> | null = null;
 
+/**
+ * Send a JSON-RPC 2.0 request to the MCP endpoint.
+ * Handles both standard JSON and SSE (Server-Sent Events) response formats.
+ * Notifications (isNotification=true) are fire-and-forget with no response expected.
+ */
 async function mcpRequest(
   method: string,
   params?: Record<string, unknown>,
@@ -83,6 +103,10 @@ async function mcpRequest(
   return data.result;
 }
 
+/**
+ * Ensure the MCP session is initialized (protocol handshake + notification).
+ * Uses a shared promise to prevent concurrent initialization attempts.
+ */
 async function ensureInitialized(): Promise<void> {
   if (initialized) return;
   if (initPromise) return initPromise;
@@ -143,7 +167,7 @@ export function resetSession(): void {
   initPromise = null;
 }
 
-// ---- Helpers ----
+// --- Result Parsing Helpers ---
 
 /**
  * Parse an MCP tool result into an array of records.
@@ -235,9 +259,13 @@ export async function getAllRecordPages(
   return allRecords;
 }
 
-// ---- Tool execution mapping ----
-// Maps simplified tool calls from Claude to MCP tool calls
+// --- Tool Execution Mapping ---
 
+/**
+ * Map a simplified tool name + args to the corresponding MCP tool call.
+ * This abstraction layer lets the rest of the codebase use clean names like
+ * 'search_records' instead of 'ZohoCRM_searchRecords' with nested path_variables.
+ */
 export async function executeZohoTool(
   name: string,
   args: Record<string, unknown>
@@ -308,6 +336,8 @@ export async function executeZohoTool(
     }
 
     case 'call_renewal_function': {
+      // Calls a Deluge custom function via the Zoho REST API (not MCP).
+      // Passes asset IDs as a triple-pipe-delimited string — Deluge convention.
       const assetIds = args.asset_ids as string[];
       const assetIDString = assetIds.join('|||');
       const zapikey = process.env.ZOHO_API_KEY;

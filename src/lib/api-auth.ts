@@ -1,3 +1,20 @@
+/**
+ * api-auth.ts — Server-side authentication middleware for API routes.
+ *
+ * Auth flow:
+ * 1. Client authenticates via POST /api/auth (email + password)
+ * 2. Server sets an HTTP-only `recivis-token` cookie containing a JWT
+ * 3. On subsequent API requests, this module reads the cookie, verifies the JWT,
+ *    and loads the user's full permissions from PostgreSQL (user_role + reseller_role)
+ *
+ * Helper functions:
+ * - getAuthUser()       — Extract user from request (returns null if unauthenticated)
+ * - requireAuth()       — Returns 401 if not authenticated
+ * - requireRole()       — Returns 403 if user lacks the required role
+ * - isAdmin()           — Check if user is admin or IBM
+ * - canManageReseller() — Check if user has access to a specific reseller's data
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { query, initDB } from './db';
@@ -8,6 +25,7 @@ if (!JWT_SECRET) {
   console.warn('JWT_SECRET not set — authentication will fail in production');
 }
 
+/** The authenticated user context available to API route handlers. */
 export interface AuthUser {
   userId: number;
   email: string;

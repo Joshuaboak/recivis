@@ -1,3 +1,17 @@
+/**
+ * POST /api/renewals — Generate renewal invoices for selected assets.
+ *
+ * Calls a Deluge custom function in Zoho CRM that:
+ * 1. Takes asset IDs as a triple-pipe-delimited string
+ * 2. Creates renewal invoices with appropriate pricing and dates
+ * 3. Returns the created invoice ID(s) in the response
+ *
+ * The response parsing handles multiple Deluge output formats:
+ * - Standard: invoiceIDList array in the output JSON
+ * - Legacy: invoiceId/invoice_id field
+ * - Fallback: scans userMessage strings for 15+ digit numeric IDs
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';

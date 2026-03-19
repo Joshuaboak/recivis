@@ -1,3 +1,18 @@
+/**
+ * auth.ts — Authentication, user management, and password reset for ReCivis.
+ *
+ * Three-tier permission model:
+ * 1. Reseller roles — org-level permission caps (what the reseller org can do)
+ * 2. User roles — per-user permissions within the org (what the individual can do)
+ * 3. Effective = user_role AND reseller_role (user cannot exceed org caps)
+ *
+ * System admins (admin/ibm user_roles) bypass the intersection — they get full access.
+ *
+ * Password hashing: bcrypt with 12 salt rounds.
+ * Session tokens: JWT with 24-hour expiry, set as HTTP-only cookies.
+ * Password reset: SHA-256 hashed tokens stored in DB, plain tokens sent via email.
+ */
+
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -85,8 +100,8 @@ export async function authenticateUser(
 
   await query('UPDATE users SET last_login = NOW() WHERE id = $1', [row.id]);
 
-  // Compute effective permissions = user_role AND reseller_role
-  // If no role assigned, check if user is an org admin (admin/ibm user_role)
+  // Effective permissions = user_role AND reseller_role (intersection).
+  // System admins bypass this — they get true for everything.
   const isSystemAdmin = row.user_role_name === 'admin' || row.user_role_name === 'ibm';
   const permissions: UserPermissions = {
     canCreateInvoices: isSystemAdmin || ((row.ur_create ?? false) && (row.rr_create ?? false)),
@@ -101,7 +116,8 @@ export async function authenticateUser(
     canExportData: isSystemAdmin || ((row.ur_export ?? false) && (row.rr_export ?? false)),
   };
 
-  // Compute allowed reseller IDs for access filtering
+  // Build the list of reseller IDs this user can see.
+  // Admins see everything; distributors see own + child resellers.
   let allowedResellerIds: string[] | undefined;
   if (!isSystemAdmin && row.reseller_id) {
     allowedResellerIds = [row.reseller_id];
@@ -151,6 +167,7 @@ export async function authenticateUser(
   return { token, user };
 }
 
+/** Verify a JWT and return a minimal user object, or null if invalid/expired. */
 export async function verifyToken(token: string): Promise<User | null> {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
@@ -177,6 +194,7 @@ export async function verifyToken(token: string): Promise<User | null> {
 // AUDIT
 // ============================================================
 
+/** Write an entry to the audit log table. Used for login, user management, and password resets. */
 export async function auditLog(
   userId: number | null,
   email: string,
@@ -195,6 +213,10 @@ export async function auditLog(
 // SEED DATA
 // ============================================================
 
+/**
+ * Seed default roles, the CSA internal reseller, and admin users.
+ * Idempotent — only inserts if tables are empty. Called on first auth request.
+ */
 export async function seedAdminUsers() {
   await ensureDB();
 
@@ -323,6 +345,10 @@ export async function resetPassword(token: string, newPassword: string): Promise
 // EMAIL
 // ============================================================
 
+/**
+ * Send a password reset email via the Gmail API using a Google service account.
+ * Falls back to logging the URL to console if credentials are not configured.
+ */
 async function sendResetEmail(email: string, name: string, resetUrl: string) {
   const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   const senderEmail = process.env.GMAIL_SENDER || 'auth@civilsurveyapplications.com.au';

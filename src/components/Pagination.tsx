@@ -1,3 +1,13 @@
+/**
+ * Pagination — Reusable page navigation control.
+ *
+ * Renders "start-end of total" text + page number buttons with ellipsis.
+ * Uses a sliding window: always shows first page, last page, and 1 page
+ * on either side of the current page, with ellipsis in the gaps.
+ *
+ * Returns null when all items fit on one page (totalItems <= pageSize).
+ */
+
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';

@@ -1,3 +1,16 @@
+/**
+ * AppShell — Root layout component for the authenticated app.
+ *
+ * Responsibilities:
+ * - Gates the entire app behind authentication (renders LoginView if no user)
+ * - Renders the sidebar navigation and header bar
+ * - Maps the current view ID from the Zustand store to a code-split component
+ * - Animates view transitions with Framer Motion
+ *
+ * All view components are dynamically imported (next/dynamic) so each view's
+ * bundle is loaded on demand, keeping the initial page load fast.
+ */
+
 'use client';
 
 import dynamic from 'next/dynamic';
@@ -36,6 +49,7 @@ const CouponDetailView = dynamic(() => import('../views/CouponDetailView'), { lo
 const ResellerManagementView = dynamic(() => import('../views/ResellerManagementView'), { loading: ViewLoader });
 const PartnerResourcesView = dynamic(() => import('../views/PartnerResourcesView'), { loading: ViewLoader });
 
+/** Human-readable titles shown in the header bar for each view. */
 const VIEW_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
   accounts: 'Accounts',

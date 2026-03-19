@@ -1,3 +1,11 @@
+/**
+ * /api/coupons/[id] — Coupon detail and update.
+ *
+ * GET: Fetches a single coupon record from Zoho CRM by ID.
+ * PATCH: Updates coupon fields (admin-only). Used for status changes,
+ *        restriction updates, and usage limit adjustments.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';

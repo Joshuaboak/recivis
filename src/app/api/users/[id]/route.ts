@@ -1,3 +1,15 @@
+/**
+ * /api/users/[id] — Update user profile and reset password.
+ *
+ * PATCH: Updates user fields (name, role, reseller, active status).
+ *        Builds a dynamic SQL UPDATE from provided fields.
+ *        Requires canManageUsers permission. Zod-validated.
+ *
+ * PUT: Admin-initiated password reset (sets a new password directly).
+ *      Requires canManageUsers permission. Zod-validated (min 8 chars).
+ *      All actions are audit-logged.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { auditLog } from '@/lib/auth';

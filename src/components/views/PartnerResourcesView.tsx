@@ -1,3 +1,15 @@
+/**
+ * PartnerResourcesView — Links to external partner resources.
+ *
+ * Static page with three resource cards:
+ * - Marketing Resources (Google Drive folder with branding assets)
+ * - YouTube Product Guides (CSA YouTube channel)
+ * - Support (CSA helpdesk portal)
+ *
+ * Each card links to an external URL and opens in a new tab.
+ * No API calls — this is a purely presentational component.
+ */
+
 'use client';
 
 import { motion } from 'framer-motion';

@@ -1,13 +1,28 @@
+/**
+ * export-account.ts — XLSX export for individual account data.
+ *
+ * Generates multi-sheet Excel workbooks from account detail views:
+ * - exportFullAccount(): Summary + Contacts + Invoices + Active/Archived Assets
+ * - exportContacts(): Contacts sheet only
+ * - exportInvoices(): Invoices sheet only (with currency-grouped totals)
+ * - exportAssets(): Active + Archived assets sheets
+ *
+ * Runs client-side (browser) using the SheetJS (xlsx) library.
+ * Each sheet includes frozen headers and column widths tuned for the data.
+ */
+
 import * as XLSX from 'xlsx';
 
 type R = Record<string, unknown>;
 
+/** Format an ISO date string as DD/MM/YYYY for Australian convention. */
 const formatDate = (d: unknown) => {
   if (!d || typeof d !== 'string') return '';
   const date = new Date(d);
   return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 };
 
+/** Map currency code to symbol (defaults to $ for AUD/USD/NZD). */
 const getCurrencySymbol = (c: string) => {
   if (c === 'EUR') return '\u20AC';
   if (c === 'GBP') return '\u00A3';
@@ -15,6 +30,7 @@ const getCurrencySymbol = (c: string) => {
   return '$';
 };
 
+/** Apply column widths and freeze the header row for readability. */
 function styleSheet(ws: XLSX.WorkSheet, headerRow: number, colCount: number) {
   // Set column widths
   ws['!cols'] = Array.from({ length: colCount }, () => ({ wch: 20 }));

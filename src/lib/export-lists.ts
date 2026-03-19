@@ -1,7 +1,24 @@
+/**
+ * export-lists.ts — XLSX export for list views (accounts, invoices).
+ *
+ * Generates Excel workbooks from the main list views:
+ * - exportAccountsList(): Accounts + Contacts + Assets sheets (with batch API fetching)
+ * - exportInvoicesList(): Invoices sheet with currency totals and type breakdowns
+ *
+ * The accounts export is particularly interesting: it fetches contacts and assets
+ * for each account in parallel batches of 5 to speed up large exports while
+ * staying within browser/API concurrency limits. The onProgress callback provides
+ * UI feedback during the export.
+ *
+ * Runs client-side (browser). Filter context (search, region, reseller) is
+ * included at the top of each sheet for auditability.
+ */
+
 import * as XLSX from 'xlsx';
 
 type R = Record<string, unknown>;
 
+/** Format an ISO date string as DD/MM/YYYY for Australian convention. */
 const formatDate = (d: unknown) => {
   if (!d || typeof d !== 'string') return '';
   const date = new Date(d);

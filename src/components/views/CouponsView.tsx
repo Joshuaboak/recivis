@@ -1,3 +1,18 @@
+/**
+ * CouponsView — Browse and search discount coupons.
+ *
+ * Features:
+ * - Paginated coupon list (20 per page)
+ * - Search by coupon code or name
+ * - Status filter (Active / Draft / Expired)
+ * - Shows discount value, validity period, remaining uses, and allowed products
+ * - "Create Coupon" button (admin/ibm only)
+ * - Click any row to navigate to CouponDetailView
+ *
+ * Data: Fetches from /api/coupons which returns all coupons (Redis-cached).
+ * All filtering and search are client-side.
+ */
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';

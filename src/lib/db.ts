@@ -1,3 +1,19 @@
+/**
+ * db.ts — PostgreSQL connection pool and schema initialization.
+ *
+ * Defines the complete database schema for ReCivis:
+ * - reseller_roles: Org-level permission caps (what a reseller org can do)
+ * - resellers: Partner organizations, synced from Zoho CRM
+ * - user_roles: Per-user permission levels (what an individual can do within their org)
+ * - users: Individual user accounts (linked to a reseller + user role)
+ * - audit_log: Tracks logins, user changes, and password resets
+ * - password_reset_tokens: SHA-256 hashed tokens for self-service password reset
+ *
+ * Three-tier permission model:
+ *   Effective permission = user_role AND reseller_role
+ *   (A user can never exceed the caps set by their reseller org)
+ */
+
 import { Pool } from 'pg';
 
 const pool = new Pool({

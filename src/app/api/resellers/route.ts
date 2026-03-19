@@ -1,3 +1,17 @@
+/**
+ * /api/resellers — List and create reseller/partner organizations.
+ *
+ * GET: Returns resellers from Zoho CRM with Redis caching (5-minute TTL).
+ *      Supports three access patterns:
+ *      - Admin: All active resellers
+ *      - Distributor (resellerId + includeChildren): Own + child resellers
+ *      - Standard reseller: Own record only
+ *      Also enriches each reseller with a user_count from PostgreSQL.
+ *
+ * POST: Creates a new reseller in Zoho CRM. Admin-only.
+ *       Invalidates all cached reseller lists after creation.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { callMcpTool, executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { query } from '@/lib/db';
@@ -157,6 +171,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/** Extract data array from an MCP tool result. */
 function parseResult(r: unknown): Record<string, unknown>[] {
   const res = r as { content?: Array<{ text?: string }> };
   if (res?.content) {
@@ -172,6 +187,7 @@ function parseResult(r: unknown): Record<string, unknown>[] {
   return [];
 }
 
+/** Normalize a Zoho reseller record into the shape the frontend expects. */
 function mapReseller(r: Record<string, unknown>) {
   const distributor = r.Distributor as { id?: string } | null;
   return {

@@ -1,3 +1,21 @@
+/**
+ * CreateAccountView — Create a new customer account with a primary contact.
+ *
+ * Three-step creation flow:
+ * 1. Fill account details (name, country, reseller, address)
+ * 2. Fill primary contact details (name, email, phone, title)
+ * 3. Submit: creates account -> creates contact -> sets as primary contact
+ *
+ * Features:
+ * - Duplicate detection before creation (searches by account name and email domain)
+ * - Searchable country dropdown (200+ countries)
+ * - Searchable reseller selector (admin/distributor) or auto-assigned (standard users)
+ * - "Create Anyway" bypass if duplicates are found
+ * - Viewer role users see a permission denied message
+ *
+ * Data: Creates via /api/accounts (POST) + /api/contacts (POST) + /api/accounts/[id] (PATCH).
+ */
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';

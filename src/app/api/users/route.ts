@@ -1,3 +1,15 @@
+/**
+ * /api/users — List and create user accounts.
+ *
+ * GET: Lists users from PostgreSQL, optionally filtered by reseller
+ *      (with distributor child inclusion). Requires canManageUsers permission.
+ *
+ * POST: Creates a new user account with Zod-validated input.
+ *       Resolves the user_role by name and verifies the reseller exists.
+ *       Defaults to 'csa-internal' reseller if none specified.
+ *       All actions are audit-logged.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createUser, auditLog } from '@/lib/auth';
 import { query } from '@/lib/db';

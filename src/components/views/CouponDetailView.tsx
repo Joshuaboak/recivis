@@ -1,3 +1,17 @@
+/**
+ * CouponDetailView — View a single coupon's configuration and restrictions.
+ *
+ * Displays:
+ * - Discount type and value (percentage or fixed amount)
+ * - Currency, validity period, and usage counts
+ * - Restriction sections: regions, partners, products, order types, order value
+ * - Link to open the coupon record directly in Zoho CRM
+ *
+ * Data: Fetches from /api/coupons/[id].
+ * Zoho stores multi-select picklists as semicolon-delimited strings or arrays;
+ * the toArray() helper normalizes both formats.
+ */
+
 'use client';
 
 import { useState, useEffect } from 'react';

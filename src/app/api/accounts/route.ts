@@ -1,3 +1,15 @@
+/**
+ * /api/accounts — Browse and create customer accounts in Zoho CRM.
+ *
+ * GET: Fetches accounts with optional search and reseller filtering.
+ *      Uses word search (Zoho full-text) when a search term is provided without
+ *      reseller filtering, or criteria-based search when filters are active.
+ *      Falls back to Get_Records (browse all) when no filters are set.
+ *
+ * POST: Creates a new account in Zoho CRM. Does not trigger workflows
+ *       (workflows are triggered on the contact creation that typically follows).
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { searchAllPages, getAllRecordPages, parseMcpResult, callMcpTool, executeZohoTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';

@@ -1,3 +1,22 @@
+/**
+ * CreateInvoiceView — Build and submit a new product invoice.
+ *
+ * Pre-populated from newInvoiceContext (set by AccountDetailView):
+ * - Account, contact, reseller, owner, billing country
+ * - Reseller currency and region (fetched on load)
+ *
+ * Features:
+ * - Editable dates (invoice date, due date) and currency selector
+ * - Line item builder with SKUBuilder modal for product selection
+ * - Per-line editable quantity and list price
+ * - Auto-calculated subtotal
+ * - On save: creates Draft invoice in Zoho CRM, then navigates to detail view
+ *
+ * Contract_Term_Years logic: If the user modifies the list price from the
+ * product's default unit price, Contract_Term_Years is set to 0 to signal
+ * the Zoho workflow that custom pricing was applied.
+ */
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -138,7 +157,7 @@ export default function CreateInvoiceView() {
         return item;
       });
 
-      // Map reseller region to the SKU region format for Zoho
+      // Map reseller region codes (AU, NZ) to SKU region codes (ANZ) for Zoho
       const REGION_MAP: Record<string, string> = {
         AU: 'ANZ', NZ: 'ANZ', AF: 'AF', AS: 'AS', EU: 'EU', NA: 'NA', WW: 'WW',
       };

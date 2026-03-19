@@ -1,3 +1,17 @@
+/**
+ * /api/assets — Asset management and QLM licence operations.
+ *
+ * GET:   Fetch a full asset record from Zoho CRM by ID.
+ * POST:  Load QLM licence key details for an asset (calls a Deluge function
+ *        that queries the QLM licence server and returns activation info).
+ * PATCH: Update asset fields (Renewal_Date, Status). Triggers Zoho workflows.
+ * PUT:   Release/deactivate a licence via the QLM interface (calls a Deluge
+ *        function that contacts the QLM server to release the activation).
+ *
+ * Note: The Zoho module is named "Assets1" (not "Assets") — Zoho reserves "Assets"
+ * as a system module name, so CSA's custom module uses the "1" suffix.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
@@ -58,7 +72,8 @@ export async function POST(request: NextRequest) {
     const res = await fetch(url, { method: 'POST' });
     const result = await res.json();
 
-    // Parse key details from the last userMessage entry (JSON string)
+    // The Deluge function returns key details as JSON in the last userMessage entry.
+    // Activation errors are returned as XML in the output field.
     let keyDetails: Record<string, string> | null = null;
     let activationError: string | null = null;
 

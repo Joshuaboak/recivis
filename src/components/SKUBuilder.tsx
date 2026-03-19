@@ -1,3 +1,23 @@
+/**
+ * SKUBuilder — Interactive product selection wizard (modal).
+ *
+ * Walks the user through a 4-step SKU configuration:
+ * 1. Product: CSD, CSP, Stringer, or Corridor EZ
+ * 2. User Type: Single User (SU) or Multi User (MU) — skipped for CSP
+ * 3. Licensing: Cloud (CL), Computer Bound (CB), or On Premise (OP) — skipped for CSP
+ * 4. Model: Perpetual (INF) or Subscription (SUB)
+ *
+ * After the final step, builds a SKU string (e.g. "CSD-SU-CL-COM-1YR-SUB-ANZ")
+ * and searches for the matching product in Zoho CRM via /api/products.
+ * Returns the product ID, name, SKU, and unit price to the parent component.
+ *
+ * CSP (Civil Site Design Plus) has fixed user type (SU) and licensing (CB),
+ * so steps 2 and 3 are skipped. The version defaults to the latest.
+ *
+ * Region is provided by the parent (from the reseller's region) and mapped
+ * to the SKU format (AU/NZ -> ANZ, etc.).
+ */
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';

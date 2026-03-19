@@ -1,3 +1,19 @@
+/**
+ * LoginView — Authentication screen with login, forgot password, and reset password.
+ *
+ * Three views managed by internal state:
+ * - login: Email + password form. On success, sets user in Zustand store.
+ * - forgot: Email-only form to request a password reset link via email.
+ * - reset: New password form, triggered when a ?reset=token URL param is present.
+ *
+ * Security:
+ * - Password reset tokens are checked via URL params on mount (stripped from URL after reading)
+ * - The JWT is set as an HTTP-only cookie by the /api/auth endpoint
+ * - Error messages do not reveal whether an email exists in the system
+ *
+ * This component renders when user is null in the store (before authentication).
+ */
+
 'use client';
 
 import { useState, useEffect } from 'react';

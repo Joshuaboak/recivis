@@ -1,3 +1,15 @@
+/**
+ * DashboardView — Landing page after login.
+ *
+ * Features:
+ * - Personalised greeting based on time of day
+ * - Quick action cards (New Invoice, Renewal, Accounts, Existing Invoices)
+ * - Recent accounts table (last 8 modified accounts from Zoho CRM)
+ * - Getting started tips and helpful links
+ *
+ * Data: Fetches recent accounts from /api/accounts on mount.
+ */
+
 'use client';
 
 import { useState, useEffect } from 'react';

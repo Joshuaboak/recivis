@@ -1,3 +1,19 @@
+/**
+ * AccountsView — Browse and search customer accounts.
+ *
+ * Features:
+ * - Paginated account list (50 per page) with client-side pagination
+ * - Debounced search (400ms) by name, email, or domain
+ * - Region filter (admin/ibm only) — filters the reseller dropdown too
+ * - Reseller filter (admin sees all; distributors see own + children)
+ * - XLSX export with contacts and assets for all visible accounts
+ * - Click any row to navigate to AccountDetailView
+ *
+ * Data: Fetches from /api/accounts with search/reseller query params.
+ * The API auto-paginates across Zoho pages; client-side pagination
+ * is for display only (all matching records are loaded at once).
+ */
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';

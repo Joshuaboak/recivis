@@ -1,3 +1,13 @@
+/**
+ * /api/invoices — List and create invoices in Zoho CRM.
+ *
+ * GET: Fetches all invoices matching the given status, with optional reseller filtering.
+ *      Auto-paginates across Zoho pages (up to 2000 records). Excludes trashed records.
+ *
+ * POST: Creates a new invoice in Draft status. Requires canCreateInvoices permission.
+ *       Triggers Zoho workflows on creation (e.g. auto-numbering, notifications).
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { searchAllPages, executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
@@ -21,6 +31,7 @@ export async function GET(request: NextRequest) {
   try {
     const fields = 'Subject,Reference_Number,Account_Name,Invoice_Date,Status,Grand_Total,Currency,Invoice_Type,Reseller,Record_Status__s';
 
+    // Build Zoho COQL criteria — supports single reseller, multiple resellers, or all
     let criteria: string;
 
     if (resellerId) {

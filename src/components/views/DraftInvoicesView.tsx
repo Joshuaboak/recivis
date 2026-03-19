@@ -1,3 +1,20 @@
+/**
+ * DraftInvoicesView — Browse, filter, sort, and export invoices.
+ *
+ * Features:
+ * - Status filter (Draft / Approved / Sent) — fetches from API per status
+ * - Client-side search across invoice #, subject, and account name
+ * - Client-side type filter (New Product, Renewal, Co-Term, Add To Contract)
+ * - Region and reseller filters (admin/ibm and distributor views)
+ * - Sortable columns: Invoice #, Date, Total (with visual sort indicators)
+ * - Paginated (50 per page) with top/bottom pagination controls
+ * - XLSX export of current filtered/sorted view
+ * - Click any row to navigate to InvoiceDetailView
+ *
+ * Data: Fetches from /api/invoices with status and reseller params.
+ * All matching records are loaded at once; sorting/filtering/search are client-side.
+ */
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';

@@ -1,3 +1,12 @@
+/**
+ * /api/resellers/[id] — Reseller detail and update.
+ *
+ * GET: Fetches the reseller record from Zoho CRM and its users from PostgreSQL.
+ *      Handles the CSA internal reseller ID mapping (csa-internal <-> Zoho ID).
+ *
+ * PATCH: Updates reseller fields in Zoho CRM. Admin-only.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { query } from '@/lib/db';

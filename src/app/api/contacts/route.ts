@@ -1,3 +1,11 @@
+/**
+ * POST /api/contacts — Create a new contact in Zoho CRM.
+ *
+ * Validates input with Zod schema, then creates the contact record.
+ * Triggers Zoho workflows on creation (e.g. email domain extraction).
+ * Used by the Create Account flow to create the primary contact.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';

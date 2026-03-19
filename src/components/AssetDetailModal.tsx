@@ -1,3 +1,21 @@
+/**
+ * AssetDetailModal — Full asset and licence key detail overlay.
+ *
+ * Shows two sections:
+ * 1. Asset info from Zoho CRM: product, status, dates, quantity, upgrade chain
+ * 2. QLM licence key details: licence model, version, seats, activations,
+ *    registered user, computer name, creation date, subscription expiry
+ *
+ * Admin/IBM actions:
+ * - Edit renewal date (with auto-reactivation if new date is in the future)
+ * - Deactivate licence (release activation via QLM for device transfer)
+ *
+ * Data: Fetches full asset from /api/assets?id=... and QLM details from
+ * POST /api/assets with assetId. Licence release via PUT /api/assets.
+ *
+ * Closes on Escape key or backdrop click.
+ */
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';

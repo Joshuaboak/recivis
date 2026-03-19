@@ -1,3 +1,17 @@
+/**
+ * Sidebar — Collapsible navigation panel with animated submenus.
+ *
+ * Features:
+ * - Animated collapse/expand (260px <-> 72px icon-only mode)
+ * - Nested submenus for Accounts, Invoices, and Partners sections
+ * - Active view indicator with animated accent bar (Framer Motion layoutId)
+ * - CRM connection status indicator
+ * - User menu (profile, logout) at the bottom
+ *
+ * Clears chat messages when navigating between views to prevent
+ * stale conversation context from leaking across views.
+ */
+
 'use client';
 
 import { useState } from 'react';

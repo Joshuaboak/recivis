@@ -1,3 +1,12 @@
+/**
+ * /api/invoices/[id] — Invoice detail and field updates.
+ *
+ * GET:   Fetches the full invoice record including line items (Invoiced_Items subform).
+ * PATCH: Updates invoice fields. Supports dates, currency, PO number, direct
+ *        purchase flag, and line item modifications. Only allows specific fields
+ *        to prevent accidental data corruption.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';

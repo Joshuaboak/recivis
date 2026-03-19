@@ -1,3 +1,21 @@
+/**
+ * AccountDetailView — Full account profile with contacts, assets, and invoices.
+ *
+ * Features:
+ * - Account info card with editable billing address and reseller assignment
+ * - Contacts list with add/remove, primary/secondary role assignment
+ * - Active assets table with renewal invoice generation (select assets -> generate)
+ * - Archived assets section (collapsed by default)
+ * - Invoice history with links to InvoiceDetailView
+ * - "New Invoice" button that pre-fills CreateInvoiceView with account context
+ * - Asset detail modal (click any asset to view QLM licence details)
+ * - XLSX export (full account, contacts only, invoices only, or assets only)
+ * - Direct link to the account in Zoho CRM
+ *
+ * Data: Fetches from /api/accounts/[id] which returns account + related records.
+ * Permissions: Address/reseller editing is admin/ibm only.
+ */
+
 'use client';
 
 import { useState, useEffect } from 'react';

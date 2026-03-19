@@ -1,3 +1,18 @@
+/**
+ * /api/coupons — List and create discount coupons.
+ *
+ * GET: Returns all coupons from Zoho CRM with Redis caching (2-minute TTL).
+ *
+ * POST: Two-step coupon creation (admin-only):
+ *   1. Creates the Coupon record via the Zoho REST API (not MCP, because the
+ *      MCP endpoint is not authorised for Coupons module writes)
+ *   2. Calls a Deluge function to create the associated Discount Product record
+ *      (the product that gets added as a negative line item on invoices)
+ *
+ * Auth for writes uses a reseller-scoped OAuth token fetched via a Deluge function,
+ * since the MCP key doesn't have Coupons write permission.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllRecordPages } from '@/lib/zoho';
 import { log } from '@/lib/logger';
@@ -6,14 +21,17 @@ import { cacheGet, cacheSet, cacheInvalidatePattern } from '@/lib/cache';
 
 const FIELDS = 'Name,Coupon_Name,Coupon_Description,Discount_Type,Discount_Percentage,Discount_Amount,Currency,Status,Coupon_Start_Date,Coupon_End_Date,Total_Usage_Allowance,Remaining_Uses,Region_Restrictions,Regions,Partner_Restrictions,Partners,Product_Restrictions,Allowed_Products,Order_Type_Restrictions,Order_Type,Usage_Restrictions,Minimum_Order_Value,Maximum_Order_Value,Discount_Product,Record_Status__s';
 
+/** Build the URL for the Deluge function that returns a scoped OAuth token. */
 function getTokenUrl(): string {
   const key = process.env.ZOHO_API_KEY;
   if (!key) throw new Error('ZOHO_API_KEY not set');
   return `https://www.zohoapis.com.au/crm/v7/functions/getresellerzohotoken/actions/execute?auth_type=apikey&zapikey=${key}&arguments=%7B%22resellerName%22%3A%22Civil%20Survey%20Applications%22%7D`;
 }
 
+/** In-memory cache for the OAuth token (1-hour TTL with 1-minute buffer). */
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
+/** Fetch or return a cached OAuth token for Zoho REST API calls. */
 async function getAccessToken(): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt - 60000) return cachedToken.token;
   const res = await fetch(getTokenUrl(), { method: 'POST' });

@@ -1,3 +1,29 @@
+/**
+ * ResellerManagementView — Manage partner organizations and their users.
+ *
+ * Two display modes controlled by selectedResellerId in the store:
+ *
+ * 1. Grid mode (no reseller selected):
+ *    - Shows reseller cards with name, region, category, user count
+ *    - Search filter, region filter (admin only), category filter
+ *    - "Create Reseller" form (admin only) with name, region, currency, category
+ *    - Click a card to enter detail mode
+ *
+ * 2. Detail mode (reseller selected):
+ *    - Reseller info with editable fields (admin: region, currency, category, email)
+ *    - User list with role badges, active/inactive status
+ *    - Create user form (name, email, password, role)
+ *    - Edit user role, toggle active status, reset password
+ *    - Link to open the reseller in Zoho CRM
+ *
+ * Permissions:
+ * - Admin/IBM: See all resellers, create resellers, create any role
+ * - Managers: See own + child resellers, create viewer/standard/manager roles
+ * - Others: Only see their own reseller
+ *
+ * Data: /api/resellers (list), /api/resellers/[id] (detail + users), /api/users (CRUD).
+ */
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
