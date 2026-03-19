@@ -222,9 +222,17 @@ function ResellerDetailView() {
     setEditFields({
       Name: reseller.Name as string || '',
       Email: reseller.Email as string || '',
+      Secondary_Email: reseller.Secondary_Email as string || '',
       Region: reseller.Region as string || '',
       Currency: reseller.Currency as string || '',
       Partner_Category: reseller.Partner_Category as string || '',
+      Street_Address: reseller.Street_Address as string || '',
+      City: reseller.City as string || '',
+      State: reseller.State as string || '',
+      Post_Code: reseller.Post_Code as string || '',
+      Country: reseller.Country as string || '',
+      Reseller_First_Name: reseller.Reseller_First_Name as string || '',
+      Reseller_Last_Name: reseller.Reseller_Last_Name as string || '',
     });
     setEditingReseller(true);
   };
@@ -320,14 +328,44 @@ function ResellerDetailView() {
         {/* Info Cards / Edit Form */}
         {editingReseller ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-surface border border-csa-accent/40 rounded-xl p-5 mb-8">
+            <h3 className="text-sm font-bold text-csa-accent mb-3">Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-              {['Name', 'Email', 'Region', 'Currency', 'Partner_Category'].map(field => (
-                <div key={field}>
-                  <label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">{field.replace('_', ' ')}</label>
-                  <input type="text" value={editFields[field] || ''} onChange={e => setEditFields(p => ({ ...p, [field]: e.target.value }))}
+              {[
+                { key: 'Name', label: 'Name' }, { key: 'Email', label: 'Email' }, { key: 'Secondary_Email', label: 'Secondary Email' },
+                { key: 'Region', label: 'Region' }, { key: 'Currency', label: 'Currency' }, { key: 'Partner_Category', label: 'Partner Category' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">{f.label}</label>
+                  <input type="text" value={editFields[f.key] || ''} onChange={e => setEditFields(p => ({ ...p, [f.key]: e.target.value }))}
                     className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" />
                 </div>
               ))}
+            </div>
+            <h3 className="text-sm font-bold text-csa-accent mb-3">Contact</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              <div><label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">First Name</label>
+                <input type="text" value={editFields.Reseller_First_Name || ''} onChange={e => setEditFields(p => ({ ...p, Reseller_First_Name: e.target.value }))}
+                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" /></div>
+              <div><label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">Last Name</label>
+                <input type="text" value={editFields.Reseller_Last_Name || ''} onChange={e => setEditFields(p => ({ ...p, Reseller_Last_Name: e.target.value }))}
+                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" /></div>
+            </div>
+            <h3 className="text-sm font-bold text-csa-accent mb-3">Address</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              <div className="md:col-span-2"><label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">Street</label>
+                <input type="text" value={editFields.Street_Address || ''} onChange={e => setEditFields(p => ({ ...p, Street_Address: e.target.value }))}
+                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" /></div>
+              <div><label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">City</label>
+                <input type="text" value={editFields.City || ''} onChange={e => setEditFields(p => ({ ...p, City: e.target.value }))}
+                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" /></div>
+              <div className="flex gap-2">
+                <div className="flex-1"><label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">State</label>
+                  <input type="text" value={editFields.State || ''} onChange={e => setEditFields(p => ({ ...p, State: e.target.value }))}
+                    className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" /></div>
+                <div className="flex-1"><label className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider mb-1 block">Post Code</label>
+                  <input type="text" value={editFields.Post_Code || ''} onChange={e => setEditFields(p => ({ ...p, Post_Code: e.target.value }))}
+                    className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg" /></div>
+              </div>
             </div>
             <div className="flex gap-2">
               <button onClick={() => setEditingReseller(false)} className="px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl cursor-pointer">Cancel</button>
@@ -338,12 +376,19 @@ function ResellerDetailView() {
           </motion.div>
         ) : (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            <InfoCard label="Contact" value={[reseller.Reseller_First_Name, reseller.Reseller_Last_Name].filter(Boolean).join(' ') || '\u2014'} icon={<Users size={14} />} />
             <InfoCard label="Email" value={reseller.Email as string || '\u2014'} icon={<Mail size={14} />} />
+            {reseller.Secondary_Email ? <InfoCard label="Secondary Email" value={reseller.Secondary_Email as string} icon={<Mail size={14} />} /> : null}
             <InfoCard label="Region" value={REGION_LABELS[reseller.Region as string] || (reseller.Region as string) || '\u2014'} icon={<Globe size={14} />} />
             <InfoCard label="Currency" value={reseller.Currency as string || '\u2014'} icon={<DollarSign size={14} />} />
             <InfoCard label="Partner Category" value={reseller.Partner_Category as string || '\u2014'} icon={<Building2 size={14} />} />
             {distributor ? <InfoCard label="Distributor" value={distributor.name || '\u2014'} icon={<Building2 size={14} />} /> : null}
-            <InfoCard label="Users" value={String(users.length)} icon={<Users size={14} />} />
+            <InfoCard label="Direct Customer Contact" value={reseller.Direct_Customer_Contact ? 'Yes' : 'No'} icon={<Phone size={14} />} />
+            {reseller.Street_Address || reseller.City ? (
+              <InfoCard label="Address" value={[reseller.Street_Address, reseller.City, reseller.State, reseller.Post_Code, reseller.Country].filter(Boolean).join(', ') as string} icon={<Building2 size={14} />} />
+            ) : null}
+            {reseller.Owner ? <InfoCard label="CSA Account Manager" value={(reseller.Owner as { name?: string })?.name || '\u2014'} icon={<Users size={14} />} /> : null}
+            <InfoCard label="Portal Users" value={String(users.length)} icon={<Users size={14} />} />
           </motion.div>
         )}
 
