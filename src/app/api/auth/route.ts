@@ -56,10 +56,20 @@ export async function POST(request: NextRequest) {
     await auditLog(null, normalizedEmail, 'login_success');
     log('info', 'auth', `User logged in: ${result.user.name} (${result.user.role})`);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       user: result.user,
-      token: result.token,
     });
+
+    // Set HTTP-only cookie with JWT — automatically sent with all subsequent requests
+    response.cookies.set('recivis-token', result.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24, // 24 hours (matches JWT expiry)
+    });
+
+    return response;
   } catch (error) {
     log('error', 'auth', 'Auth error', {
       error: error instanceof Error ? error.message : String(error),

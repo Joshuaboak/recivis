@@ -1,7 +1,8 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, resetSession } from '@/lib/zoho';
 import { toolDefinitions, getSystemPrompt } from '@/lib/ai-tools';
 import { log } from '@/lib/logger';
+import { requireAuth } from '@/lib/api-auth';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -36,6 +37,10 @@ function convertTools() {
 }
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   const encoder = new TextEncoder();
   const requestStart = Date.now();
 

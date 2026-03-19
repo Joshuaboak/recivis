@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { requireAuth, isAdmin } from '@/lib/api-auth';
 
 /**
  * POST /api/renewals — generate renewal invoices for selected assets
@@ -17,6 +18,14 @@ import { log } from '@/lib/logger';
  * }
  */
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
+  if (!user.permissions.canCreateInvoices && !isAdmin(user)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
     const assetIds = body.asset_ids as string[];

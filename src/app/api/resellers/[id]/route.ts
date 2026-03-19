@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { query } from '@/lib/db';
 import { log } from '@/lib/logger';
+import { requireAuth, isAdmin } from '@/lib/api-auth';
 
 // Map csa-internal to the actual Zoho reseller ID for CSA
 const CSA_ZOHO_ID = '55779000000560184';
@@ -14,6 +15,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   const { id } = await params;
 
   try {
@@ -57,6 +62,14 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
+  if (!isAdmin(user)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const { id } = await params;
   try {
     const body = await request.json();

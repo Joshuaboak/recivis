@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createUser, auditLog } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { log } from '@/lib/logger';
+import { requireAuth, isAdmin } from '@/lib/api-auth';
 
 /**
  * GET /api/users — list users (for admins/managers)
@@ -9,6 +10,14 @@ import { log } from '@/lib/logger';
  */
 
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
+  if (!user.permissions.canManageUsers && !isAdmin(user)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const resellerId = searchParams.get('resellerId');
@@ -45,6 +54,14 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
+  if (!user.permissions.canManageUsers && !isAdmin(user)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const { email, password, name, resellerId, userRoleName } = await request.json();
 

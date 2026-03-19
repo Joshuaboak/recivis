@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
+import { requireAuth } from '@/lib/api-auth';
 
 /**
  * Attach a file to any Zoho CRM record.
@@ -7,7 +8,11 @@ import { log } from '@/lib/logger';
  * 2. Uploads the file directly to Zoho CRM Attachments REST API (multipart/form-data)
  */
 
-const TOKEN_URL = 'https://www.zohoapis.com.au/crm/v7/functions/getresellerzohotoken/actions/execute?auth_type=apikey&zapikey=1003.c34f94ef513dd69ce6eada9d6d97dc31.35c2e6e02fc62c21dfcfb5c3391e8e6d&arguments=%7B%22resellerName%22%3A%22Civil%20Survey%20Applications%22%7D';
+function getTokenUrl(): string {
+  const key = process.env.ZOHO_API_KEY;
+  if (!key) throw new Error('ZOHO_API_KEY not set');
+  return `https://www.zohoapis.com.au/crm/v7/functions/getresellerzohotoken/actions/execute?auth_type=apikey&zapikey=${key}&arguments=%7B%22resellerName%22%3A%22Civil%20Survey%20Applications%22%7D`;
+}
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -16,7 +21,7 @@ async function getAccessToken(): Promise<string> {
     return cachedToken.token;
   }
 
-  const res = await fetch(TOKEN_URL, { method: 'POST' });
+  const res = await fetch(getTokenUrl(), { method: 'POST' });
   if (!res.ok) {
     throw new Error(`Token fetch failed: ${res.status}`);
   }
@@ -38,6 +43,10 @@ async function getAccessToken(): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   try {
     const { recordID, fileName, base64, moduleName } = await request.json();
 

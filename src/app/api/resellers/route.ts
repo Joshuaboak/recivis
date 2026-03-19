@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { callMcpTool, executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { query } from '@/lib/db';
 import { log } from '@/lib/logger';
+import { requireAuth, isAdmin } from '@/lib/api-auth';
 
 const CSA_ZOHO_ID = '55779000000560184';
 const CSA_INTERNAL_ID = 'csa-internal';
@@ -15,6 +16,10 @@ const CSA_INTERNAL_ID = 'csa-internal';
  * - resellerId only: own reseller only
  */
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   try {
     const { searchParams } = new URL(request.url);
     const resellerId = searchParams.get('resellerId');
@@ -104,6 +109,14 @@ export async function GET(request: NextRequest) {
  * POST /api/resellers — create a new reseller in Zoho
  */
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
+  if (!isAdmin(user)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
 

@@ -94,7 +94,7 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
                 </button>
               )}
               <button
-                onClick={() => { setMenuOpen(false); setUser(null); }}
+                onClick={async () => { setMenuOpen(false); await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {}); setUser(null); }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-raised hover:text-error transition-colors cursor-pointer"
               >
                 <LogOut size={16} />

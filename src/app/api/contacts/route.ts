@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { requireAuth } from '@/lib/api-auth';
 
 /**
  * POST /api/contacts — create a new contact
  * Body: { First_Name, Last_Name, Email, Phone, Account_Name: { id } }
  */
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   try {
     const body = await request.json();
 

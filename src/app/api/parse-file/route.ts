@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/api-auth';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const VISION_MODEL = 'google/gemini-3.1-flash-image-preview';
@@ -29,6 +30,10 @@ Also note:
 Return the extracted data as structured text. Be thorough — include every detail you can read from the document.`;
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   try {
     const { base64, mediaType, fileName } = await request.json();
 

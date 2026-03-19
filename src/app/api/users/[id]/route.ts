@@ -3,6 +3,7 @@ import { query } from '@/lib/db';
 import { auditLog } from '@/lib/auth';
 import { log } from '@/lib/logger';
 import bcrypt from 'bcryptjs';
+import { requireAuth, isAdmin } from '@/lib/api-auth';
 
 /**
  * PATCH /api/users/[id] — update user (role, reseller, active status, name)
@@ -11,6 +12,14 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
+  if (!user.permissions.canManageUsers && !isAdmin(user)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const { id } = await params;
 
   try {
@@ -73,6 +82,14 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
+  if (!user.permissions.canManageUsers && !isAdmin(user)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const { id } = await params;
 
   try {

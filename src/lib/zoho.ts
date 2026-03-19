@@ -309,9 +309,8 @@ export async function executeZohoTool(
     case 'call_renewal_function': {
       const assetIds = args.asset_ids as string[];
       const assetIDString = assetIds.join('|||');
-      const zapikey =
-        process.env.ZOHO_API_KEY ||
-        '1003.c34f94ef513dd69ce6eada9d6d97dc31.35c2e6e02fc62c21dfcfb5c3391e8e6d';
+      const zapikey = process.env.ZOHO_API_KEY;
+      if (!zapikey) throw new Error('ZOHO_API_KEY not set');
       const url = `https://www.zohoapis.com.au/crm/v2/functions/generaterenewalinvoicesforassets/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${encodeURIComponent(
         JSON.stringify({ buttonPusher: 'claude', assetIDString })
       )}`;

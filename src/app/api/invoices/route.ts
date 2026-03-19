@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchAllPages, executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { requireAuth, isAdmin } from '@/lib/api-auth';
 
 /**
  * GET /api/invoices?status=Draft&resellerId=id&resellerIds=id1,id2,id3
@@ -8,6 +9,10 @@ import { log } from '@/lib/logger';
  * Fetches ALL matching invoices across pages (up to 2000).
  */
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'Draft';
   const resellerId = searchParams.get('resellerId');
@@ -53,6 +58,14 @@ export async function GET(request: NextRequest) {
  * POST /api/invoices — create a new invoice
  */
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
+  if (!user.permissions.canCreateInvoices && !isAdmin(user)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
 

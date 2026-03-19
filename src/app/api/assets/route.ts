@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { requireAuth } from '@/lib/api-auth';
 
 /**
  * GET /api/assets?id=xxx — get full asset record
@@ -8,6 +9,10 @@ import { log } from '@/lib/logger';
  * Body: { assetId: string }
  */
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
@@ -31,6 +36,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   try {
     const body = await request.json();
     const assetId = body.assetId as string;
@@ -39,9 +48,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'assetId required' }, { status: 400 });
     }
 
-    const zapikey =
-      process.env.ZOHO_API_KEY ||
-      '1003.c34f94ef513dd69ce6eada9d6d97dc31.35c2e6e02fc62c21dfcfb5c3391e8e6d';
+    const zapikey = process.env.ZOHO_API_KEY;
+    if (!zapikey) return NextResponse.json({ error: 'ZOHO_API_KEY not configured' }, { status: 500 });
 
     const url = `https://www.zohoapis.com.au/crm/v7/functions/qlminterfaceloadkeydetails/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${encodeURIComponent(
       JSON.stringify({ assetID: assetId })
@@ -88,6 +96,10 @@ export async function POST(request: NextRequest) {
  * Body: { assetId, Renewal_Date, Status? }
  */
 export async function PATCH(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   try {
     const body = await request.json();
     const assetId = body.assetId as string;
@@ -121,6 +133,10 @@ export async function PATCH(request: NextRequest) {
  * Body: { assetId }
  */
 export async function PUT(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   try {
     const body = await request.json();
     const assetId = body.assetId as string;
@@ -128,9 +144,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'assetId required' }, { status: 400 });
     }
 
-    const zapikey =
-      process.env.ZOHO_API_KEY ||
-      '1003.c34f94ef513dd69ce6eada9d6d97dc31.35c2e6e02fc62c21dfcfb5c3391e8e6d';
+    const zapikey = process.env.ZOHO_API_KEY;
+    if (!zapikey) return NextResponse.json({ error: 'ZOHO_API_KEY not configured' }, { status: 500 });
 
     const url = `https://www.zohoapis.com.au/crm/v7/functions/qlminterfacereleaselicense/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${encodeURIComponent(
       JSON.stringify({ assetID: assetId })

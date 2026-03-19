@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
+import { requireAuth } from '@/lib/api-auth';
 
 /**
  * GET /api/products?sku=CSD-SU-CL-COM-1YR-SUB-ANZ
  * Search products by Product_Code (SKU).
  */
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   const { searchParams } = new URL(request.url);
   const sku = searchParams.get('sku');
 

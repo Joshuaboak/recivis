@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchAllPages } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { requireAuth } from '@/lib/api-auth';
 
 /**
  * POST /api/coupons/validate — validate a coupon code against invoice context
@@ -8,6 +9,10 @@ import { log } from '@/lib/logger';
  * Returns: { valid, coupon, error?, discountProductId?, discountAmount? }
  */
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   try {
     const body = await request.json();
     const { code, resellerRegion, resellerId, invoiceType, subtotal } = body;

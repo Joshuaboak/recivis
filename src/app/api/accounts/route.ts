@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchAllPages, getAllRecordPages, parseMcpResult, callMcpTool, executeZohoTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { requireAuth } from '@/lib/api-auth';
 
 /**
  * GET /api/accounts?search=term&resellerId=id&resellerIds=id1,id2,id3
@@ -8,6 +9,10 @@ import { log } from '@/lib/logger';
  * Fetches ALL matching accounts across pages (up to 2000).
  */
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search') || '';
   const resellerId = searchParams.get('resellerId');
@@ -78,6 +83,10 @@ export async function GET(request: NextRequest) {
  * POST /api/accounts — create a new account
  */
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
   try {
     const body = await request.json();
 
