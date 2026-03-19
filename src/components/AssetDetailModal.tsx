@@ -26,6 +26,7 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
   const [savingDate, setSavingDate] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [deactivateMessage, setDeactivateMessage] = useState<string | null>(null);
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const loadData = useCallback(() => {
@@ -143,7 +144,7 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
           <div className="flex items-center gap-2">
             {isEditor && keyDetails ? (
               <button
-                onClick={deactivateLicence}
+                onClick={() => setShowDeactivateConfirm(true)}
                 disabled={deactivating}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-error bg-error/10 border border-error/30 rounded-xl hover:bg-error/20 transition-colors cursor-pointer disabled:opacity-50"
               >
@@ -300,6 +301,35 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
           )}
         </div>
       </div>
+
+      {/* Deactivate Confirmation */}
+      {showDeactivateConfirm ? (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onClick={() => setShowDeactivateConfirm(false)}>
+          <div className="bg-csa-dark border-2 border-error/30 rounded-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <ShieldOff size={20} className="text-error" />
+              <h4 className="text-base font-bold text-text-primary">Deactivate Licence</h4>
+            </div>
+            <p className="text-sm text-text-secondary mb-5">
+              Deactivating will remove and disable the existing activation and allow activation on another device.
+            </p>
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={() => setShowDeactivateConfirm(false)}
+                className="px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowDeactivateConfirm(false); deactivateLicence(); }}
+                className="px-4 py-2 text-xs font-semibold text-white bg-error border border-error rounded-xl hover:bg-error/80 transition-colors cursor-pointer"
+              >
+                Deactivate
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
