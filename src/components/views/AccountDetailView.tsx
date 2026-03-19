@@ -2,13 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Pencil, Save } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
 
+interface ResellerOption {
+  id: string;
+  name: string;
+  region: string;
+}
+
 export default function AccountDetailView() {
-  const { selectedAccountId, setCurrentView, setSelectedInvoiceId, setInvoiceReturnView, setNewInvoiceContext } = useAppStore();
+  const { user, selectedAccountId, setCurrentView, setSelectedInvoiceId, setInvoiceReturnView, setNewInvoiceContext } = useAppStore();
   const [account, setAccount] = useState<Record<string, unknown> | null>(null);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
   const [activeAssets, setActiveAssets] = useState<Record<string, unknown>[]>([]);
@@ -28,6 +34,21 @@ export default function AccountDetailView() {
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
   const [generatingRenewal, setGeneratingRenewal] = useState(false);
   const [viewingAsset, setViewingAsset] = useState<Record<string, unknown> | null>(null);
+
+  // Address editing
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [editAddress, setEditAddress] = useState({ street: '', city: '', state: '', code: '', country: '' });
+  const [savingAddress, setSavingAddress] = useState(false);
+
+  // Reseller editing
+  const [editingReseller, setEditingReseller] = useState(false);
+  const [resellerOptions, setResellerOptions] = useState<ResellerOption[]>([]);
+  const [resellerSearch, setResellerSearch] = useState('');
+  const [savingReseller, setSavingReseller] = useState(false);
+
+  const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
+  const hasChildResellers = user?.permissions?.canViewChildRecords;
+  const canEditReseller = isAdmin || hasChildResellers;
 
   useEffect(() => {
     if (!selectedAccountId) return;
@@ -139,6 +160,74 @@ export default function AccountDetailView() {
     setUpdatingRole(null);
   };
 
+  // Load resellers for dropdown when editing starts
+  useEffect(() => {
+    if (!editingReseller || resellerOptions.length > 0) return;
+    let url = '/api/resellers';
+    if (!isAdmin && user?.resellerId) {
+      url = `/api/resellers?resellerId=${user.resellerId}&includeChildren=true`;
+    }
+    fetch(url)
+      .then(res => res.json())
+      .then(data => setResellerOptions(data.resellers || []))
+      .catch(() => {});
+  }, [editingReseller, isAdmin, user?.resellerId, resellerOptions.length]);
+
+  const saveReseller = async (resellerId: string) => {
+    setSavingReseller(true);
+    try {
+      const res = await fetch(`/api/accounts/${selectedAccountId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Reseller: resellerId }),
+      });
+      if (res.ok) {
+        const reload = await fetch(`/api/accounts/${selectedAccountId}`);
+        const data = await reload.json();
+        setAccount(data.account);
+        setEditingReseller(false);
+        setResellerSearch('');
+      }
+    } catch { /* handled */ }
+    setSavingReseller(false);
+  };
+
+  const startEditAddress = () => {
+    if (!account) return;
+    setEditAddress({
+      street: account.Billing_Street as string || '',
+      city: account.Billing_City as string || '',
+      state: account.Billing_State as string || '',
+      code: account.Billing_Code as string || '',
+      country: account.Billing_Country as string || '',
+    });
+    setEditingAddress(true);
+  };
+
+  const saveAddress = async () => {
+    setSavingAddress(true);
+    try {
+      const res = await fetch(`/api/accounts/${selectedAccountId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          Billing_Street: editAddress.street,
+          Billing_City: editAddress.city,
+          Billing_State: editAddress.state,
+          Billing_Code: editAddress.code,
+          Billing_Country: editAddress.country,
+        }),
+      });
+      if (res.ok) {
+        const reload = await fetch(`/api/accounts/${selectedAccountId}`);
+        const data = await reload.json();
+        setAccount(data.account);
+        setEditingAddress(false);
+      }
+    } catch { /* handled */ }
+    setSavingAddress(false);
+  };
+
   const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Accounts/${selectedAccountId}`;
 
   if (loading) {
@@ -208,28 +297,112 @@ export default function AccountDetailView() {
         {/* Account Info */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           <InfoCard label="Country" value={account.Billing_Country as string} icon={<MapPin size={14} />} />
-          <InfoCard label="Reseller" value={reseller?.name || '—'} icon={<Building2 size={14} />} />
+          {editingReseller ? (
+            <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3 relative">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-csa-accent uppercase tracking-wider">
+                  <Building2 size={14} />
+                  Reseller
+                </div>
+                <button onClick={() => { setEditingReseller(false); setResellerSearch(''); }} className="p-0.5 text-text-muted hover:text-text-primary transition-colors cursor-pointer"><X size={14} /></button>
+              </div>
+              <input
+                type="text"
+                value={resellerSearch}
+                onChange={e => setResellerSearch(e.target.value)}
+                placeholder="Search resellers..."
+                autoFocus
+                className="w-full bg-csa-dark border border-border-subtle px-3 py-1.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg mb-1"
+              />
+              {savingReseller ? (
+                <div className="flex items-center justify-center py-3">
+                  <Loader2 size={16} className="text-csa-accent animate-spin" />
+                </div>
+              ) : (
+                <div className="max-h-[160px] overflow-y-auto space-y-0.5">
+                  {resellerOptions
+                    .filter(r => !resellerSearch || r.name.toLowerCase().includes(resellerSearch.toLowerCase()))
+                    .map(r => (
+                      <button
+                        key={r.id}
+                        onClick={() => saveReseller(r.id)}
+                        className={`w-full text-left px-2 py-1.5 text-xs rounded-lg transition-colors cursor-pointer ${
+                          (account.Reseller as { id?: string })?.id === r.id
+                            ? 'text-csa-accent bg-csa-accent/10'
+                            : 'text-text-secondary hover:text-text-primary hover:bg-surface-raised'
+                        }`}
+                      >
+                        {r.name}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+                <Building2 size={14} />
+                Reseller
+                {canEditReseller ? (
+                  <button onClick={() => setEditingReseller(true)} className="ml-1 text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer opacity-0 group-hover:opacity-100">
+                    <Pencil size={10} />
+                  </button>
+                ) : null}
+              </div>
+              <p className="text-sm text-text-primary truncate">{reseller?.name || '\u2014'}</p>
+            </div>
+          )}
           <InfoCard label="CSA Sales Rep" value={owner?.name || '—'} icon={<User size={14} />} />
           <InfoCard label="Primary Contact" value={primaryContact?.name || '—'} icon={<User size={14} />} />
           <InfoCard label="Secondary Contact" value={secondaryContact?.name || '—'} icon={<User size={14} />} />
           <InfoCard label="Email Domain" value={account.Email_Domain as string || '—'} icon={<Mail size={14} />} />
-          <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group relative">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
-              <MapPin size={14} />
-              Address
-            </div>
-            <p className="text-sm text-text-primary truncate">
-              {[account.Billing_Street, account.Billing_City, account.Billing_State, account.Billing_Code].filter(Boolean).join(', ') || '\u2014'}
-            </p>
-            {(account.Billing_Street || account.Billing_City || account.Billing_State || account.Billing_Code) ? (
-              <div className="absolute left-0 top-full mt-1 z-10 bg-csa-dark border border-border rounded-xl px-4 py-3 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity w-max max-w-xs">
-                {account.Billing_Street ? <div className="text-xs text-text-secondary mb-1"><span className="text-text-muted">Street:</span> {account.Billing_Street as string}</div> : null}
-                {account.Billing_City ? <div className="text-xs text-text-secondary mb-1"><span className="text-text-muted">City:</span> {account.Billing_City as string}</div> : null}
-                {account.Billing_State ? <div className="text-xs text-text-secondary mb-1"><span className="text-text-muted">State:</span> {account.Billing_State as string}</div> : null}
-                {account.Billing_Code ? <div className="text-xs text-text-secondary"><span className="text-text-muted">Post Code:</span> {account.Billing_Code as string}</div> : null}
+          {editingAddress ? (
+            <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3 col-span-1 md:col-span-2 lg:col-span-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-csa-accent uppercase tracking-wider">
+                  <MapPin size={14} />
+                  Edit Address
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setEditingAddress(false)} className="p-1 text-text-muted hover:text-text-primary transition-colors cursor-pointer"><X size={14} /></button>
+                  <button onClick={saveAddress} disabled={savingAddress} className="p-1 text-success hover:text-success/80 transition-colors cursor-pointer disabled:opacity-50">
+                    {savingAddress ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  </button>
+                </div>
               </div>
-            ) : null}
-          </div>
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+                <input type="text" placeholder="Street" value={editAddress.street} onChange={e => setEditAddress(p => ({ ...p, street: e.target.value }))}
+                  className="col-span-2 bg-csa-dark border border-border-subtle px-3 py-1.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg" />
+                <input type="text" placeholder="City" value={editAddress.city} onChange={e => setEditAddress(p => ({ ...p, city: e.target.value }))}
+                  className="bg-csa-dark border border-border-subtle px-3 py-1.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg" />
+                <input type="text" placeholder="State" value={editAddress.state} onChange={e => setEditAddress(p => ({ ...p, state: e.target.value }))}
+                  className="bg-csa-dark border border-border-subtle px-3 py-1.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg" />
+                <input type="text" placeholder="Post Code" value={editAddress.code} onChange={e => setEditAddress(p => ({ ...p, code: e.target.value }))}
+                  className="bg-csa-dark border border-border-subtle px-3 py-1.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg" />
+              </div>
+            </div>
+          ) : (
+            <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group relative">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+                <MapPin size={14} />
+                Address
+                <button onClick={startEditAddress} className="ml-1 text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer opacity-0 group-hover:opacity-100">
+                  <Pencil size={10} />
+                </button>
+              </div>
+              <p className="text-sm text-text-primary truncate">
+                {[account.Billing_Street, account.Billing_City, account.Billing_State, account.Billing_Code].filter(Boolean).join(', ') || '\u2014'}
+              </p>
+              {(account.Billing_Street || account.Billing_City || account.Billing_State || account.Billing_Code) ? (
+                <div className="absolute left-0 top-full mt-1 z-10 bg-csa-dark border border-border rounded-xl px-4 py-3 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity w-max max-w-xs">
+                  {account.Billing_Street ? <div className="text-xs text-text-secondary mb-1"><span className="text-text-muted">Street:</span> {account.Billing_Street as string}</div> : null}
+                  {account.Billing_City ? <div className="text-xs text-text-secondary mb-1"><span className="text-text-muted">City:</span> {account.Billing_City as string}</div> : null}
+                  {account.Billing_State ? <div className="text-xs text-text-secondary mb-1"><span className="text-text-muted">State:</span> {account.Billing_State as string}</div> : null}
+                  {account.Billing_Code ? <div className="text-xs text-text-secondary"><span className="text-text-muted">Post Code:</span> {account.Billing_Code as string}</div> : null}
+                </div>
+              ) : null}
+            </div>
+          )}
         </motion.div>
 
         {/* Contacts */}

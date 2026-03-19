@@ -100,6 +100,14 @@ export async function PATCH(
     if (body.Secondary_Contact !== undefined) {
       updateData.Secondary_Contact = body.Secondary_Contact ? { id: body.Secondary_Contact } : null;
     }
+    if (body.Billing_Street !== undefined) updateData.Billing_Street = body.Billing_Street;
+    if (body.Billing_City !== undefined) updateData.Billing_City = body.Billing_City;
+    if (body.Billing_State !== undefined) updateData.Billing_State = body.Billing_State;
+    if (body.Billing_Code !== undefined) updateData.Billing_Code = body.Billing_Code;
+    if (body.Billing_Country !== undefined) updateData.Billing_Country = body.Billing_Country;
+    if (body.Reseller !== undefined) {
+      updateData.Reseller = body.Reseller ? { id: body.Reseller } : null;
+    }
 
     const result = await executeZohoTool('update_records', {
       module: 'Accounts',
