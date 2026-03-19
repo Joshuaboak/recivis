@@ -243,7 +243,7 @@ export default function LeadsView() {
                 onChange={(e) => setSelectedEval(e.target.value)}
                 className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10"
               >
-                <option value="">All Evaluations</option>
+                <option value="">With &amp; Without Evals</option>
                 <option value="has-evaluation">Has Evaluation</option>
                 <option value="no-evaluation">No Evaluation</option>
                 {EVAL_PRODUCTS.map(p => (

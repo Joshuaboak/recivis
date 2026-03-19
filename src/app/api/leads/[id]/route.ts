@@ -133,9 +133,10 @@ export async function GET(
         invoices,
       });
     } else {
-      // Fetch from Leads module
-      const result = await callMcpTool('ZohoCRM_getLeadsRecord', {
-        path_variables: { recordID: id },
+      // Fetch from Leads module using the standard get_record tool
+      const result = await executeZohoTool('get_record', {
+        module: 'Leads',
+        record_id: id,
       });
 
       const parseResult = (r: unknown) => {
