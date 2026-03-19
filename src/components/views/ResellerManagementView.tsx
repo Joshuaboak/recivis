@@ -383,9 +383,7 @@ function ResellerDetailView() {
             <InfoCard label="Currency" value={reseller.Currency as string || '\u2014'} icon={<DollarSign size={14} />} />
             <InfoCard label="Partner Category" value={reseller.Partner_Category as string || '\u2014'} icon={<Building2 size={14} />} />
             {distributor ? <InfoCard label="Distributor" value={distributor.name || '\u2014'} icon={<Building2 size={14} />} /> : null}
-            {reseller.Reseller_Sale !== undefined && reseller.Reseller_Sale !== null ? (
-              <InfoCard label="Reseller Percentage" value={`${reseller.Reseller_Sale}%`} icon={<DollarSign size={14} />} />
-            ) : null}
+            <EditablePercentCard label="Reseller Percentage" value={reseller.Reseller_Sale as number} resellerId={selectedResellerId!} onSaved={loadData} canEdit={isAdmin} />
             <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group relative">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                 <Mail size={14} />
@@ -532,6 +530,57 @@ function ResellerDetailView() {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function EditablePercentCard({ label, value, resellerId, onSaved, canEdit }: { label: string; value: number | undefined | null; resellerId: string; onSaved: () => void; canEdit: boolean }) {
+  const [editing, setEditing] = useState(false);
+  const [editVal, setEditVal] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await fetch(`/api/resellers/${resellerId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Reseller_Sale: parseFloat(editVal) || 0 }),
+      });
+      setEditing(false);
+      onSaved();
+    } catch {}
+    setSaving(false);
+  };
+
+  return (
+    <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+        <DollarSign size={14} />
+        {label}
+        {canEdit && !editing ? (
+          <button onClick={() => { setEditVal(String(value || 0)); setEditing(true); }} className="ml-1 text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer opacity-0 group-hover:opacity-100">
+            <Pencil size={10} />
+          </button>
+        ) : null}
+      </div>
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <div className="inline-flex items-center bg-csa-dark border border-csa-accent/50 rounded-lg overflow-hidden focus-within:border-csa-accent">
+            <input type="text" inputMode="decimal" value={editVal} onChange={e => setEditVal(e.target.value.replace(/[^\d.]/g, ''))}
+              style={{ outline: 'none', boxShadow: 'none' }}
+              className="bg-transparent border-none px-2 py-1 text-sm text-text-primary w-[60px] text-right" autoFocus />
+            <span className="text-xs text-text-muted pr-2">%</span>
+          </div>
+          <button onClick={save} disabled={saving} className="p-1 text-success hover:text-success/80 transition-colors cursor-pointer disabled:opacity-50">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          </button>
+          <button onClick={() => setEditing(false)} className="p-1 text-text-muted hover:text-text-primary transition-colors cursor-pointer">
+            <X size={14} />
+          </button>
+        </div>
+      ) : (
+        <p className="text-sm text-text-primary">{value !== undefined && value !== null ? `${value}%` : '\u2014'}</p>
+      )}
     </div>
   );
 }
