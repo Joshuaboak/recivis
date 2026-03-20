@@ -334,6 +334,8 @@ export default function LeadsView() {
                   <th>Country</th>
                   <th>Status</th>
                   <th>Evaluations</th>
+                  <th>Product of Interest</th>
+                  <th>Lead Source</th>
                   <th>Reseller</th>
                   <th className="w-10"></th>
                 </tr>
@@ -394,12 +396,18 @@ export default function LeadsView() {
                           <span className="text-xs text-text-muted">None</span>
                         )
                       ) : (
-                        lead.productInterest ? (
-                          <span className="text-xs text-text-secondary">{lead.productInterest}</span>
-                        ) : (
-                          <span className="text-xs text-text-muted">\u2014</span>
-                        )
+                        <span className="text-xs text-text-muted">{'\u2014'}</span>
                       )}
+                    </td>
+                    <td className="text-text-secondary text-sm">
+                      {lead._source === 'prospect' ? (
+                        lead.evaluations.length > 0 ? lead.evaluations.join(', ') : '\u2014'
+                      ) : (
+                        lead.productInterest || '\u2014'
+                      )}
+                    </td>
+                    <td className="text-text-secondary text-sm">
+                      {lead.leadSource || '\u2014'}
                     </td>
                     <td className="text-text-secondary text-sm">
                       {lead.reseller?.name || '\u2014'}
