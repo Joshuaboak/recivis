@@ -277,12 +277,11 @@ export async function POST(
     const accessToken = await getAccessToken();
 
     // Step 3: Build conversion payload
+    // Omit Accounts/Contacts to let Zoho create new records from the lead data
     const convertData: Record<string, unknown>[] = [{
       overwrite: body.overwrite ?? false,
       notify_lead_owner: body.notify_lead_owner ?? true,
       notify_new_entity_owner: body.notify_new_entity_owner ?? true,
-      Accounts: {},
-      Contacts: {},
     }];
 
     // Step 4: Call the Zoho REST API to convert
@@ -315,8 +314,13 @@ export async function POST(
         status: res.status,
         response: responseText.slice(0, 500),
       });
+      // Extract the most useful error message from Zoho's response
+      const zohoError = data?.data?.[0]?.message
+        || data?.message
+        || data?.data?.[0]?.details?.expected_data_type
+        || `Zoho API error: ${res.status}`;
       return NextResponse.json({
-        error: data?.message || `Zoho API error: ${res.status}`,
+        error: zohoError,
         details: data,
       }, { status: 502 });
     }
