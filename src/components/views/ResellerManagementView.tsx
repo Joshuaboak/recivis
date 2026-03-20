@@ -30,7 +30,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users, UserPlus, Search, Loader2, Shield, ShieldOff, KeyRound,
-  ChevronDown, X, AlertCircle, Building2, Pencil, Save,
+  ChevronDown, X, AlertCircle, Building2, Pencil, Save, Plus,
   ArrowLeft, Globe, DollarSign, Mail, ExternalLink,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
@@ -462,6 +462,16 @@ function ResellerDetailView() {
   const [userSearch, setUserSearch] = useState('');
   const [userPage, setUserPage] = useState(1);
 
+  // DB registration state
+  const [dbRegistered, setDbRegistered] = useState(true);
+  const [dbRole, setDbRole] = useState<{ name: string; display: string } | null>(null);
+  const [availableResellerRoles, setAvailableResellerRoles] = useState<Array<{ id: number; name: string; display_name: string }>>([]);
+  const [showRegisterForm, setShowRegisterForm] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [registerFields, setRegisterFields] = useState<Record<string, any>>({});
+  const [registering, setRegistering] = useState(false);
+  const [registerError, setRegisterError] = useState('');
+
   useEffect(() => { if (selectedResellerId) loadData(); }, [selectedResellerId]);
 
   const loadData = async () => {
@@ -474,6 +484,9 @@ function ResellerDetailView() {
       setReseller(resRes.reseller);
       setUsers(resRes.users || []);
       setAllResellers(resellerListRes.resellers || []);
+      setDbRegistered(resRes.dbRegistered ?? false);
+      setDbRole(resRes.dbRole || null);
+      setAvailableResellerRoles(resRes.availableRoles || []);
     } catch {}
     setLoading(false);
   };
@@ -604,6 +617,154 @@ function ResellerDetailView() {
             </a>
           </div>
         </div>
+
+        {/* DB Registration Banner */}
+        {isAdmin && !dbRegistered && !showRegisterForm && (
+          <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mb-6 p-4 bg-warning/8 border border-warning/25 rounded-xl flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-warning/15 flex items-center justify-center flex-shrink-0">
+                <AlertCircle size={18} className="text-warning" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-text-primary">Not registered in portal</p>
+                <p className="text-xs text-text-muted">This partner exists in Zoho CRM but hasn&apos;t been added to the portal database. Register them to enable user accounts and permissions.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setRegisterFields({
+                  name: reseller.Name || '',
+                  email: reseller.Email || '',
+                  region: reseller.Region || '',
+                  currency: reseller.Currency || '',
+                  partner_category: reseller.Partner_Category || '',
+                  direct_customer_contact: !!reseller.Direct_Customer_Contact,
+                  distributor_id: reseller.Distributor?.id || '',
+                  reseller_role_id: '',
+                });
+                setShowRegisterForm(true);
+                setRegisterError('');
+              }}
+              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer flex-shrink-0"
+            >
+              <Plus size={14} /> Register Partner
+            </button>
+          </motion.div>
+        )}
+
+        {/* Registration Form */}
+        {isAdmin && showRegisterForm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-surface border border-success/40 rounded-xl p-5 mb-8">
+            <h3 className="text-sm font-bold text-text-primary mb-4 flex items-center gap-2">
+              <Plus size={16} className="text-success" /> Register Partner in Portal
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+              <div>
+                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider block mb-1">Name *</label>
+                <input type="text" value={registerFields.name} onChange={e => setRegisterFields(p => ({ ...p, name: e.target.value }))}
+                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent transition-colors rounded-lg" />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider block mb-1">Email</label>
+                <input type="email" value={registerFields.email} onChange={e => setRegisterFields(p => ({ ...p, email: e.target.value }))}
+                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent transition-colors rounded-lg" />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider block mb-1">Permission Level *</label>
+                <select value={registerFields.reseller_role_id} onChange={e => setRegisterFields(p => ({ ...p, reseller_role_id: e.target.value }))}
+                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent transition-colors rounded-lg appearance-none cursor-pointer">
+                  <option value="">Select role...</option>
+                  {availableResellerRoles.map(r => (
+                    <option key={r.id} value={r.id}>{r.display_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider block mb-1">Region</label>
+                <select value={registerFields.region} onChange={e => setRegisterFields(p => ({ ...p, region: e.target.value }))}
+                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent transition-colors rounded-lg appearance-none cursor-pointer">
+                  <option value="">—</option>
+                  {Object.entries(REGION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider block mb-1">Currency</label>
+                <select value={registerFields.currency} onChange={e => setRegisterFields(p => ({ ...p, currency: e.target.value }))}
+                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent transition-colors rounded-lg appearance-none cursor-pointer">
+                  <option value="">—</option>
+                  <option value="AUD">AUD</option><option value="USD">USD</option><option value="EUR">EUR</option>
+                  <option value="GBP">GBP</option><option value="NZD">NZD</option><option value="INR">INR</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider block mb-1">Partner Category</label>
+                <select value={registerFields.partner_category} onChange={e => setRegisterFields(p => ({ ...p, partner_category: e.target.value }))}
+                  className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent transition-colors rounded-lg appearance-none cursor-pointer">
+                  <option value="">—</option>
+                  <option value="Reseller">Reseller</option>
+                  <option value="Distributor">Distributor</option>
+                  <option value="Distributor/Reseller">Distributor/Reseller</option>
+                  <option value="Affiliate">Affiliate</option>
+                  <option value="Platinum Partner">Platinum Partner</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={registerFields.direct_customer_contact} onChange={e => setRegisterFields(p => ({ ...p, direct_customer_contact: e.target.checked }))}
+                    className="w-4 h-4 rounded border-border-subtle accent-csa-accent cursor-pointer" />
+                  <span className="text-xs text-text-secondary">Direct Customer Contact</span>
+                </label>
+              </div>
+            </div>
+
+            {registerError && (
+              <p className="text-xs text-error mb-3">{registerError}</p>
+            )}
+
+            <div className="flex gap-2 pt-3 border-t border-border-subtle">
+              <button onClick={() => setShowRegisterForm(false)} className="px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl cursor-pointer">Cancel</button>
+              <button
+                onClick={async () => {
+                  if (!registerFields.name || !registerFields.reseller_role_id) {
+                    setRegisterError('Name and permission level are required');
+                    return;
+                  }
+                  setRegistering(true); setRegisterError('');
+                  try {
+                    const res = await fetch(`/api/resellers/${selectedResellerId}`, {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        ...registerFields,
+                        reseller_role_id: parseInt(registerFields.reseller_role_id),
+                        distributor_id: registerFields.distributor_id || null,
+                      }),
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                      setShowRegisterForm(false);
+                      loadData();
+                    } else {
+                      setRegisterError(data.error || 'Registration failed');
+                    }
+                  } catch { setRegisterError('Registration failed'); }
+                  setRegistering(false);
+                }}
+                disabled={registering}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                {registering ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Register Partner
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* DB Role Badge */}
+        {dbRegistered && dbRole && (
+          <div className="mb-4 flex items-center gap-2">
+            <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-success/15 text-success">Registered</span>
+            <span className="text-xs text-text-muted">Permission level: <span className="text-text-secondary font-semibold">{dbRole.display}</span></span>
+          </div>
+        )}
 
         {/* Edit Form or Info Cards */}
         {editingReseller ? (

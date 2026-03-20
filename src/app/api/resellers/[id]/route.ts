@@ -34,6 +34,26 @@ export async function GET(
     const parsed = parseMcpResult(result);
     const reseller = parsed.data[0] || null;
 
+    // Check if the reseller exists in PostgreSQL
+    const dbLookupIds = [zohoId];
+    if (zohoId === CSA_ZOHO_ID) dbLookupIds.push(CSA_INTERNAL_ID);
+    const dbPlaceholders = dbLookupIds.map((_, i) => `$${i + 1}`).join(',');
+
+    const dbResult = await query(
+      `SELECT r.id, r.reseller_role_id, rr.name AS reseller_role_name, rr.display_name AS reseller_role_display
+       FROM resellers r
+       LEFT JOIN reseller_roles rr ON rr.id = r.reseller_role_id
+       WHERE r.id IN (${dbPlaceholders})
+       LIMIT 1`,
+      dbLookupIds
+    );
+    const dbRecord = dbResult.rows[0] || null;
+
+    // Fetch available reseller roles for the registration form
+    const rolesResult = await query(
+      `SELECT id, name, display_name FROM reseller_roles WHERE is_system_role = false ORDER BY id`
+    );
+
     // Fetch users from PostgreSQL — match both the Zoho ID and csa-internal for CSA
     const userIds = [id];
     if (id === CSA_ZOHO_ID || id === CSA_INTERNAL_ID) {
@@ -52,7 +72,13 @@ export async function GET(
       userIds
     );
 
-    return NextResponse.json({ reseller, users: usersResult.rows });
+    return NextResponse.json({
+      reseller,
+      users: usersResult.rows,
+      dbRegistered: !!dbRecord,
+      dbRole: dbRecord ? { name: dbRecord.reseller_role_name, display: dbRecord.reseller_role_display } : null,
+      availableRoles: rolesResult.rows,
+    });
   } catch (error) {
     log('error', 'api', `Reseller detail failed for ${id}`, {
       error: error instanceof Error ? error.message : String(error),
@@ -94,5 +120,63 @@ export async function PATCH(
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json({ error: 'Failed to update reseller' }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/resellers/[id] — Register a Zoho reseller into the PostgreSQL database.
+ *
+ * Creates a row in the `resellers` table with the Zoho ID, pre-filled fields,
+ * and the selected reseller_role. Admin-only.
+ */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
+  if (!isAdmin(user)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { id } = await params;
+
+  try {
+    const body = await request.json();
+    const { name, email, region, currency, partner_category, direct_customer_contact, distributor_id, reseller_role_id } = body;
+
+    if (!reseller_role_id) {
+      return NextResponse.json({ error: 'reseller_role_id is required' }, { status: 400 });
+    }
+
+    // Check if already registered
+    const existing = await query('SELECT id FROM resellers WHERE id = $1', [id]);
+    if (existing.rows.length > 0) {
+      return NextResponse.json({ error: 'Reseller is already registered in the portal' }, { status: 409 });
+    }
+
+    // Validate the distributor_id exists in the DB if provided
+    if (distributor_id) {
+      const distCheck = await query('SELECT id FROM resellers WHERE id = $1', [distributor_id]);
+      if (distCheck.rows.length === 0) {
+        return NextResponse.json({ error: 'Distributor must be registered in the portal first' }, { status: 400 });
+      }
+    }
+
+    await query(
+      `INSERT INTO resellers (id, name, email, region, currency, partner_category, direct_customer_contact, distributor_id, reseller_role_id, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)`,
+      [id, name, email || null, region || null, currency || null, partner_category || null, !!direct_customer_contact, distributor_id || null, reseller_role_id]
+    );
+
+    log('info', 'api', `Reseller ${id} registered in portal`, { name, role_id: reseller_role_id, by: user.email });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    log('error', 'api', `Reseller registration failed for ${id}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({ error: 'Failed to register reseller' }, { status: 500 });
   }
 }
