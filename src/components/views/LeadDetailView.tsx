@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone,
   MapPin, FileText, Star, Plus, X, Eye, Beaker, ArrowRightLeft, Check,
-  AlertTriangle, Globe, Briefcase, Tag, Clock, MessageSquare,
+  AlertTriangle, Globe, Briefcase, Tag, Clock, MessageSquare, Pencil, Save,
+  Smartphone, Factory, ChevronDown,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
@@ -16,6 +17,25 @@ interface ResellerOption {
   name: string;
   region: string;
 }
+
+const LEAD_STATUSES = [
+  'Not Contacted', 'Attempted to Contact', 'Contacted', 'Future Interest',
+  'No Interest Ever', 'Dormant', 'Lost Lead', 'Pre-Qualified', 'Suspect',
+];
+
+const INDUSTRIES = [
+  'Civil Engineering', 'Utilities', 'Academic', 'Architectural', 'Builder',
+  'Civil', 'Civil & Structural', 'Developer', 'Educational', 'Government',
+  'Mechanical', 'Mining', 'Structural', 'Survey', 'Town Planning',
+  'Traffic Engineering', 'Other', 'Management ISV',
+];
+
+const PRODUCTS_OF_INTEREST = [
+  'Civil Site Design for BricsCAD', 'Civil Site Design for Civil 3D',
+  'Corridor EZ for Civil 3D', 'Stringer Topo for BricsCAD',
+  'Stringer Topo for Civil 3D', 'Customization Services',
+  'Design Services', 'Training Services', 'Software Maintenance Plan',
+];
 
 const STATUS_COLORS: Record<string, string> = {
   'Not Contacted': 'bg-text-muted/20 text-text-muted',
@@ -58,7 +78,84 @@ export default function LeadDetailView() {
   const [contactPage, setContactPage] = useState(1);
   const contactPageSize = 10;
 
+  // Lead field editing
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+
+  // Reseller editing (same pattern as AccountDetailView)
+  const [editingReseller, setEditingReseller] = useState(false);
+  const [resellerOptions, setResellerOptions] = useState<ResellerOption[]>([]);
+  const [resellerSearch, setResellerSearch] = useState('');
+  const [savingReseller, setSavingReseller] = useState(false);
+
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
+  const hasChildResellers = user?.permissions?.canViewChildRecords;
+  const canEditReseller = isAdmin || hasChildResellers;
+
+  // Load resellers when editing starts
+  useEffect(() => {
+    if (!editingReseller || resellerOptions.length > 0) return;
+    let url = '/api/resellers';
+    if (!isAdmin && user?.resellerId) {
+      url = `/api/resellers?resellerId=${user.resellerId}&includeChildren=true`;
+    }
+    fetch(url)
+      .then(res => res.json())
+      .then(data => setResellerOptions(data.resellers || []))
+      .catch(() => {});
+  }, [editingReseller, isAdmin, user?.resellerId, resellerOptions.length]);
+
+  const startEdit = (field: string, currentValue: string) => {
+    setEditingField(field);
+    setEditValue(currentValue || '');
+  };
+
+  const cancelEdit = () => {
+    setEditingField(null);
+    setEditValue('');
+  };
+
+  const saveField = async (field: string, value: string) => {
+    if (!selectedLeadId) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/leads/${selectedLeadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value || null }),
+      });
+      if (res.ok) {
+        // Reload lead data
+        const reload = await fetch(`/api/leads/${selectedLeadId}?source=lead`);
+        const data = await reload.json();
+        setLead(data.lead);
+      }
+    } catch { /* handled by UI */ }
+    setSaving(false);
+    setEditingField(null);
+    setEditValue('');
+  };
+
+  const saveReseller = async (resellerId: string) => {
+    if (!selectedLeadId) return;
+    setSavingReseller(true);
+    try {
+      const res = await fetch(`/api/leads/${selectedLeadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Reseller: resellerId || null }),
+      });
+      if (res.ok) {
+        const reload = await fetch(`/api/leads/${selectedLeadId}?source=lead`);
+        const data = await reload.json();
+        setLead(data.lead);
+        setEditingReseller(false);
+        setResellerSearch('');
+      }
+    } catch { /* handled */ }
+    setSavingReseller(false);
+  };
 
   useEffect(() => {
     if (!selectedLeadId || !selectedLeadSource) return;
@@ -312,23 +409,141 @@ export default function LeadDetailView() {
           </AnimatePresence>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-            <InfoCard label="Status" value={leadStatus} icon={<Tag size={14} />}
+            {/* Row 1: Company, Contact, Job Title */}
+            <EditableCard label="Company" field="Company" value={lead.Company as string} icon={<Building2 size={14} />}
+              editing={editingField === 'Company'} editValue={editValue} saving={saving}
+              onEdit={() => startEdit('Company', lead.Company as string || '')}
+              onChange={setEditValue} onSave={() => saveField('Company', editValue)} onCancel={cancelEdit}
+            />
+            <EditableCard label="Contact" field="names" value={lead.Full_Name as string} icon={<User size={14} />}
+              editing={editingField === 'names'} editValue={editValue} saving={saving}
+              onEdit={() => { setEditingField('names'); setEditValue(`${lead.First_Name as string || ''}|||${lead.Last_Name as string || ''}`); }}
+              onChange={setEditValue} onCancel={cancelEdit}
+              onSave={async () => {
+                const [first, last] = editValue.split('|||');
+                setSaving(true);
+                try {
+                  const res = await fetch(`/api/leads/${selectedLeadId}`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ First_Name: first || '', Last_Name: last || '' }),
+                  });
+                  if (res.ok) {
+                    const reload = await fetch(`/api/leads/${selectedLeadId}?source=lead`);
+                    const data = await reload.json();
+                    setLead(data.lead);
+                  }
+                } catch { /* handled */ }
+                setSaving(false); setEditingField(null); setEditValue('');
+              }}
+              renderEdit={(
+                <div className="flex gap-2">
+                  <input type="text" placeholder="First" value={editValue.split('|||')[0] || ''} onChange={e => setEditValue(`${e.target.value}|||${editValue.split('|||')[1] || ''}`)}
+                    className="flex-1 bg-csa-dark border border-border-subtle px-2 py-1 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg" autoFocus />
+                  <input type="text" placeholder="Last" value={editValue.split('|||')[1] || ''} onChange={e => setEditValue(`${editValue.split('|||')[0] || ''}|||${e.target.value}`)}
+                    className="flex-1 bg-csa-dark border border-border-subtle px-2 py-1 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg" />
+                </div>
+              )}
+            />
+            <EditableCard label="Job Title" field="Job_Title3" value={lead.Job_Title3 as string} icon={<Briefcase size={14} />}
+              editing={editingField === 'Job_Title3'} editValue={editValue} saving={saving}
+              onEdit={() => startEdit('Job_Title3', lead.Job_Title3 as string || '')}
+              onChange={setEditValue} onSave={() => saveField('Job_Title3', editValue)} onCancel={cancelEdit}
+            />
+            {/* Row 2: Email, Phone, Mobile */}
+            <EditableCard label="Email" field="Email" value={lead.Email as string} icon={<Mail size={14} />}
+              editing={editingField === 'Email'} editValue={editValue} saving={saving}
+              onEdit={() => startEdit('Email', lead.Email as string || '')}
+              onChange={setEditValue} onSave={() => saveField('Email', editValue)} onCancel={cancelEdit}
+              inputType="email"
+            />
+            <EditableCard label="Phone" field="Phone" value={lead.Phone as string} icon={<Phone size={14} />}
+              editing={editingField === 'Phone'} editValue={editValue} saving={saving}
+              onEdit={() => startEdit('Phone', lead.Phone as string || '')}
+              onChange={setEditValue} onSave={() => saveField('Phone', editValue)} onCancel={cancelEdit}
+              inputType="tel"
+            />
+            <EditableCard label="Mobile" field="Mobile" value={lead.Mobile as string} icon={<Smartphone size={14} />}
+              editing={editingField === 'Mobile'} editValue={editValue} saving={saving}
+              onEdit={() => startEdit('Mobile', lead.Mobile as string || '')}
+              onChange={setEditValue} onSave={() => saveField('Mobile', editValue)} onCancel={cancelEdit}
+              inputType="tel"
+            />
+            {/* Row 3: Website, Country, Industry */}
+            <EditableCard label="Website" field="Website" value={lead.Website as string} icon={<Globe size={14} />}
+              editing={editingField === 'Website'} editValue={editValue} saving={saving}
+              onEdit={() => startEdit('Website', lead.Website as string || '')}
+              onChange={setEditValue} onSave={() => saveField('Website', editValue)} onCancel={cancelEdit}
+            />
+            <InfoCard label="Country" value={lead.Country as string || '\u2014'} icon={<MapPin size={14} />} />
+            <EditableCard label="Industry" field="Industry" value={lead.Industry as string} icon={<Factory size={14} />}
+              editing={editingField === 'Industry'} editValue={editValue} saving={saving}
+              onEdit={() => startEdit('Industry', lead.Industry as string || '')}
+              onChange={setEditValue} onSave={() => saveField('Industry', editValue)} onCancel={cancelEdit}
+              selectOptions={INDUSTRIES}
+            />
+            {/* Row 4: Status, Products of Interest, Lead Source */}
+            <EditableCard label="Status" field="Lead_Status" value={leadStatus} icon={<Tag size={14} />}
+              editing={editingField === 'Lead_Status'} editValue={editValue} saving={saving}
+              onEdit={() => startEdit('Lead_Status', leadStatus)}
+              onChange={setEditValue} onSave={() => saveField('Lead_Status', editValue)} onCancel={cancelEdit}
+              selectOptions={LEAD_STATUSES}
               badge={leadStatus ? (
                 <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${STATUS_COLORS[leadStatus] || 'bg-text-muted/20 text-text-muted'}`}>
                   {leadStatus}
                 </span>
               ) : undefined}
             />
-            <InfoCard label="Contact" value={lead.Full_Name as string || '\u2014'} icon={<User size={14} />} />
-            <InfoCard label="Email" value={lead.Email as string || '\u2014'} icon={<Mail size={14} />} />
-            <InfoCard label="Phone" value={lead.Phone as string || lead.Mobile as string || '\u2014'} icon={<Phone size={14} />} />
-            <InfoCard label="Country" value={lead.Country as string || '\u2014'} icon={<MapPin size={14} />} />
-            <InfoCard label="Company" value={lead.Company as string || '\u2014'} icon={<Building2 size={14} />} />
-            <InfoCard label="Product Interest" value={lead.Product_Interest as string || '\u2014'} icon={<Package size={14} />} />
+            <EditableCard label="Products of Interest" field="Product_Interest" value={lead.Product_Interest as string} icon={<Package size={14} />}
+              editing={editingField === 'Product_Interest'} editValue={editValue} saving={saving}
+              onEdit={() => startEdit('Product_Interest', lead.Product_Interest as string || '')}
+              onChange={setEditValue} onSave={() => saveField('Product_Interest', editValue)} onCancel={cancelEdit}
+              selectOptions={PRODUCTS_OF_INTEREST}
+            />
             <InfoCard label="Lead Source" value={lead.Lead_Source as string || '\u2014'} icon={<Globe size={14} />} />
-            <InfoCard label="Reseller" value={reseller?.name || '\u2014'} icon={<Briefcase size={14} />} />
+            {/* Row 5: Reseller, CSA Sales Rep, Created */}
+            {editingReseller ? (
+              <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3 relative">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-csa-accent uppercase tracking-wider">
+                    <Briefcase size={14} />
+                    Reseller
+                  </div>
+                  <button onClick={() => { setEditingReseller(false); setResellerSearch(''); }} className="p-0.5 text-text-muted hover:text-text-primary transition-colors cursor-pointer"><X size={14} /></button>
+                </div>
+                <input type="text" value={resellerSearch} onChange={e => setResellerSearch(e.target.value)} placeholder="Search resellers..." autoFocus
+                  className="w-full bg-csa-dark border border-border-subtle px-3 py-1.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg mb-1" />
+                {savingReseller ? (
+                  <div className="flex items-center justify-center py-3"><Loader2 size={16} className="text-csa-accent animate-spin" /></div>
+                ) : (
+                  <div className="max-h-[160px] overflow-y-auto space-y-0.5">
+                    {resellerOptions
+                      .filter(r => !resellerSearch || r.name.toLowerCase().includes(resellerSearch.toLowerCase()))
+                      .map(r => (
+                        <button key={r.id} onClick={() => saveReseller(r.id)}
+                          className={`w-full text-left px-2 py-1.5 text-xs rounded-lg transition-colors cursor-pointer ${
+                            reseller?.id === r.id ? 'text-csa-accent bg-csa-accent/10' : 'text-text-secondary hover:text-text-primary hover:bg-surface-raised'
+                          }`}>
+                          {r.name}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+                  <Briefcase size={14} />
+                  Reseller
+                  {canEditReseller ? (
+                    <button onClick={() => setEditingReseller(true)} className="ml-1 text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer opacity-0 group-hover:opacity-100">
+                      <Pencil size={10} />
+                    </button>
+                  ) : null}
+                </div>
+                <p className="text-sm text-text-primary truncate">{reseller?.name || '\u2014'}</p>
+              </div>
+            )}
             <InfoCard label="CSA Sales Rep" value={owner?.name || '\u2014'} icon={<User size={14} />} />
-            <InfoCard label="Job Title" value={lead.Job_Title3 as string || '\u2014'} icon={<Briefcase size={14} />} />
             <InfoCard label="Created" value={formatDate(lead.Created_Time)} icon={<Clock size={14} />} />
           </motion.div>
 
@@ -638,6 +853,56 @@ function InfoCard({ label, value, icon, badge }: { label: string; value: string;
       <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
         {icon}
         {label}
+      </div>
+      {badge || <p className="text-sm text-text-primary truncate">{value || '\u2014'}</p>}
+    </div>
+  );
+}
+
+function EditableCard({ label, field, value, icon, badge, editing, editValue, saving, onEdit, onChange, onSave, onCancel, inputType, selectOptions, renderEdit }: {
+  label: string; field: string; value: string; icon: React.ReactNode; badge?: React.ReactNode;
+  editing: boolean; editValue: string; saving: boolean;
+  onEdit: () => void; onChange: (v: string) => void; onSave: () => void; onCancel: () => void;
+  inputType?: string; selectOptions?: string[]; renderEdit?: React.ReactNode;
+}) {
+  if (editing) {
+    return (
+      <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-csa-accent uppercase tracking-wider">
+            {icon}
+            {label}
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={onCancel} className="p-0.5 text-text-muted hover:text-text-primary transition-colors cursor-pointer"><X size={14} /></button>
+            <button onClick={onSave} disabled={saving} className="p-0.5 text-success hover:text-success/80 transition-colors cursor-pointer disabled:opacity-50">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            </button>
+          </div>
+        </div>
+        {renderEdit || (selectOptions ? (
+          <select value={editValue} onChange={e => onChange(e.target.value)} autoFocus
+            className="w-full bg-csa-dark border border-border-subtle px-2 py-1.5 text-sm text-text-primary outline-none focus:border-csa-accent transition-colors rounded-lg appearance-none cursor-pointer">
+            <option value="">— None —</option>
+            {selectOptions.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        ) : (
+          <input type={inputType || 'text'} value={editValue} onChange={e => onChange(e.target.value)} autoFocus
+            onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel(); }}
+            className="w-full bg-csa-dark border border-border-subtle px-2 py-1.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+        {icon}
+        {label}
+        <button onClick={onEdit} className="ml-1 text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer opacity-0 group-hover:opacity-100">
+          <Pencil size={10} />
+        </button>
       </div>
       {badge || <p className="text-sm text-text-primary truncate">{value || '\u2014'}</p>}
     </div>

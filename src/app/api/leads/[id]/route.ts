@@ -171,6 +171,58 @@ export async function GET(
 }
 
 /**
+ * PATCH /api/leads/[id] — Update a Zoho Lead record.
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
+  const { id } = await params;
+
+  try {
+    const body = await request.json();
+    const updateData: Record<string, unknown> = { id };
+
+    // Simple text/picklist fields
+    const directFields = [
+      'First_Name', 'Last_Name', 'Email', 'Phone', 'Mobile', 'Company',
+      'Website', 'Lead_Status', 'Industry', 'Product_Interest', 'Country',
+      'Street', 'City', 'State', 'Zip_Code', 'Description', 'Job_Title3',
+    ];
+    for (const field of directFields) {
+      if (body[field] !== undefined) updateData[field] = body[field];
+    }
+
+    // Reseller is a lookup field — requires admin/ibm or canViewChildRecords
+    if (body.Reseller !== undefined) {
+      if (!isAdmin(user) && !user.permissions.canViewChildRecords) {
+        return NextResponse.json({ error: 'Insufficient permissions to change reseller' }, { status: 403 });
+      }
+      updateData.Reseller = body.Reseller ? { id: body.Reseller } : null;
+    }
+
+    const result = await executeZohoTool('update_records', {
+      module: 'Leads',
+      records: [updateData],
+      trigger: [],
+    });
+
+    const parsed = parseMcpResult(result);
+    log('info', 'api', `Lead ${id} updated`, { fields: Object.keys(body) });
+    return NextResponse.json({ success: true, data: parsed.data });
+  } catch (error) {
+    log('error', 'api', `Lead update failed for ${id}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({ error: 'Failed to update lead' }, { status: 500 });
+  }
+}
+
+/**
  * POST /api/leads/[id] — Convert a Zoho Lead to Account + Contact.
  *
  * Calls the Zoho CRM v7 convert lead API with trigger=['workflow']
