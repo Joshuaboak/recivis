@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, Loader2, Building2, UserSearch, User, FileText, ExternalLink } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Search, X, Loader2, Building2, UserSearch, User, FileText, ExternalLink, Users } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 
 interface SearchResult {
@@ -13,33 +13,36 @@ interface SearchResult {
   meta?: string;
 }
 
-const MODULE_CONFIG: Record<string, { icon: typeof Building2; color: string; label: string }> = {
-  Accounts:  { icon: Building2,  color: 'text-csa-accent',  label: 'Account' },
-  Leads:     { icon: UserSearch,  color: 'text-csa-accent',  label: 'Lead' },
-  Prospects: { icon: Building2,  color: 'text-csa-purple',  label: 'Prospect' },
-  Contacts:  { icon: User,       color: 'text-success',     label: 'Contact' },
-  Invoices:  { icon: FileText,   color: 'text-csa-purple',  label: 'Invoice' },
+const MODULE_CONFIG: Record<string, { icon: typeof Building2; color: string; label: string; badgeColor: string }> = {
+  Accounts:  { icon: Building2,  color: 'text-csa-accent',  label: 'Account',   badgeColor: 'bg-csa-accent/15 text-csa-accent' },
+  Leads:     { icon: UserSearch, color: 'text-csa-accent',  label: 'Lead',      badgeColor: 'bg-csa-accent/15 text-csa-accent' },
+  Prospects: { icon: Building2,  color: 'text-csa-purple',  label: 'Prospect',  badgeColor: 'bg-csa-purple/15 text-csa-purple' },
+  Contacts:  { icon: User,      color: 'text-success',     label: 'Contact',   badgeColor: 'bg-success/15 text-success' },
+  Invoices:  { icon: FileText,   color: 'text-csa-purple',  label: 'Invoice',   badgeColor: 'bg-csa-purple/15 text-csa-purple' },
+  Resellers: { icon: Users,     color: 'text-warning',     label: 'Partner',   badgeColor: 'bg-warning/15 text-warning' },
 };
 
-const MODULE_BADGE_COLORS: Record<string, string> = {
-  Accounts:  'bg-csa-accent/15 text-csa-accent',
-  Leads:     'bg-csa-accent/15 text-csa-accent',
-  Prospects: 'bg-csa-purple/15 text-csa-purple',
-  Contacts:  'bg-success/15 text-success',
-  Invoices:  'bg-csa-purple/15 text-csa-purple',
-};
+const MODULE_FILTER_ORDER = ['Accounts', 'Prospects', 'Leads', 'Contacts', 'Invoices', 'Resellers'];
 
 interface SearchModalProps {
   onClose: () => void;
 }
 
 export default function SearchModal({ onClose }: SearchModalProps) {
-  const { setCurrentView, setSelectedAccountId, setSelectedLeadId, setSelectedLeadSource, setSelectedInvoiceId, setInvoiceReturnView } = useAppStore();
+  const { user, setCurrentView, setSelectedAccountId, setSelectedLeadId, setSelectedLeadSource, setSelectedInvoiceId, setInvoiceReturnView, setSelectedResellerId } = useAppStore();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [selectedModule, setSelectedModule] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
+
+  // Filter Resellers from non-admin users
+  const availableModules = isAdmin
+    ? MODULE_FILTER_ORDER
+    : MODULE_FILTER_ORDER.filter(m => m !== 'Resellers');
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -55,7 +58,9 @@ export default function SearchModal({ onClose }: SearchModalProps) {
     setSearched(true);
 
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      const params = new URLSearchParams({ q });
+      if (selectedModule) params.set('modules', selectedModule);
+      const res = await fetch(`/api/search?${params}`);
       const data = await res.json();
       setResults(data.results || []);
     } catch {
@@ -63,6 +68,13 @@ export default function SearchModal({ onClose }: SearchModalProps) {
     }
     setLoading(false);
   };
+
+  // Re-search when module filter changes (if already searched)
+  useEffect(() => {
+    if (searched && query.trim().length >= 2) {
+      handleSearch();
+    }
+  }, [selectedModule]);
 
   const handleNavigate = (result: SearchResult) => {
     switch (result.module) {
@@ -81,13 +93,15 @@ export default function SearchModal({ onClose }: SearchModalProps) {
         setCurrentView('lead-detail');
         break;
       case 'Contacts':
-        // Navigate to the contact's account if available
-        // For now, we can't navigate directly to contacts — skip or go to accounts
         break;
       case 'Invoices':
         setSelectedInvoiceId(result.id);
         setInvoiceReturnView('draft-invoices');
         setCurrentView('invoice-detail');
+        break;
+      case 'Resellers':
+        setSelectedResellerId(result.id);
+        setCurrentView('resellers');
         break;
     }
     onClose();
@@ -100,8 +114,7 @@ export default function SearchModal({ onClose }: SearchModalProps) {
     return acc;
   }, {});
 
-  const moduleOrder = ['Accounts', 'Prospects', 'Leads', 'Contacts', 'Invoices'];
-  const orderedGroups = moduleOrder.filter(m => grouped[m]);
+  const orderedGroups = MODULE_FILTER_ORDER.filter(m => grouped[m]);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-[10vh]" onClick={onClose}>
@@ -122,7 +135,7 @@ export default function SearchModal({ onClose }: SearchModalProps) {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
-            placeholder="Search accounts, leads, contacts, invoices..."
+            placeholder={selectedModule ? `Search ${MODULE_CONFIG[selectedModule]?.label || selectedModule}s...` : 'Search everything...'}
             className="flex-1 bg-transparent text-base text-text-primary placeholder-text-muted/40 outline-none"
           />
           {loading ? (
@@ -134,8 +147,39 @@ export default function SearchModal({ onClose }: SearchModalProps) {
           ) : null}
         </div>
 
+        {/* Module filter pills */}
+        <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-border-subtle overflow-x-auto">
+          <button
+            onClick={() => setSelectedModule('')}
+            className={`px-3 py-1 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+              !selectedModule
+                ? 'bg-csa-accent/15 text-csa-accent'
+                : 'text-text-muted hover:text-text-secondary hover:bg-surface-raised'
+            }`}
+          >
+            All
+          </button>
+          {availableModules.map(mod => {
+            const config = MODULE_CONFIG[mod];
+            const active = selectedModule === mod;
+            return (
+              <button
+                key={mod}
+                onClick={() => setSelectedModule(active ? '' : mod)}
+                className={`px-3 py-1 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+                  active
+                    ? config.badgeColor
+                    : 'text-text-muted hover:text-text-secondary hover:bg-surface-raised'
+                }`}
+              >
+                {config.label}s
+              </button>
+            );
+          })}
+        </div>
+
         {/* Results */}
-        <div className="max-h-[60vh] overflow-y-auto">
+        <div className="max-h-[55vh] overflow-y-auto">
           {!searched && !loading && (
             <div className="px-5 py-8 text-center">
               <p className="text-sm text-text-muted">Type at least 2 characters and press Enter to search</p>
@@ -159,7 +203,7 @@ export default function SearchModal({ onClose }: SearchModalProps) {
           {searched && !loading && results.length === 0 && (
             <div className="px-5 py-12 text-center">
               <Search size={28} className="text-text-muted/30 mx-auto mb-2" />
-              <p className="text-sm text-text-muted">No results for &ldquo;{query}&rdquo;</p>
+              <p className="text-sm text-text-muted">No results for &ldquo;{query}&rdquo;{selectedModule ? ` in ${MODULE_CONFIG[selectedModule]?.label}s` : ''}</p>
             </div>
           )}
 
@@ -169,19 +213,16 @@ export default function SearchModal({ onClose }: SearchModalProps) {
                 const items = grouped[moduleName];
                 const config = MODULE_CONFIG[moduleName];
                 const Icon = config?.icon || Building2;
-                const badgeColor = MODULE_BADGE_COLORS[moduleName] || 'bg-text-muted/15 text-text-muted';
 
                 return (
                   <div key={moduleName}>
-                    {/* Module header */}
                     <div className="px-5 pt-3 pb-1.5 flex items-center gap-2">
-                      <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md ${badgeColor}`}>
+                      <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md ${config?.badgeColor || 'bg-text-muted/15 text-text-muted'}`}>
                         {config?.label || moduleName}
                       </span>
                       <span className="text-[10px] text-text-muted">{items.length} result{items.length !== 1 ? 's' : ''}</span>
                     </div>
 
-                    {/* Results */}
                     {items.slice(0, 10).map(result => (
                       <button
                         key={`${result.module}-${result.id}`}
