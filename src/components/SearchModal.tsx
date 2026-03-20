@@ -101,7 +101,7 @@ export default function SearchModal({ onClose }: SearchModalProps) {
         break;
       case 'Resellers':
         setSelectedResellerId(result.id);
-        setCurrentView('resellers');
+        setCurrentView('reseller-detail');
         break;
     }
     onClose();
