@@ -255,26 +255,36 @@ export default function LeadDetailView() {
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-text-primary">{lead.Company as string || lead.Full_Name as string}</h1>
-                <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-csa-accent/15 text-csa-accent">
-                  Lead
-                </span>
+                <div className="relative group/badge">
+                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-csa-accent/15 text-csa-accent cursor-help">
+                    Lead
+                  </span>
+                  <div className="absolute left-0 top-full mt-1.5 z-20 bg-csa-dark border border-border rounded-xl px-3 py-2 shadow-lg opacity-0 pointer-events-none group-hover/badge:opacity-100 group-hover/badge:pointer-events-auto transition-opacity w-64">
+                    <p className="text-[11px] text-text-secondary leading-relaxed">
+                      Leads are people who have interacted with us through a web form (contact us, demo request, or other marketing forms) but do not yet have an evaluation.
+                    </p>
+                  </div>
+                </div>
               </div>
               <p className="text-sm text-text-muted">{lead.Email as string || ''}</p>
             </div>
             <div className="flex items-center gap-2">
               {isAdmin && !convertResult?.success && (
-                <button
-                  onClick={() => setShowConvertConfirm(true)}
-                  disabled={converting}
-                  className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  {converting ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <ArrowRightLeft size={14} />
-                  )}
-                  {converting ? 'Converting...' : 'Convert to Account'}
-                </button>
+                <div className="flex flex-col items-end gap-1">
+                  <button
+                    onClick={() => setShowConvertConfirm(true)}
+                    disabled={converting}
+                    className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {converting ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <ArrowRightLeft size={14} />
+                    )}
+                    {converting ? 'Converting...' : 'Convert to Prospect'}
+                  </button>
+                  <span className="text-[10px] text-text-muted">To create evaluations, convert this lead to a prospect first</span>
+                </div>
               )}
               <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
                 <ExternalLink size={14} />
@@ -304,8 +314,8 @@ export default function LeadDetailView() {
                       <ArrowRightLeft size={20} className="text-success" />
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-text-primary">Convert Lead</h3>
-                      <p className="text-xs text-text-muted">This will create an Account and Contact</p>
+                      <h3 className="text-base font-bold text-text-primary">Convert to Prospect</h3>
+                      <p className="text-xs text-text-muted">This will create an Account and Contact in Zoho CRM</p>
                     </div>
                   </div>
 
@@ -330,8 +340,8 @@ export default function LeadDetailView() {
                   <div className="flex items-start gap-2 mb-5 p-3 bg-warning/5 border border-warning/20 rounded-xl">
                     <AlertTriangle size={14} className="text-warning mt-0.5 flex-shrink-0" />
                     <p className="text-xs text-text-secondary">
-                      This action will trigger all configured workflows on the new Account and Contact records.
-                      The lead record will be marked as converted.
+                      This will convert the lead into a prospect account with a contact record.
+                      All configured workflows will be triggered on the new records.
                     </p>
                   </div>
 
@@ -355,7 +365,7 @@ export default function LeadDetailView() {
                       ) : (
                         <>
                           <ArrowRightLeft size={14} />
-                          Convert Lead
+                          Convert to Prospect
                         </>
                       )}
                     </button>
@@ -381,8 +391,8 @@ export default function LeadDetailView() {
                         <Check size={16} className="text-success" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-success">Lead converted successfully</p>
-                        <p className="text-xs text-text-muted">Account and Contact created. Workflows have been triggered.</p>
+                        <p className="text-sm font-semibold text-success">Lead converted to prospect</p>
+                        <p className="text-xs text-text-muted">Prospect account and contact created. Workflows have been triggered.</p>
                       </div>
                     </div>
                     <button
@@ -601,9 +611,16 @@ export default function LeadDetailView() {
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-text-primary">{account.Account_Name as string}</h1>
-              <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-csa-purple/15 text-csa-purple">
-                Prospect
-              </span>
+              <div className="relative group/badge">
+                <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-csa-purple/15 text-csa-purple cursor-help">
+                  Prospect
+                </span>
+                <div className="absolute left-0 top-full mt-1.5 z-20 bg-csa-dark border border-border rounded-xl px-3 py-2 shadow-lg opacity-0 pointer-events-none group-hover/badge:opacity-100 group-hover/badge:pointer-events-auto transition-opacity w-64">
+                  <p className="text-[11px] text-text-secondary leading-relaxed">
+                    Prospects are potential customers who have active evaluations for our products. They have been set up with an account and may have contacts, assets, and invoices.
+                  </p>
+                </div>
+              </div>
             </div>
             <p className="text-sm text-text-muted">{account.Email_Domain as string || ''}</p>
           </div>
