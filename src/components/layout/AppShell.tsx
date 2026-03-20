@@ -13,10 +13,13 @@
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { Search } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Sidebar from './Sidebar';
 import LoginView from '../views/LoginView';
+import SearchModal from '../SearchModal';
 import { AnimatePresence, motion } from 'framer-motion';
 
 /** Loading spinner shown while a code-split view is being loaded. */
@@ -74,6 +77,19 @@ const VIEW_TITLES: Record<string, string> = {
 
 export default function AppShell() {
   const { user, currentView } = useAppStore();
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Ctrl+K / Cmd+K shortcut to open search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   if (!user) {
     return <LoginView />;
@@ -103,7 +119,7 @@ export default function AppShell() {
     <div className="flex h-screen overflow-hidden bg-csa-deep">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 border-b-4 border-border bg-csa-dark flex items-center px-6 flex-shrink-0">
+        <header className="h-16 border-b-4 border-border bg-csa-dark flex items-center justify-between px-6 flex-shrink-0">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-bold text-text-primary">
               {VIEW_TITLES[currentView] || currentView}
@@ -111,6 +127,16 @@ export default function AppShell() {
             <span className="h-4 w-px bg-border-subtle" />
             <span className="text-xs text-text-muted">Civil Survey Applications Partner Portal</span>
           </div>
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="flex items-center gap-2.5 px-4 py-2 bg-surface border border-border-subtle rounded-xl text-text-muted hover:text-text-primary hover:border-csa-accent/50 transition-colors cursor-pointer group"
+          >
+            <Search size={15} className="group-hover:text-csa-accent transition-colors" />
+            <span className="text-xs font-medium">Search</span>
+            <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono font-semibold text-text-muted/60 bg-csa-dark border border-border-subtle rounded ml-2">
+              Ctrl K
+            </kbd>
+          </button>
         </header>
 
         <div className="flex-1 overflow-hidden">
@@ -130,6 +156,9 @@ export default function AppShell() {
           </AnimatePresence>
         </div>
       </main>
+      <AnimatePresence>
+        {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
+      </AnimatePresence>
     </div>
   );
 }
