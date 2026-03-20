@@ -48,29 +48,40 @@ export async function GET(request: NextRequest) {
 
     // --- Specific email content ---
     if (messageId) {
-      const result = await callMcpTool('ZohoCRM_getSpecificEmail', {
-        path_variables: {
-          moduleApiName: module,
-          id: recordId,
-          messageId,
-        },
-      });
+      try {
+        const result = await callMcpTool('ZohoCRM_getSpecificEmail', {
+          path_variables: {
+            moduleApiName: module,
+            id: recordId,
+            messageId,
+          },
+        });
 
-      // Parse the MCP response
-      const res = result as { content?: Array<{ text?: string }> };
-      if (res?.content) {
-        for (const item of res.content) {
-          if (item.text) {
-            try {
-              const parsed = JSON.parse(item.text);
-              const email = parsed.Emails?.[0] || null;
-              return NextResponse.json({ email });
-            } catch { /* skip */ }
+        // Parse the MCP response
+        const res = result as { content?: Array<{ text?: string }> };
+        if (res?.content) {
+          for (const item of res.content) {
+            if (item.text) {
+              try {
+                const parsed = JSON.parse(item.text);
+                if (parsed.code === 'NO_PERMISSION' || parsed.status === 'error') {
+                  return NextResponse.json({ email: null, error: `permission denied: ${parsed.message || 'NO_PERMISSION'}` });
+                }
+                const email = parsed.Emails?.[0] || null;
+                return NextResponse.json({ email });
+              } catch { /* skip */ }
+            }
           }
         }
-      }
 
-      return NextResponse.json({ email: null });
+        return NextResponse.json({ email: null });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (errMsg.includes('NO_PERMISSION') || errMsg.includes('permission')) {
+          return NextResponse.json({ email: null, error: 'permission denied: IMAP email' });
+        }
+        throw err;
+      }
     }
 
     // --- Email list ---

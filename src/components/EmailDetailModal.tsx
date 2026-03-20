@@ -41,10 +41,12 @@ export default function EmailDetailModal({ module, recordId, messageId, previewS
     try {
       const res = await fetch(`/api/emails?module=${module}&recordId=${recordId}&messageId=${encodeURIComponent(messageId)}`);
       const data = await res.json();
-      if (data.email) {
+      if (data.error?.includes('permission') || data.error?.includes('NO_PERMISSION')) {
+        setError('This email was synced via IMAP and cannot be viewed from the portal. View it directly in Zoho CRM.');
+      } else if (data.email) {
         setEmail(data.email);
       } else {
-        setError('Email not found');
+        setError(data.error || 'Email not found');
       }
     } catch {
       setError('Failed to load email');

@@ -17,6 +17,7 @@ interface EmailMeta {
   has_thread_attachment: boolean;
   status: Array<{ type: string; count?: string }>;
   owner?: { name: string; id: string };
+  Source?: string;
 }
 
 interface EmailHistoryProps {
@@ -143,9 +144,16 @@ export default function EmailHistory({ module, recordId }: EmailHistoryProps) {
                         )}
                       </td>
                       <td>
-                        <span className="font-semibold text-text-primary text-sm line-clamp-1">
-                          {email.subject || '(No subject)'}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-text-primary text-sm line-clamp-1">
+                            {email.subject || '(No subject)'}
+                          </span>
+                          {email.Source === 'imap' && (
+                            <span className="px-1 py-0.5 text-[8px] font-bold uppercase rounded bg-text-muted/15 text-text-muted flex-shrink-0" title="Synced via IMAP — content may not be viewable from the portal">
+                              IMAP
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="text-text-secondary text-xs">
                         {email.from?.user_name || email.from?.email || '\u2014'}
