@@ -699,7 +699,7 @@ export default function AccountDetailView() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <EmailHistory module="Accounts" recordId={selectedAccountId!} />
+          <EmailHistory module="Contacts" contactIds={contacts.map(c => c.id as string)} />
         </motion.div>
 
         {/* Active Assets */}

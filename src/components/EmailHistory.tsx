@@ -18,14 +18,16 @@ interface EmailMeta {
   status: Array<{ type: string; count?: string }>;
   owner?: { name: string; id: string };
   Source?: string;
+  _contactId?: string;
 }
 
 interface EmailHistoryProps {
   module: string;
-  recordId: string;
+  recordId?: string;
+  contactIds?: string[];
 }
 
-export default function EmailHistory({ module, recordId }: EmailHistoryProps) {
+export default function EmailHistory({ module, recordId, contactIds }: EmailHistoryProps) {
   const { user } = useAppStore();
   const [emails, setEmails] = useState<EmailMeta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,11 +39,21 @@ export default function EmailHistory({ module, recordId }: EmailHistoryProps) {
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
 
   useEffect(() => {
-    if (!isAdmin || !recordId) return;
+    if (!isAdmin) return;
+    if (!recordId && (!contactIds || contactIds.length === 0)) return;
+
     setLoading(true);
     setError(null);
 
-    fetch(`/api/emails?module=${module}&recordId=${recordId}`)
+    let url: string;
+    if (contactIds && contactIds.length > 0) {
+      // Fetch emails for multiple contacts (account view)
+      url = `/api/emails?module=Contacts&recordIds=${contactIds.join(',')}`;
+    } else {
+      url = `/api/emails?module=${module}&recordId=${recordId}`;
+    }
+
+    fetch(url)
       .then(res => res.json())
       .then(data => {
         if (data.error) {
@@ -52,7 +64,7 @@ export default function EmailHistory({ module, recordId }: EmailHistoryProps) {
       })
       .catch(() => setError('Failed to load emails'))
       .finally(() => setLoading(false));
-  }, [module, recordId, isAdmin]);
+  }, [module, recordId, contactIds?.join(','), isAdmin]);
 
   if (!isAdmin) return null;
 
@@ -86,6 +98,17 @@ export default function EmailHistory({ module, recordId }: EmailHistoryProps) {
       );
     }
     return badges;
+  };
+
+  // For the detail modal, determine the right module + recordId
+  // When using contactIds, we need to use Contacts module with the first contact's ID
+  // since getSpecificEmail needs a valid record that has the email
+  const getModalProps = (email: EmailMeta) => {
+    if (contactIds && contactIds.length > 0) {
+      // Use the first contact ID — the email is accessible from any associated contact
+      return { module: 'Contacts', recordId: contactIds[0] };
+    }
+    return { module, recordId: recordId! };
   };
 
   return (
@@ -169,7 +192,7 @@ export default function EmailHistory({ module, recordId }: EmailHistoryProps) {
                         <div className="flex items-center gap-1">
                           {getStatusBadges(email.status)}
                           {!email.status?.some(s => s.type === 'opened' || s.type === 'clicked') && (
-                            <span className="text-[9px] text-text-muted">—</span>
+                            <span className="text-[9px] text-text-muted">{'\u2014'}</span>
                           )}
                         </div>
                       </td>
@@ -200,15 +223,18 @@ export default function EmailHistory({ module, recordId }: EmailHistoryProps) {
         )}
       </div>
 
-      {viewingEmail && (
-        <EmailDetailModal
-          module={module}
-          recordId={recordId}
-          messageId={viewingEmail.message_id}
-          previewSubject={viewingEmail.subject}
-          onClose={() => setViewingEmail(null)}
-        />
-      )}
+      {viewingEmail && (() => {
+        const modalProps = getModalProps(viewingEmail);
+        return (
+          <EmailDetailModal
+            module={modalProps.module}
+            recordId={modalProps.recordId}
+            messageId={viewingEmail.message_id}
+            previewSubject={viewingEmail.subject}
+            onClose={() => setViewingEmail(null)}
+          />
+        );
+      })()}
     </>
   );
 }
