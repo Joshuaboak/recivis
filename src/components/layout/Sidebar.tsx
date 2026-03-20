@@ -133,7 +133,7 @@ export default function Sidebar() {
                 className="overflow-hidden"
               >
                 <div className="ml-8 mt-1 space-y-0.5">
-                  <SubNavItem label="Browse" active={currentView === 'accounts' || currentView === 'account-detail'} onClick={() => handleNavClick('accounts')} />
+                  <SubNavItem label="Browse Accounts" active={currentView === 'accounts' || currentView === 'account-detail'} onClick={() => handleNavClick('accounts')} />
                   <SubNavItem label="Create Account" active={currentView === 'create-account'} onClick={() => handleNavClick('create-account')} />
                 </div>
               </motion.div>
@@ -188,8 +188,8 @@ export default function Sidebar() {
                 className="overflow-hidden"
               >
                 <div className="ml-8 mt-1 space-y-0.5">
-                  <SubNavItem label="New Invoice" active={currentView === 'invoice'} onClick={() => handleNavClick('invoice')} />
-                  <SubNavItem label="Existing Invoices" active={currentView === 'draft-invoices'} onClick={() => handleNavClick('draft-invoices')} />
+                  <SubNavItem label="Browse Invoices" active={currentView === 'draft-invoices'} onClick={() => handleNavClick('draft-invoices')} />
+                  <SubNavItem label="Invoicing Assistant" active={currentView === 'invoice'} onClick={() => handleNavClick('invoice')} />
                 </div>
               </motion.div>
             )}
