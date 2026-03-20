@@ -11,6 +11,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
+import EmailHistory from '../EmailHistory';
 
 interface ResellerOption {
   id: string;
@@ -568,6 +569,8 @@ export default function LeadDetailView() {
               </div>
             </motion.div>
           ) : null}
+
+          <EmailHistory module="Leads" recordId={selectedLeadId!} />
         </div>
       </div>
     );
@@ -737,6 +740,8 @@ export default function LeadDetailView() {
             <p className="text-sm text-text-muted py-4">No contacts found</p>
           )}
         </motion.div>
+
+        <EmailHistory module="Accounts" recordId={selectedLeadId!} />
 
         {invoices.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">

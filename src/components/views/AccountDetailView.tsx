@@ -25,6 +25,7 @@ import { exportFullAccount, exportContacts, exportInvoices, exportAssets } from 
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
+import EmailHistory from '../EmailHistory';
 
 interface ResellerOption {
   id: string;
@@ -695,6 +696,10 @@ export default function AccountDetailView() {
           ) : (
             <p className="text-sm text-text-muted py-4">No invoices found</p>
           )}
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <EmailHistory module="Accounts" recordId={selectedAccountId!} />
         </motion.div>
 
         {/* Active Assets */}
