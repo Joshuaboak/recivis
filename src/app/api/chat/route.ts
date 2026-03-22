@@ -17,11 +17,20 @@ interface ToolCall {
 }
 
 /**
- * Server-side RBAC enforcement on AI tool calls.
+ * Server-side RBAC enforcement on AI tool calls (pre-execution).
  * Returns an error string if the call should be blocked, null if allowed.
+ * Also modifies args in-place to ensure Reseller field is in Account search results.
  */
 function enforceToolRBAC(user: AuthUser, toolName: string, args: Record<string, unknown>): string | null {
   const records = args.records as Array<Record<string, unknown>> | undefined;
+
+  // Ensure Reseller field is included in Account search results so post-filter can work
+  if (toolName === 'search_records' && args.module === 'Accounts') {
+    const fields = String(args.fields || '');
+    if (fields && !fields.includes('Reseller')) {
+      args.fields = fields + ',Reseller';
+    }
+  }
 
   if (toolName === 'create_records' && args.module === 'Invoices' && records) {
     for (const rec of records) {
@@ -44,6 +53,56 @@ function enforceToolRBAC(user: AuthUser, toolName: string, args: Record<string, 
   }
 
   return null;
+}
+
+/**
+ * Post-execution RBAC filter: removes Account records the user doesn't have access to.
+ * This is the critical enforcement for the AI chat — it prevents the AI from ever
+ * seeing accounts belonging to other resellers, blocking the entire invoice flow.
+ */
+function filterResultsForRBAC(
+  user: AuthUser,
+  toolName: string,
+  args: Record<string, unknown>,
+  result: unknown
+): unknown {
+  const module = String(args.module || '');
+
+  // Only filter Account operations (search_records, get_record)
+  if (module !== 'Accounts') return result;
+  if (toolName !== 'search_records' && toolName !== 'get_record') return result;
+
+  try {
+    const res = result as { content?: Array<{ text?: string }> };
+    if (!res?.content) return result;
+
+    for (const item of res.content) {
+      if (!item.text) continue;
+      try {
+        const parsed = JSON.parse(item.text);
+        if (!parsed.data || !Array.isArray(parsed.data)) continue;
+
+        const originalCount = parsed.data.length;
+        parsed.data = parsed.data.filter((record: Record<string, unknown>) => {
+          const reseller = record.Reseller as { id?: string } | null | undefined;
+          // No reseller set = not accessible to non-admin users
+          if (!reseller?.id) return false;
+          return user.allowedResellerIds.includes(reseller.id);
+        });
+
+        if (parsed.data.length === 0 && originalCount > 0) {
+          // All results were filtered — tell the AI why
+          parsed.message = 'The accounts matching this search are assigned to other resellers. This user does not have access to them.';
+        }
+
+        item.text = JSON.stringify(parsed);
+      } catch { /* skip unparseable content items */ }
+    }
+
+    return result;
+  } catch {
+    return result;
+  }
 }
 
 const TOOL_STATUS: Record<string, string> = {
@@ -252,6 +311,11 @@ export async function POST(request: NextRequest) {
                 } else {
                   result = { error: error instanceof Error ? error.message : 'Tool execution failed' };
                 }
+              }
+
+              // Post-execution: filter Account results for non-admin users
+              if (!isAdmin(authUser) && authUser.allowedResellerIds.length > 0) {
+                result = filterResultsForRBAC(authUser, toolCall.function.name, args, result);
               }
 
               return {
