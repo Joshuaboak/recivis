@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const cacheKey = `reports:v2:${resellerIds ? resellerIds.sort().join(',') : 'all'}:${regionFilter}:${monthCount}`;
+  const cacheKey = `reports:v3:${resellerIds ? resellerIds.sort().join(',') : 'all'}:${regionFilter}:${monthCount}`;
   const cached = await cacheGet<{ months: MonthReport[]; totals: Record<string, number> }>(cacheKey);
   if (cached) return NextResponse.json(cached);
 
@@ -132,9 +132,10 @@ export async function GET(request: NextRequest) {
       ? searchAllPages('Leads', resellerCriteria, 'Company,Full_Name,Reseller,Country,Created_Time,Converted__s,Record_Status__s', 'desc')
       : getAllRecordPages('Leads', 'Company,Full_Name,Reseller,Country,Created_Time,Converted__s,Record_Status__s', 'Created_Time', 'desc');
 
+    const invoiceFields = 'Subject,Reference_Number,Account_Name,Invoice_Date,Grand_Total,Currency,Status,Payment_Status,Reseller,Reseller_Direct_Purchase,Record_Status__s';
     const fetchInvoices = resellerCriteria
-      ? searchAllPages('Invoices', resellerCriteria, 'Subject,Reference_Number,Account_Name,Invoice_Date,Grand_Total,Currency,Status,Payment_Status,Reseller,Reseller_Direct_Purchase,Record_Status__s', 'desc')
-      : getAllRecordPages('Invoices', 'Subject,Reference_Number,Account_Name,Invoice_Date,Grand_Total,Currency,Status,Payment_Status,Reseller,Reseller_Direct_Purchase,Record_Status__s', 'Invoice_Date', 'desc');
+      ? searchAllPages('Invoices', resellerCriteria, invoiceFields, 'desc')
+      : getAllRecordPages('Invoices', invoiceFields, 'Modified_Time', 'desc');
 
     const [allAccounts, leads, invoices] = await Promise.all([
       fetchAccounts.catch((e) => { log('warn', 'api', 'Reports accounts fetch failed', { error: String(e) }); return []; }),
