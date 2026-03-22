@@ -16,6 +16,10 @@ import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
 import { cacheGet, cacheSet } from '@/lib/cache';
 
+interface CurrencyTotals {
+  [currency: string]: { revenue: number; csaProfit: number; distributorOwed: number; resellerOwed: number };
+}
+
 interface MonthReport {
   month: string;
   label: string;
@@ -23,10 +27,7 @@ interface MonthReport {
   leads: number;
   prospects: number;
   invoiceCount: number;
-  revenue: number;
-  csaProfit: number;
-  distributorOwed: number;
-  resellerOwed: number;
+  byCurrency: CurrencyTotals;
   invoices: InvoiceRow[];
   accountItems: RecordRow[];
   leadItems: RecordRow[];
@@ -205,8 +206,7 @@ export async function GET(request: NextRequest) {
       monthMap.set(m, {
         month: m, label: getMonthLabel(m),
         accounts: 0, leads: 0, prospects: 0,
-        invoiceCount: 0, revenue: 0, csaProfit: 0,
-        distributorOwed: 0, resellerOwed: 0,
+        invoiceCount: 0, byCurrency: {},
         invoices: [], accountItems: [], leadItems: [], prospectItems: [],
       });
     }
@@ -268,9 +268,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Process invoices
+    // Process invoices — only approved
     for (const inv of invoices) {
       if (inv.Record_Status__s === 'Trash') continue;
+      if (inv.Status !== 'Approved') continue;
       const invoiceDate = inv.Invoice_Date as string || '';
       if (!invoiceDate) continue;
       const month = getMonth(invoiceDate);
@@ -342,32 +343,53 @@ export async function GET(request: NextRequest) {
         isResellerDirect,
       };
 
+      const cur = row.currency;
+      if (!slot.byCurrency[cur]) slot.byCurrency[cur] = { revenue: 0, csaProfit: 0, distributorOwed: 0, resellerOwed: 0 };
       slot.invoiceCount++;
-      slot.revenue += revenue;
-      slot.csaProfit += csaProfit;
-      slot.distributorOwed += distributorOwed;
-      slot.resellerOwed += resellerOwed;
+      slot.byCurrency[cur].revenue += revenue;
+      slot.byCurrency[cur].csaProfit += csaProfit;
+      slot.byCurrency[cur].distributorOwed += distributorOwed;
+      slot.byCurrency[cur].resellerOwed += resellerOwed;
       slot.invoices.push(row);
     }
 
-    // Round aggregates
+    // Round aggregates per currency
     for (const slot of monthMap.values()) {
-      slot.revenue = Math.round(slot.revenue * 100) / 100;
-      slot.csaProfit = Math.round(slot.csaProfit * 100) / 100;
-      slot.distributorOwed = Math.round(slot.distributorOwed * 100) / 100;
-      slot.resellerOwed = Math.round(slot.resellerOwed * 100) / 100;
+      for (const cur of Object.keys(slot.byCurrency)) {
+        const c = slot.byCurrency[cur];
+        c.revenue = Math.round(c.revenue * 100) / 100;
+        c.csaProfit = Math.round(c.csaProfit * 100) / 100;
+        c.distributorOwed = Math.round(c.distributorOwed * 100) / 100;
+        c.resellerOwed = Math.round(c.resellerOwed * 100) / 100;
+      }
     }
 
     const months = monthSlots.map(m => monthMap.get(m)!);
+
+    // Aggregate totals by currency
+    const totalsByCurrency: CurrencyTotals = {};
+    for (const m of months) {
+      for (const [cur, vals] of Object.entries(m.byCurrency)) {
+        if (!totalsByCurrency[cur]) totalsByCurrency[cur] = { revenue: 0, csaProfit: 0, distributorOwed: 0, resellerOwed: 0 };
+        totalsByCurrency[cur].revenue += vals.revenue;
+        totalsByCurrency[cur].csaProfit += vals.csaProfit;
+        totalsByCurrency[cur].distributorOwed += vals.distributorOwed;
+        totalsByCurrency[cur].resellerOwed += vals.resellerOwed;
+      }
+    }
+    for (const c of Object.values(totalsByCurrency)) {
+      c.revenue = Math.round(c.revenue * 100) / 100;
+      c.csaProfit = Math.round(c.csaProfit * 100) / 100;
+      c.distributorOwed = Math.round(c.distributorOwed * 100) / 100;
+      c.resellerOwed = Math.round(c.resellerOwed * 100) / 100;
+    }
+
     const totals = {
       accounts: months.reduce((s, m) => s + m.accounts, 0),
       leads: months.reduce((s, m) => s + m.leads, 0),
       prospects: months.reduce((s, m) => s + m.prospects, 0),
       invoiceCount: months.reduce((s, m) => s + m.invoiceCount, 0),
-      revenue: Math.round(months.reduce((s, m) => s + m.revenue, 0) * 100) / 100,
-      csaProfit: Math.round(months.reduce((s, m) => s + m.csaProfit, 0) * 100) / 100,
-      distributorOwed: Math.round(months.reduce((s, m) => s + m.distributorOwed, 0) * 100) / 100,
-      resellerOwed: Math.round(months.reduce((s, m) => s + m.resellerOwed, 0) * 100) / 100,
+      byCurrency: totalsByCurrency,
     };
 
     const result = { months, totals };

@@ -15,10 +15,10 @@ interface InvoiceRow {
   distributorOwed: number; resellerOwed: number; currency: string;
   status: string; paymentStatus: string; isResellerDirect: boolean;
 }
+interface CurrencyTotals { [currency: string]: { revenue: number; csaProfit: number; distributorOwed: number; resellerOwed: number } }
 interface MonthReport {
   month: string; label: string; accounts: number; leads: number; prospects: number;
-  invoiceCount: number; revenue: number; csaProfit: number;
-  distributorOwed: number; resellerOwed: number;
+  invoiceCount: number; byCurrency: CurrencyTotals;
   invoices: InvoiceRow[]; accountItems: RecordRow[]; leadItems: RecordRow[]; prospectItems: RecordRow[];
 }
 interface ResellerFilter { id: string; name: string; region: string }
@@ -66,16 +66,25 @@ export default function ReportsDashboardView() {
     const months = selectedMonths.size > 0
       ? data.months.filter(m => selectedMonths.has(m.month))
       : data.months;
+    // Aggregate by currency across selected months
+    const byCurrency: CurrencyTotals = {};
+    for (const m of months) {
+      for (const [cur, vals] of Object.entries(m.byCurrency)) {
+        if (!byCurrency[cur]) byCurrency[cur] = { revenue: 0, csaProfit: 0, distributorOwed: 0, resellerOwed: 0 };
+        byCurrency[cur].revenue += vals.revenue;
+        byCurrency[cur].csaProfit += vals.csaProfit;
+        byCurrency[cur].distributorOwed += vals.distributorOwed;
+        byCurrency[cur].resellerOwed += vals.resellerOwed;
+      }
+    }
+
     return {
       months,
       accounts: months.reduce((s, m) => s + m.accounts, 0),
       leads: months.reduce((s, m) => s + m.leads, 0),
       prospects: months.reduce((s, m) => s + m.prospects, 0),
       invoiceCount: months.reduce((s, m) => s + m.invoiceCount, 0),
-      revenue: Math.round(months.reduce((s, m) => s + m.revenue, 0) * 100) / 100,
-      csaProfit: Math.round(months.reduce((s, m) => s + m.csaProfit, 0) * 100) / 100,
-      distributorOwed: Math.round(months.reduce((s, m) => s + m.distributorOwed, 0) * 100) / 100,
-      resellerOwed: Math.round(months.reduce((s, m) => s + m.resellerOwed, 0) * 100) / 100,
+      byCurrency,
       allInvoices: months.flatMap(m => m.invoices),
       allAccounts: months.flatMap(m => m.accountItems),
       allLeads: months.flatMap(m => m.leadItems),
@@ -89,6 +98,8 @@ export default function ReportsDashboardView() {
   };
 
   const fmt = (v: number) => `$${v.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const monthRevenue = (m: MonthReport) => Object.values(m.byCurrency).reduce((s, c) => s + c.revenue, 0);
+  const sym = (c: string) => c === 'EUR' ? '\u20AC' : c === 'GBP' ? '\u00A3' : c === 'INR' ? '\u20B9' : c === 'NZD' ? 'NZ$' : c === 'USD' ? 'US$' : '$';
   const fmtC = (v: number, c: string) => {
     const s = c === 'EUR' ? '\u20AC' : c === 'GBP' ? '\u00A3' : c === 'INR' ? '\u20B9' : c === 'NZD' ? 'NZ$' : '$';
     return `${s}${v.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -129,9 +140,14 @@ export default function ReportsDashboardView() {
   const exportOverview = () => {
     if (!data) return;
     exportCsv('overview-report.csv',
-      ['Month', 'Accounts', 'Leads', 'Prospects', 'Invoices', 'Revenue', 'CSA Profit', 'Distributor Owed', 'Reseller Owed'],
-      data.months.map(m => [m.label, String(m.accounts), String(m.leads), String(m.prospects),
-        String(m.invoiceCount), String(m.revenue), String(m.csaProfit), String(m.distributorOwed), String(m.resellerOwed)]));
+      ['Month', 'Accounts', 'Leads', 'Prospects', 'Invoices', 'Revenue (by currency)', 'CSA Profit', 'Distributor Owed', 'Reseller Owed'],
+      data.months.map(m => {
+        const rev = Object.entries(m.byCurrency).map(([c,v]) => `${c}: ${v.revenue.toFixed(2)}`).join('; ') || '0';
+        const profit = Object.entries(m.byCurrency).map(([c,v]) => `${c}: ${v.csaProfit.toFixed(2)}`).join('; ') || '0';
+        const distro = Object.entries(m.byCurrency).map(([c,v]) => `${c}: ${v.distributorOwed.toFixed(2)}`).join('; ') || '0';
+        const reseller = Object.entries(m.byCurrency).map(([c,v]) => `${c}: ${v.resellerOwed.toFixed(2)}`).join('; ') || '0';
+        return [m.label, String(m.accounts), String(m.leads), String(m.prospects), String(m.invoiceCount), rev, profit, distro, reseller];
+      }));
   };
 
   if (loading) {
@@ -209,20 +225,48 @@ export default function ReportsDashboardView() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <SummaryCard label="New Accounts" value={aggregated.accounts} icon={Building2} color="text-csa-accent" prev={prev?.accounts} curr={curr?.accounts} />
               <SummaryCard label="New Leads" value={aggregated.leads + aggregated.prospects} icon={UserSearch} color="text-success" prev={(prev?.leads||0)+(prev?.prospects||0)} curr={(curr?.leads||0)+(curr?.prospects||0)} />
-              <SummaryCard label="Invoices" value={aggregated.invoiceCount} icon={FileText} color="text-csa-purple" prev={prev?.invoiceCount} curr={curr?.invoiceCount} />
-              <SummaryCard label="Revenue" value={fmt(aggregated.revenue)} icon={DollarSign} color="text-warning" isText />
+              <SummaryCard label="Approved Invoices" value={aggregated.invoiceCount} icon={FileText} color="text-csa-purple" prev={prev?.invoiceCount} curr={curr?.invoiceCount} />
+              <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
+                <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Revenue</span><DollarSign size={14} className="text-warning" /></div>
+                {Object.keys(aggregated.byCurrency).length > 0 ? (
+                  <div className="space-y-0.5">
+                    {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
+                      <p key={cur} className="text-sm font-bold text-text-primary">{sym(cur)}{vals.revenue.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p>
+                    ))}
+                  </div>
+                ) : <p className="text-xl font-bold text-text-primary">$0.00</p>}
+              </div>
             </div>
 
-            {isAdminUser && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <MetricCard label="CSA Profit" value={fmt(aggregated.csaProfit)} color="text-success" />
-                <MetricCard label="Distributor Owed" value={fmt(aggregated.distributorOwed)} color="text-warning" />
-                <MetricCard label="Reseller Owed" value={fmt(aggregated.resellerOwed)} color="text-csa-purple" />
+            {isAdminUser && Object.keys(aggregated.byCurrency).length > 0 && (
+              <div className="bg-surface border border-border-subtle rounded-xl p-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">CSA Profit</p>
+                    {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
+                      <p key={cur} className="text-sm font-bold text-success">{sym(cur)}{vals.csaProfit.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p>
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">Distributor Owed</p>
+                    {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
+                      vals.distributorOwed > 0 ? <p key={cur} className="text-sm font-bold text-warning">{sym(cur)}{vals.distributorOwed.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p> : null
+                    ))}
+                    {Object.values(aggregated.byCurrency).every(v => v.distributorOwed === 0) && <p className="text-sm text-text-muted">$0.00</p>}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">Reseller Owed</p>
+                    {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
+                      vals.resellerOwed > 0 ? <p key={cur} className="text-sm font-bold text-csa-purple">{sym(cur)}{vals.resellerOwed.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p> : null
+                    ))}
+                    {Object.values(aggregated.byCurrency).every(v => v.resellerOwed === 0) && <p className="text-sm text-text-muted">$0.00</p>}
+                  </div>
+                </div>
               </div>
             )}
 
             <div className="space-y-4 mb-6">
-              <BarChart title="Revenue" months={chartMonths} getValue={m => m.revenue} color="bg-csa-accent" format={fmt} />
+              <BarChart title="Revenue (all currencies combined)" months={chartMonths} getValue={monthRevenue} color="bg-csa-accent" format={fmt} />
               <BarChart title="New Accounts" months={chartMonths} getValue={m => m.accounts} color="bg-success" />
               <BarChart title="New Leads & Prospects" months={chartMonths} getValue={m => m.leads + m.prospects} color="bg-csa-purple" />
             </div>
@@ -286,15 +330,35 @@ export default function ReportsDashboardView() {
         {tab === 'revenue' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <SummaryCard label="Invoices" value={aggregated.invoiceCount} icon={FileText} color="text-csa-accent" />
-              <SummaryCard label="Revenue" value={fmt(aggregated.revenue)} icon={DollarSign} color="text-text-primary" isText />
-              {isAdminUser && <SummaryCard label="CSA Profit" value={fmt(aggregated.csaProfit)} icon={DollarSign} color="text-success" isText />}
-              {(isAdminUser || isDistributor) && <SummaryCard label="Distributor Owed" value={fmt(aggregated.distributorOwed)} icon={DollarSign} color="text-warning" isText />}
-              <SummaryCard label="Reseller Owed" value={fmt(aggregated.resellerOwed)} icon={DollarSign} color="text-csa-purple" isText />
+              <SummaryCard label="Approved Invoices" value={aggregated.invoiceCount} icon={FileText} color="text-csa-accent" />
+              <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
+                <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Revenue</span><DollarSign size={14} className="text-text-primary" /></div>
+                {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
+                  <p key={cur} className="text-sm font-bold text-text-primary">{sym(cur)}{vals.revenue.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p>
+                ))}
+                {Object.keys(aggregated.byCurrency).length === 0 && <p className="text-xl font-bold text-text-primary">$0.00</p>}
+              </div>
+              {isAdminUser && (
+                <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
+                  <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">CSA Profit</span><DollarSign size={14} className="text-success" /></div>
+                  {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
+                    <p key={cur} className="text-sm font-bold text-success">{sym(cur)}{vals.csaProfit.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p>
+                  ))}
+                  {Object.keys(aggregated.byCurrency).length === 0 && <p className="text-xl font-bold text-success">$0.00</p>}
+                </div>
+              )}
+              <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
+                <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">{isDistributor && !isAdminUser ? 'Your Earnings' : 'Partner Owed'}</span><DollarSign size={14} className="text-csa-purple" /></div>
+                {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => {
+                  const owed = isDistributor && !isAdminUser ? vals.distributorOwed : vals.distributorOwed + vals.resellerOwed;
+                  return owed > 0 ? <p key={cur} className="text-sm font-bold text-csa-purple">{sym(cur)}{owed.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p> : null;
+                })}
+                {Object.values(aggregated.byCurrency).every(v => v.distributorOwed + v.resellerOwed === 0) && <p className="text-xl font-bold text-csa-purple">$0.00</p>}
+              </div>
             </div>
-            <BarChart title="Revenue per Month" months={chartMonths} getValue={m => m.revenue} color="bg-csa-accent" format={fmt} />
+            <BarChart title="Revenue per Month (all currencies)" months={chartMonths} getValue={monthRevenue} color="bg-csa-accent" format={fmt} />
             <div className="mt-6">
-              <DrillTable months={aggregated.months} field="revenue" isCurrency drillMonth={drillMonth} onDrill={setDrillMonth}
+              <DrillTable months={aggregated.months} field="invoiceCount" getDisplayValue={m => Object.entries(m.byCurrency).map(([c,v]) => `${sym(c)}${v.revenue.toLocaleString('en-AU',{minimumFractionDigits:2})}`).join(' / ') || '$0.00'} drillMonth={drillMonth} onDrill={setDrillMonth}
                 columns={['Invoice', 'Account', 'Reseller', 'Date', 'Type', 'Revenue', ...(isAdminUser ? ['CSA Profit', 'Distro Owed', 'Reseller Owed'] : isDistributor ? ['Your Earnings'] : ['Your Commission']), 'Status']}
                 renderRows={m => m.invoices.map(inv => (
                   <tr key={inv.id} onClick={() => { setSelectedInvoiceId(inv.id); setInvoiceReturnView('draft-invoices'); setCurrentView('invoice-detail'); }} className="cursor-pointer hover:bg-csa-accent/5 transition-colors">
@@ -378,8 +442,9 @@ function BarChart({ title, months, getValue, color, format }: {
   );
 }
 
-function DrillTable({ months, field, secondField, isCurrency, drillMonth, onDrill, columns, renderRows }: {
+function DrillTable({ months, field, secondField, isCurrency, getDisplayValue, drillMonth, onDrill, columns, renderRows }: {
   months: MonthReport[]; field: string; secondField?: string; isCurrency?: boolean;
+  getDisplayValue?: (m: MonthReport) => string;
   drillMonth: string | null; onDrill: (m: string | null) => void;
   columns: string[]; renderRows: (m: MonthReport) => React.ReactNode[];
 }) {
@@ -389,13 +454,14 @@ function DrillTable({ months, field, secondField, isCurrency, drillMonth, onDril
         const val = (m as unknown as Record<string, number>)[field] || 0;
         const val2 = secondField ? (m as unknown as Record<string, number>)[secondField] || 0 : 0;
         const isDrilling = drillMonth === m.month;
+        const display = getDisplayValue ? getDisplayValue(m) : (isCurrency ? `$${val.toLocaleString('en-AU', { minimumFractionDigits: 2 })}` : `${val}${val2 > 0 ? ` + ${val2}` : ''}`);
         return (
           <div key={m.month} className="border border-border-subtle rounded-xl overflow-hidden">
             <button onClick={() => onDrill(isDrilling ? null : m.month)} className="w-full flex items-center justify-between px-4 py-3 bg-surface hover:bg-surface-raised transition-colors cursor-pointer">
               <span className="text-sm font-semibold text-text-primary">{m.label}</span>
               <div className="flex items-center gap-3">
                 <span className="text-sm font-bold text-csa-accent">
-                  {isCurrency ? `$${val.toLocaleString('en-AU', { minimumFractionDigits: 2 })}` : val}{val2 > 0 && !isCurrency ? ` + ${val2}` : ''}
+                  {display}
                 </span>
                 <ChevronDown size={14} className={`text-text-muted transition-transform ${isDrilling ? 'rotate-180' : ''}`} />
               </div>
