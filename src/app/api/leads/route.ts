@@ -10,9 +10,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { searchAllPages, getAllRecordPages, parseMcpResult, callMcpTool } from '@/lib/zoho';
+import { searchAllPages, getAllRecordPages, parseMcpResult, callMcpTool, executeZohoTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
-import { requireAuth } from '@/lib/api-auth';
+import { requireAuth, isAdmin } from '@/lib/api-auth';
 
 const LEAD_FIELDS = 'Company,Full_Name,First_Name,Last_Name,Email,Phone,Country,Lead_Status,Lead_Source,Product_Interest,Reseller,Owner,Created_Time,Record_Status__s,Converted__s';
 const PROSPECT_FIELDS = 'Account_Name,Billing_Country,Reseller,Email_Domain,Owner,Account_Type,Primary_Contact,Created_Time,Record_Status__s';
@@ -257,5 +257,61 @@ export async function GET(request: NextRequest) {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json({ error: 'Failed to load leads' }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/leads — Create a new lead in Zoho CRM.
+ */
+export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
+
+  try {
+    const body = await request.json();
+
+    // Build lead record — only allow known fields
+    const leadData: Record<string, unknown> = {};
+    const directFields = [
+      'First_Name', 'Last_Name', 'Email', 'Phone', 'Mobile', 'Company',
+      'Website', 'Lead_Status', 'Industry', 'Product_Interest', 'Country',
+      'Street', 'City', 'State', 'Zip_Code', 'Lead_Source', 'Job_Title3',
+      'Description',
+    ];
+    for (const field of directFields) {
+      if (body[field] !== undefined) leadData[field] = body[field];
+    }
+
+    // Reseller lookup
+    if (body.Reseller) {
+      leadData.Reseller = { id: body.Reseller };
+    } else if (!isAdmin(user) && user.resellerId) {
+      // Auto-assign to the user's reseller
+      leadData.Reseller = { id: user.resellerId };
+    }
+
+    const result = await executeZohoTool('create_records', {
+      module: 'Leads',
+      records: [leadData],
+      trigger: ['workflow'],
+    });
+
+    const parsed = parseMcpResult(result);
+    const created = parsed.data[0] as Record<string, unknown> | undefined;
+
+    if (created?.code === 'SUCCESS') {
+      const details = created.details as Record<string, unknown>;
+      log('info', 'api', 'Lead created', { id: details?.id, by: user.email });
+      return NextResponse.json({ success: true, id: details?.id });
+    }
+
+    log('warn', 'api', 'Lead creation result', { data: JSON.stringify(parsed.data).slice(0, 300) });
+    return NextResponse.json({ success: true, data: parsed.data });
+  } catch (error) {
+    log('error', 'api', 'Lead creation failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({ error: 'Failed to create lead' }, { status: 500 });
   }
 }

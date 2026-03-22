@@ -41,6 +41,7 @@ function ViewLoader() {
 const DashboardView = dynamic(() => import('../views/DashboardView'), { loading: ViewLoader });
 const LeadsView = dynamic(() => import('../views/LeadsView'), { loading: ViewLoader });
 const LeadDetailView = dynamic(() => import('../views/LeadDetailView'), { loading: ViewLoader });
+const CreateLeadView = dynamic(() => import('../views/CreateLeadView'), { loading: ViewLoader });
 const AccountsView = dynamic(() => import('../views/AccountsView'), { loading: ViewLoader });
 const AccountDetailView = dynamic(() => import('../views/AccountDetailView'), { loading: ViewLoader });
 const CreateAccountView = dynamic(() => import('../views/CreateAccountView'), { loading: ViewLoader });
@@ -61,6 +62,7 @@ const VIEW_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
   leads: 'Leads',
   'lead-detail': 'Lead',
+  'create-lead': 'Create Lead',
   accounts: 'Accounts',
   'account-detail': 'Account',
   'create-account': 'Create Account',
@@ -152,6 +154,7 @@ export default function AppShell() {
     dashboard: DashboardView,
     leads: LeadsView,
     'lead-detail': LeadDetailView,
+    'create-lead': CreateLeadView,
     accounts: AccountsView,
     'account-detail': AccountDetailView,
     'create-account': CreateAccountView,

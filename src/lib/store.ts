@@ -37,8 +37,8 @@ interface AppState {
 
   // --- Navigation ---
   /** Active view in the SPA — drives which component AppShell renders. */
-  currentView: 'dashboard' | 'leads' | 'lead-detail' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'reports-dashboard' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail' | 'partner-resources';
-  setCurrentView: (view: 'dashboard' | 'leads' | 'lead-detail' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'reports-dashboard' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail' | 'partner-resources') => void;
+  currentView: 'dashboard' | 'leads' | 'lead-detail' | 'create-lead' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'reports-dashboard' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail' | 'partner-resources';
+  setCurrentView: (view: 'dashboard' | 'leads' | 'lead-detail' | 'create-lead' | 'accounts' | 'account-detail' | 'create-account' | 'invoice' | 'invoice-detail' | 'create-invoice' | 'draft-invoices' | 'reports' | 'reports-dashboard' | 'coupons' | 'create-coupon' | 'coupon-detail' | 'resellers' | 'reseller-detail' | 'partner-resources') => void;
 
   // --- Selected Record IDs (for detail views) ---
   /** Zoho CRM record ID of the currently selected reseller. */

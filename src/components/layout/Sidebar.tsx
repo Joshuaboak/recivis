@@ -33,10 +33,13 @@ import {
 import { useAppStore } from '@/lib/store';
 import UserMenu from './UserMenu';
 
-type ViewId = 'dashboard' | 'leads' | 'lead-detail' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports' | 'reports-dashboard' | 'coupons' | 'create-coupon' | 'resellers' | 'reseller-detail' | 'partner-resources';
+type ViewId = 'dashboard' | 'leads' | 'lead-detail' | 'create-lead' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports' | 'reports-dashboard' | 'coupons' | 'create-coupon' | 'resellers' | 'reseller-detail' | 'partner-resources';
 
 export default function Sidebar() {
   const { currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
+  const [leadsMenuOpen, setLeadsMenuOpen] = useState(
+    currentView === 'leads' || currentView === 'lead-detail' || currentView === 'create-lead'
+  );
   const [accountMenuOpen, setAccountMenuOpen] = useState(
     currentView === 'accounts' || currentView === 'account-detail' || currentView === 'create-account'
   );
@@ -55,6 +58,7 @@ export default function Sidebar() {
     setCurrentView(id);
   };
 
+  const isLeadActive = currentView === 'leads' || currentView === 'lead-detail' || currentView === 'create-lead';
   const isAccountActive = currentView === 'accounts' || currentView === 'account-detail' || currentView === 'create-account';
   const isInvoiceActive = currentView === 'invoice' || currentView === 'draft-invoices' || currentView === 'invoice-detail';
 
@@ -87,8 +91,50 @@ export default function Sidebar() {
         {/* Dashboard */}
         <NavItem id="dashboard" label="Dashboard" icon={LayoutDashboard} active={currentView === 'dashboard'} onClick={() => handleNavClick('dashboard')} open={sidebarOpen} />
 
-        {/* Leads */}
-        <NavItem id="leads" label="Leads" icon={UserSearch} active={currentView === 'leads' || currentView === 'lead-detail'} onClick={() => handleNavClick('leads')} open={sidebarOpen} />
+        {/* Leads (with submenu) */}
+        <div>
+          <button
+            onClick={() => {
+              if (!sidebarOpen) {
+                handleNavClick('leads');
+              } else {
+                setLeadsMenuOpen(!leadsMenuOpen);
+                if (!isLeadActive) handleNavClick('leads');
+              }
+            }}
+            className={`
+              w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
+              transition-all duration-150 relative group rounded-xl cursor-pointer
+              ${isLeadActive
+                ? 'bg-csa-accent/15 text-csa-accent'
+                : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
+              }
+            `}
+          >
+            {isLeadActive && (
+              <motion.div layoutId="nav-indicator-lead" className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent rounded-r" transition={{ duration: 0.2 }} />
+            )}
+            <UserSearch size={20} className="flex-shrink-0" />
+            <AnimatePresence>
+              {sidebarOpen && (
+                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">
+                  Leads
+                </motion.span>
+              )}
+            </AnimatePresence>
+            {sidebarOpen && (
+              <ChevronRight size={14} className={`text-text-muted transition-transform ${leadsMenuOpen ? 'rotate-90' : ''}`} />
+            )}
+          </button>
+          <AnimatePresence>
+            {sidebarOpen && leadsMenuOpen && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden ml-4 border-l border-border-subtle">
+                <SubNavItem label="Browse Leads" active={currentView === 'leads'} onClick={() => handleNavClick('leads')} />
+                <SubNavItem label="Create Lead" active={currentView === 'create-lead'} onClick={() => handleNavClick('create-lead')} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Accounts (with submenu) */}
         <div>
