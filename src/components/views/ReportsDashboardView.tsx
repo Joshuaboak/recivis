@@ -221,7 +221,7 @@ export default function ReportsDashboardView() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            <div className="space-y-4 mb-6">
               <BarChart title="Revenue" months={chartMonths} getValue={m => m.revenue} color="bg-csa-accent" format={fmt} />
               <BarChart title="New Accounts" months={chartMonths} getValue={m => m.accounts} color="bg-success" />
               <BarChart title="New Leads & Prospects" months={chartMonths} getValue={m => m.leads + m.prospects} color="bg-csa-purple" />
@@ -235,7 +235,7 @@ export default function ReportsDashboardView() {
             <div className="grid grid-cols-2 gap-4 mb-6">
               <SummaryCard label="Total New Accounts" value={aggregated.accounts} icon={Building2} color="text-csa-accent" />
             </div>
-            <BarChart title="Accounts per Month" months={chartMonths} getValue={m => m.accounts} color="bg-csa-accent" tall />
+            <BarChart title="Accounts per Month" months={chartMonths} getValue={m => m.accounts} color="bg-csa-accent" />
             <div className="mt-6">
               <DrillTable months={aggregated.months} field="accounts" drillMonth={drillMonth} onDrill={setDrillMonth}
                 columns={['Name', 'Reseller', 'Country', 'Created']}
@@ -256,7 +256,7 @@ export default function ReportsDashboardView() {
               <SummaryCard label="Leads" value={aggregated.leads} icon={UserSearch} color="text-csa-accent" />
               <SummaryCard label="Prospects" value={aggregated.prospects} icon={Building2} color="text-csa-purple" />
             </div>
-            <BarChart title="Leads & Prospects per Month" months={chartMonths} getValue={m => m.leads + m.prospects} color="bg-csa-purple" tall />
+            <BarChart title="Leads & Prospects per Month" months={chartMonths} getValue={m => m.leads + m.prospects} color="bg-csa-purple" />
             <div className="mt-6">
               <DrillTable months={aggregated.months} field="leads" secondField="prospects" drillMonth={drillMonth} onDrill={setDrillMonth}
                 columns={['Name', 'Type', 'Reseller', 'Country', 'Created']}
@@ -292,7 +292,7 @@ export default function ReportsDashboardView() {
               {(isAdminUser || isDistributor) && <SummaryCard label="Distributor Owed" value={fmt(aggregated.distributorOwed)} icon={DollarSign} color="text-warning" isText />}
               <SummaryCard label="Reseller Owed" value={fmt(aggregated.resellerOwed)} icon={DollarSign} color="text-csa-purple" isText />
             </div>
-            <BarChart title="Revenue per Month" months={chartMonths} getValue={m => m.revenue} color="bg-csa-accent" format={fmt} tall />
+            <BarChart title="Revenue per Month" months={chartMonths} getValue={m => m.revenue} color="bg-csa-accent" format={fmt} />
             <div className="mt-6">
               <DrillTable months={aggregated.months} field="revenue" isCurrency drillMonth={drillMonth} onDrill={setDrillMonth}
                 columns={['Invoice', 'Account', 'Reseller', 'Date', 'Type', 'Revenue', ...(isAdminUser ? ['CSA Profit', 'Distro Owed', 'Reseller Owed'] : isDistributor ? ['Your Earnings'] : ['Your Commission']), 'Status']}
@@ -344,32 +344,36 @@ function MetricCard({ label, value, color }: { label: string; value: string; col
   );
 }
 
-function BarChart({ title, months, getValue, color, format, tall }: {
+function BarChart({ title, months, getValue, color, format }: {
   title: string; months: MonthReport[]; getValue: (m: MonthReport) => number;
-  color: string; format?: (v: number) => string; tall?: boolean;
+  color: string; format?: (v: number) => string;
 }) {
   const max = Math.max(...months.map(getValue), 1);
   const f = format || ((v: number) => String(v));
+  const barHeight = 200;
   return (
-    <div className="bg-surface border border-border-subtle rounded-xl p-4">
-      <h3 className="text-xs font-bold text-text-primary mb-3">{title}</h3>
-      <div className={`flex items-end gap-[3px] ${tall ? 'h-48' : 'h-32'}`}>
+    <div className="bg-surface border border-border-subtle rounded-xl p-5">
+      <h3 className="text-sm font-bold text-text-primary mb-4">{title}</h3>
+      <div className="flex items-end gap-1" style={{ height: `${barHeight}px` }}>
         {months.map(m => {
           const val = getValue(m);
           const pct = max > 0 ? (val / max) * 100 : 0;
+          const h = Math.max(Math.round(barHeight * pct / 100), val > 0 ? 4 : 1);
           return (
-            <div key={m.month} className="flex-1 flex flex-col items-center gap-0.5 min-w-0 group relative">
-              <div className="w-full flex-1 flex items-end">
-                <div className={`w-full ${color} rounded-t-sm transition-all group-hover:opacity-80`} style={{ height: `${Math.max(pct, 2)}%` }} />
+            <div key={m.month} className="flex-1 flex flex-col items-center min-w-0 group relative" style={{ height: `${barHeight}px` }}>
+              <div className="flex-1" />
+              <div className={`w-full ${color} rounded-t transition-all group-hover:brightness-125`} style={{ height: `${h}px` }} />
+              <div className="absolute bottom-[-20px] left-1/2 -translate-x-1/2 z-10">
+                <span className="text-[8px] text-text-muted whitespace-nowrap">{m.label.slice(0, 3)}</span>
               </div>
-              <span className="text-[7px] text-text-muted truncate w-full text-center">{m.label.slice(0, 3)}</span>
-              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 z-10 bg-csa-dark border border-border rounded-lg px-2 py-1 text-[9px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg">
-                {m.label}: {f(val)}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10 bg-csa-dark border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg">
+                <span className="font-semibold text-text-primary">{m.label}</span><br />{f(val)}
               </div>
             </div>
           );
         })}
       </div>
+      <div className="h-5" />
     </div>
   );
 }

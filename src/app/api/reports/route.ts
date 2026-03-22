@@ -287,8 +287,8 @@ export async function GET(request: NextRequest) {
       // Revenue = the actual invoice total (what was invoiced)
       const revenue = grandTotal;
 
-      // Check if this is a CSA-owned reseller (100% CSA revenue)
-      const isCSA = isCsaReseller(resellerName) || isCsaReseller(resellerInfo?.name || '');
+      // Check if this is a CSA-owned reseller or no reseller (100% CSA revenue)
+      const isCSA = !resellerId || isCsaReseller(resellerName) || isCsaReseller(resellerInfo?.name || '');
 
       let csaProfit: number;
       let distributorOwed: number;
