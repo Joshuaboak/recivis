@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchAllPages, getAllRecordPages, parseMcpResult, callMcpTool, executeZohoTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
-import { requireAuth } from '@/lib/api-auth';
+import { requireAuth, isAdmin } from '@/lib/api-auth';
 
 /**
  * GET /api/accounts?search=term&resellerId=id&resellerIds=id1,id2,id3
@@ -45,6 +45,17 @@ export async function GET(request: NextRequest) {
       } else if (ids.length > 1) {
         resellerCriteria = `(${ids.map(id => `(Reseller:equals:${id})`).join('or')})`;
       }
+    }
+
+    // RBAC: Non-admin users can only see accounts for their allowed resellers
+    if (!isAdmin(user)) {
+      if (user.allowedResellerIds.length === 0) {
+        return NextResponse.json({ accounts: [] });
+      }
+      const ids = user.allowedResellerIds;
+      resellerCriteria = ids.length === 1
+        ? `(Reseller:equals:${ids[0]})`
+        : `(${ids.map(id => `(Reseller:equals:${id})`).join('or')})`;
     }
 
     if (search && resellerCriteria) {

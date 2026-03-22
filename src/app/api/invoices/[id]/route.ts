@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
-import { requireAuth } from '@/lib/api-auth';
+import { requireAuth, isAdmin, canManageReseller } from '@/lib/api-auth';
 
 /**
  * GET /api/invoices/[id] — get invoice detail with line items
@@ -51,6 +51,14 @@ export async function GET(
     const invoiceData = parseResult(invoiceResult);
     const invoice = invoiceData[0] || null;
 
+    // RBAC: Non-admin users can only view invoices for their allowed resellers
+    if (invoice && !isAdmin(user)) {
+      const invResellerId = (invoice.Reseller as { id?: string })?.id;
+      if (!invResellerId || !canManageReseller(user, invResellerId)) {
+        return NextResponse.json({ error: 'This invoice belongs to another reseller' }, { status: 403 });
+      }
+    }
+
     // Extract line items from the invoice record's Invoiced_Items subform
     const lineItems = (invoice?.Invoiced_Items as Record<string, unknown>[] | undefined) || [];
 
@@ -78,6 +86,17 @@ export async function PATCH(
   const { id } = await params;
 
   try {
+    // RBAC: Fetch invoice first to check ownership
+    if (!isAdmin(user)) {
+      const checkResult = await executeZohoTool('get_record', { module: 'Invoices', record_id: id });
+      const checkData = parseMcpResult(checkResult);
+      const existing = checkData.data[0] as Record<string, unknown> | undefined;
+      const resId = (existing?.Reseller as { id?: string })?.id;
+      if (!resId || !canManageReseller(user, resId)) {
+        return NextResponse.json({ error: 'This invoice belongs to another reseller' }, { status: 403 });
+      }
+    }
+
     const body = await request.json();
     const updateData: Record<string, unknown> = { id };
 
@@ -88,6 +107,18 @@ export async function PATCH(
     if (body.Invoiced_Items) updateData.Invoiced_Items = body.Invoiced_Items;
     if (body.Reseller_Direct_Purchase !== undefined) updateData.Reseller_Direct_Purchase = body.Reseller_Direct_Purchase;
     if (body.Purchase_Order !== undefined) updateData.Purchase_Order = body.Purchase_Order;
+
+    // Status changes require specific permissions
+    if (body.Status) {
+      if (body.Status === 'Approved' && !user.permissions.canApproveInvoices && !isAdmin(user)) {
+        return NextResponse.json({ error: 'You do not have permission to approve invoices' }, { status: 403 });
+      }
+      if (body.Send_Invoice && !user.permissions.canSendInvoices && !isAdmin(user)) {
+        return NextResponse.json({ error: 'You do not have permission to send invoices' }, { status: 403 });
+      }
+      updateData.Status = body.Status;
+    }
+    if (body.Send_Invoice !== undefined) updateData.Send_Invoice = body.Send_Invoice;
 
     const result = await executeZohoTool('update_records', {
       module: 'Invoices',

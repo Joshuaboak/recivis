@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
-import { requireAuth } from '@/lib/api-auth';
+import { requireAuth, isAdmin, canManageReseller } from '@/lib/api-auth';
 
 /**
  * GET /api/accounts/[id] — get account detail with contacts and assets
@@ -69,6 +69,15 @@ export async function GET(
 
     const accountData = parseResult(accountResult);
     const account = accountData[0] || null;
+
+    // RBAC: Non-admin users can only access accounts assigned to their reseller(s)
+    if (account && !isAdmin(user)) {
+      const accountResellerId = (account.Reseller as { id?: string })?.id;
+      if (!accountResellerId || !canManageReseller(user, accountResellerId)) {
+        return NextResponse.json({ error: 'This account is assigned to another reseller' }, { status: 403 });
+      }
+    }
+
     const contacts = parseResult(contactsResult).filter(
       (c: Record<string, unknown>) => c.Record_Status__s !== 'Trash'
     );
@@ -111,6 +120,17 @@ export async function PATCH(
   const { id } = await params;
 
   try {
+    // RBAC: Non-admin users can only update accounts assigned to their reseller(s)
+    if (!isAdmin(user)) {
+      const acctResult = await executeZohoTool('get_record', { module: 'Accounts', record_id: id });
+      const acctData = parseMcpResult(acctResult);
+      const acct = acctData.data[0] as Record<string, unknown> | undefined;
+      const resId = (acct?.Reseller as { id?: string })?.id;
+      if (!resId || !canManageReseller(user, resId)) {
+        return NextResponse.json({ error: 'This account is assigned to another reseller' }, { status: 403 });
+      }
+    }
+
     const body = await request.json();
     const updateData: Record<string, unknown> = { id };
 

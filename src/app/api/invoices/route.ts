@@ -50,6 +50,19 @@ export async function GET(request: NextRequest) {
       criteria = `(Status:equals:${status})`;
     }
 
+    // RBAC: Non-admin users can only see invoices for their allowed resellers
+    if (!isAdmin(user)) {
+      if (user.allowedResellerIds.length === 0) {
+        return NextResponse.json({ invoices: [] });
+      }
+      // Force reseller filter — override any client-provided filter
+      const ids = user.allowedResellerIds;
+      const resellerOr = ids.length === 1
+        ? `(Reseller:equals:${ids[0]})`
+        : `(${ids.map(id => `(Reseller:equals:${id})`).join('or')})`;
+      criteria = `((Status:equals:${status})and${resellerOr})`;
+    }
+
     const allRecords = await searchAllPages('Invoices', criteria, fields, 'desc');
 
     const invoices = allRecords.filter(
@@ -79,6 +92,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+
+    // RBAC: Non-admin users can only create invoices for their allowed resellers
+    if (!isAdmin(user)) {
+      const invoiceResellerId = body.Reseller?.id || body.Reseller;
+      if (invoiceResellerId && !user.allowedResellerIds.includes(invoiceResellerId)) {
+        return NextResponse.json({ error: 'You cannot create invoices for accounts assigned to another reseller' }, { status: 403 });
+      }
+    }
 
     const result = await executeZohoTool('create_records', {
       module: 'Invoices',

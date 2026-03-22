@@ -68,7 +68,12 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
               rr.can_send_invoices AS rr_send, rr.can_view_all_records AS rr_all,
               rr.can_view_child_records AS rr_child, rr.can_modify_prices AS rr_price,
               rr.can_upload_po AS rr_po, rr.can_view_reports AS rr_reports,
-              rr.can_export_data AS rr_export
+              rr.can_export_data AS rr_export,
+              r.perm_create_invoices AS ro_create, r.perm_approve_invoices AS ro_approve,
+              r.perm_send_invoices AS ro_send, r.perm_view_all_records AS ro_all,
+              r.perm_view_child_records AS ro_child, r.perm_modify_prices AS ro_price,
+              r.perm_upload_po AS ro_po, r.perm_view_reports AS ro_reports,
+              r.perm_export_data AS ro_export
        FROM users u
        LEFT JOIN user_roles ur ON ur.id = u.user_role_id
        LEFT JOIN resellers r ON r.id = u.reseller_id
@@ -81,17 +86,30 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
     const row = result.rows[0];
 
     const isSystemAdmin = row.user_role_name === 'admin' || row.user_role_name === 'ibm';
+
+    // Effective reseller permission = per-reseller override ?? reseller_role default
+    // ro_ = reseller override (nullable), rr_ = reseller role default
+    const rrCreate = row.ro_create ?? row.rr_create ?? false;
+    const rrApprove = row.ro_approve ?? row.rr_approve ?? false;
+    const rrSend = row.ro_send ?? row.rr_send ?? false;
+    const rrAll = row.ro_all ?? row.rr_all ?? false;
+    const rrChild = row.ro_child ?? row.rr_child ?? false;
+    const rrPrice = row.ro_price ?? row.rr_price ?? false;
+    const rrPo = row.ro_po ?? row.rr_po ?? false;
+    const rrReports = row.ro_reports ?? row.rr_reports ?? false;
+    const rrExport = row.ro_export ?? row.rr_export ?? false;
+
     const permissions: UserPermissions = {
-      canCreateInvoices: isSystemAdmin || ((row.ur_create ?? false) && (row.rr_create ?? false)),
-      canApproveInvoices: isSystemAdmin || ((row.ur_approve ?? false) && (row.rr_approve ?? false)),
-      canSendInvoices: isSystemAdmin || ((row.ur_send ?? false) && (row.rr_send ?? false)),
-      canViewAllRecords: isSystemAdmin || (row.rr_all ?? false),
-      canViewChildRecords: isSystemAdmin || (row.rr_child ?? false),
-      canModifyPrices: isSystemAdmin || ((row.ur_price ?? false) && (row.rr_price ?? false)),
-      canUploadPO: isSystemAdmin || ((row.ur_po ?? false) && (row.rr_po ?? false)),
+      canCreateInvoices: isSystemAdmin || ((row.ur_create ?? false) && rrCreate),
+      canApproveInvoices: isSystemAdmin || ((row.ur_approve ?? false) && rrApprove),
+      canSendInvoices: isSystemAdmin || ((row.ur_send ?? false) && rrSend),
+      canViewAllRecords: isSystemAdmin || rrAll,
+      canViewChildRecords: isSystemAdmin || rrChild,
+      canModifyPrices: isSystemAdmin || ((row.ur_price ?? false) && rrPrice),
+      canUploadPO: isSystemAdmin || ((row.ur_po ?? false) && rrPo),
       canManageUsers: isSystemAdmin || (row.ur_users ?? false),
-      canViewReports: isSystemAdmin || ((row.ur_reports ?? false) && (row.rr_reports ?? false)),
-      canExportData: isSystemAdmin || ((row.ur_export ?? false) && (row.rr_export ?? false)),
+      canViewReports: isSystemAdmin || ((row.ur_reports ?? false) && rrReports),
+      canExportData: isSystemAdmin || ((row.ur_export ?? false) && rrExport),
     };
 
     // Compute allowed reseller IDs

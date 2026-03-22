@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, resetSession } from '@/lib/zoho';
 import { toolDefinitions, getSystemPrompt } from '@/lib/ai-tools';
 import { log } from '@/lib/logger';
-import { requireAuth } from '@/lib/api-auth';
+import { requireAuth, isAdmin } from '@/lib/api-auth';
+import type { AuthUser } from '@/lib/api-auth';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -13,6 +14,36 @@ interface ToolCall {
     name: string;
     arguments: string;
   };
+}
+
+/**
+ * Server-side RBAC enforcement on AI tool calls.
+ * Returns an error string if the call should be blocked, null if allowed.
+ */
+function enforceToolRBAC(user: AuthUser, toolName: string, args: Record<string, unknown>): string | null {
+  const records = args.records as Array<Record<string, unknown>> | undefined;
+
+  if (toolName === 'create_records' && args.module === 'Invoices' && records) {
+    for (const rec of records) {
+      const resellerId = (rec.Reseller as { id?: string })?.id || rec.Reseller;
+      if (typeof resellerId === 'string' && !user.allowedResellerIds.includes(resellerId)) {
+        return 'You cannot create invoices for accounts assigned to another reseller.';
+      }
+    }
+  }
+
+  if (toolName === 'update_records' && args.module === 'Invoices' && records) {
+    for (const rec of records) {
+      if (rec.Status === 'Approved' && !user.permissions.canApproveInvoices) {
+        return 'You do not have permission to approve invoices.';
+      }
+      if (rec.Send_Invoice === true && !user.permissions.canSendInvoices) {
+        return 'You do not have permission to send invoices.';
+      }
+    }
+  }
+
+  return null;
 }
 
 const TOOL_STATUS: Record<string, string> = {
@@ -39,7 +70,7 @@ function convertTools() {
 export async function POST(request: NextRequest) {
   const authResult = await requireAuth(request);
   if (authResult instanceof NextResponse) return authResult;
-  const user = authResult;
+  const authUser = authResult;
 
   const encoder = new TextEncoder();
   const requestStart = Date.now();
@@ -53,17 +84,17 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const { messages, user } = await request.json();
+        const { messages } = await request.json();
 
         const lastUserMsg = messages.filter((m: { role: string }) => m.role === 'user').pop();
         const userInput = typeof lastUserMsg?.content === 'string'
           ? lastUserMsg.content.slice(0, 100)
           : '[multimodal]';
 
-        log('info', 'api', `Chat request from ${user?.name || 'unknown'}`, {
+        log('info', 'api', `Chat request from ${authUser.name}`, {
           userInput,
           messageCount: messages.length,
-          role: user?.role,
+          role: authUser.role,
         });
 
         const apiKey = process.env.OPENROUTER_API_KEY;
@@ -74,9 +105,8 @@ export async function POST(request: NextRequest) {
           return;
         }
 
-        const userContext = user
-          ? `\n\n## Current User\n- Email: ${user.email}\n- Name: ${user.name}\n- Role: ${user.role}\n- Reseller: ${user.resellerName || 'N/A'}\n- Region: ${user.region || 'N/A'}\n- Allowed Reseller IDs: ${user.allowedResellerIds?.join(', ') || 'ALL (admin)'}`
-          : '';
+        // Build user context from SERVER-SIDE auth (never trust client-provided user data)
+        const userContext = `\n\n## Current User\n- Email: ${authUser.email}\n- Name: ${authUser.name}\n- Role: ${authUser.role}\n- Reseller ID: ${authUser.resellerId || 'N/A'}\n- Allowed Reseller IDs: ${authUser.allowedResellerIds.length > 0 ? authUser.allowedResellerIds.join(', ') : 'ALL (admin)'}\n- Can Create Invoices: ${authUser.permissions.canCreateInvoices}\n- Can Approve Invoices: ${authUser.permissions.canApproveInvoices}\n- Can Send Invoices: ${authUser.permissions.canSendInvoices}\n- Can Modify Prices: ${authUser.permissions.canModifyPrices}`;
 
         const systemMessage = {
           role: 'system',
@@ -182,6 +212,19 @@ export async function POST(request: NextRequest) {
               log('info', 'tool', `Calling ${toolCall.function.name}`, {
                 args: JSON.stringify(args).slice(0, 1000),
               });
+
+              // RBAC enforcement on tool calls for non-admin users
+              if (!isAdmin(authUser)) {
+                const rbacError = enforceToolRBAC(authUser, toolCall.function.name, args);
+                if (rbacError) {
+                  log('warn', 'tool', `RBAC blocked: ${toolCall.function.name}`, { reason: rbacError });
+                  return {
+                    role: 'tool' as const,
+                    tool_call_id: toolCall.id,
+                    content: JSON.stringify({ error: rbacError }),
+                  };
+                }
+              }
 
               try {
                 result = await executeZohoTool(toolCall.function.name, args);

@@ -175,6 +175,20 @@ export async function initDB() {
 
       CREATE INDEX IF NOT EXISTS idx_notif_dismiss_user ON notification_dismissals(user_id);
       CREATE INDEX IF NOT EXISTS idx_notif_dismiss_created ON notification_dismissals(created_at);
+
+      -- ============================================================
+      -- PERMISSION OVERRIDES on resellers table
+      -- NULL = use reseller_role default, true/false = override
+      -- ============================================================
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_create_invoices BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_approve_invoices BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_send_invoices BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_view_all_records BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_view_child_records BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_modify_prices BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_upload_po BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_view_reports BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_export_data BOOLEAN;
     `);
   } finally {
     client.release();

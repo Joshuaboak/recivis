@@ -49,10 +49,29 @@ export async function GET(
     );
     const dbRecord = dbResult.rows[0] || null;
 
-    // Fetch available reseller roles for the registration form
+    // Fetch available reseller roles with full permission data for the registration form
     const rolesResult = await query(
-      `SELECT id, name, display_name FROM reseller_roles WHERE is_system_role = false ORDER BY id`
+      `SELECT id, name, display_name,
+              can_create_invoices, can_approve_invoices, can_send_invoices,
+              can_view_all_records, can_view_child_records, can_modify_prices,
+              can_upload_po, can_view_reports, can_export_data
+       FROM reseller_roles WHERE is_system_role = false ORDER BY id`
     );
+
+    // Fetch per-reseller permission overrides (if registered)
+    let permissionOverrides: Record<string, boolean | null> | null = null;
+    if (dbRecord) {
+      const overridesResult = await query(
+        `SELECT perm_create_invoices, perm_approve_invoices, perm_send_invoices,
+                perm_view_all_records, perm_view_child_records, perm_modify_prices,
+                perm_upload_po, perm_view_reports, perm_export_data
+         FROM resellers WHERE id IN (${dbPlaceholders}) LIMIT 1`,
+        dbLookupIds
+      );
+      if (overridesResult.rows[0]) {
+        permissionOverrides = overridesResult.rows[0];
+      }
+    }
 
     // Fetch users from PostgreSQL — match both the Zoho ID and csa-internal for CSA
     const userIds = [id];
@@ -78,6 +97,7 @@ export async function GET(
       dbRegistered: !!dbRecord,
       dbRole: dbRecord ? { name: dbRecord.reseller_role_name, display: dbRecord.reseller_role_display } : null,
       availableRoles: rolesResult.rows,
+      permissionOverrides,
     });
   } catch (error) {
     log('error', 'api', `Reseller detail failed for ${id}`, {
@@ -107,6 +127,52 @@ export async function PATCH(
     const body = await request.json();
     const zohoId = id === CSA_INTERNAL_ID ? CSA_ZOHO_ID : id;
 
+    // If updating portal permissions (from the permission management UI)
+    if (body._updatePermissions) {
+      const { permissions, reseller_role_id } = body;
+      const toNullableBool = (v: unknown): boolean | null => v === true || v === false ? v : null;
+      const permOverrides = permissions || {};
+
+      const updates: string[] = [];
+      const values: unknown[] = [];
+      let paramIdx = 1;
+
+      if (reseller_role_id !== undefined) {
+        updates.push(`reseller_role_id = $${paramIdx++}`);
+        values.push(reseller_role_id);
+      }
+
+      const permCols = [
+        'perm_create_invoices', 'perm_approve_invoices', 'perm_send_invoices',
+        'perm_view_all_records', 'perm_view_child_records', 'perm_modify_prices',
+        'perm_upload_po', 'perm_view_reports', 'perm_export_data',
+      ];
+      const permKeys = [
+        'can_create_invoices', 'can_approve_invoices', 'can_send_invoices',
+        'can_view_all_records', 'can_view_child_records', 'can_modify_prices',
+        'can_upload_po', 'can_view_reports', 'can_export_data',
+      ];
+      for (let i = 0; i < permCols.length; i++) {
+        updates.push(`${permCols[i]} = $${paramIdx++}`);
+        values.push(toNullableBool(permOverrides[permKeys[i]]));
+      }
+
+      updates.push(`updated_at = NOW()`);
+
+      // Use the DB lookup ID (csa-internal for CSA)
+      const dbId = id === CSA_ZOHO_ID ? CSA_INTERNAL_ID : id;
+      values.push(dbId);
+
+      await query(
+        `UPDATE resellers SET ${updates.join(', ')} WHERE id = $${paramIdx}`,
+        values
+      );
+
+      log('info', 'api', `Reseller ${id} permissions updated`, { by: user.email });
+      return NextResponse.json({ success: true });
+    }
+
+    // Otherwise, update in Zoho CRM
     const result = await executeZohoTool('update_records', {
       module: 'Resellers',
       records: [{ id: zohoId, ...body }],
@@ -145,7 +211,7 @@ export async function POST(
 
   try {
     const body = await request.json();
-    const { name, email, region, currency, partner_category, direct_customer_contact, distributor_id, reseller_role_id } = body;
+    const { name, email, region, currency, partner_category, direct_customer_contact, distributor_id, reseller_role_id, permissions } = body;
 
     if (!reseller_role_id) {
       return NextResponse.json({ error: 'reseller_role_id is required' }, { status: 400 });
@@ -165,10 +231,27 @@ export async function POST(
       }
     }
 
+    // Extract per-reseller permission overrides (null = use role default)
+    const permOverrides = permissions || {};
+    const toNullableBool = (v: unknown): boolean | null => v === true || v === false ? v : null;
+
     await query(
-      `INSERT INTO resellers (id, name, email, region, currency, partner_category, direct_customer_contact, distributor_id, reseller_role_id, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)`,
-      [id, name, email || null, region || null, currency || null, partner_category || null, !!direct_customer_contact, distributor_id || null, reseller_role_id]
+      `INSERT INTO resellers (id, name, email, region, currency, partner_category, direct_customer_contact, distributor_id, reseller_role_id, is_active,
+       perm_create_invoices, perm_approve_invoices, perm_send_invoices, perm_view_all_records, perm_view_child_records, perm_modify_prices, perm_upload_po, perm_view_reports, perm_export_data)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+      [
+        id, name, email || null, region || null, currency || null, partner_category || null,
+        !!direct_customer_contact, distributor_id || null, reseller_role_id,
+        toNullableBool(permOverrides.can_create_invoices),
+        toNullableBool(permOverrides.can_approve_invoices),
+        toNullableBool(permOverrides.can_send_invoices),
+        toNullableBool(permOverrides.can_view_all_records),
+        toNullableBool(permOverrides.can_view_child_records),
+        toNullableBool(permOverrides.can_modify_prices),
+        toNullableBool(permOverrides.can_upload_po),
+        toNullableBool(permOverrides.can_view_reports),
+        toNullableBool(permOverrides.can_export_data),
+      ]
     );
 
     log('info', 'api', `Reseller ${id} registered in portal`, { name, role_id: reseller_role_id, by: user.email });

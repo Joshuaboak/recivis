@@ -60,6 +60,26 @@ const REGIONS = Object.entries(REGION_LABELS);
 const CURRENCIES = ['AUD', 'USD', 'EUR', 'INR', 'GBP', 'NZD'];
 const PARTNER_CATEGORIES = ['Reseller', 'Distributor', 'Distributor/Reseller', 'Affiliate', 'Platinum Partner'];
 
+// Permission definitions for the toggle UI
+const PERMISSION_DEFS = [
+  { key: 'can_create_invoices', label: 'Create Invoices', desc: 'Create new invoices in the portal' },
+  { key: 'can_approve_invoices', label: 'Approve Invoices', desc: 'Approve invoices and generate licence keys' },
+  { key: 'can_send_invoices', label: 'Send Invoices', desc: 'Send invoices to customers or resellers' },
+  { key: 'can_view_all_records', label: 'View All Records', desc: 'See all records across all resellers' },
+  { key: 'can_view_child_records', label: 'View Child Records', desc: 'See records for child resellers (distributors)' },
+  { key: 'can_modify_prices', label: 'Modify Prices', desc: 'Change line item prices on invoices' },
+  { key: 'can_upload_po', label: 'Upload PO', desc: 'Upload purchase order documents' },
+  { key: 'can_view_reports', label: 'View Reports', desc: 'Access the reports dashboard' },
+  { key: 'can_export_data', label: 'Export Data', desc: 'Export data to Excel/CSV' },
+];
+
+interface RoleWithPerms {
+  id: number; name: string; display_name: string;
+  can_create_invoices: boolean; can_approve_invoices: boolean; can_send_invoices: boolean;
+  can_view_all_records: boolean; can_view_child_records: boolean; can_modify_prices: boolean;
+  can_upload_po: boolean; can_view_reports: boolean; can_export_data: boolean;
+}
+
 const inputCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg";
 const selectCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg appearance-none cursor-pointer pr-8";
 
@@ -465,12 +485,19 @@ function ResellerDetailView() {
   // DB registration state
   const [dbRegistered, setDbRegistered] = useState(true);
   const [dbRole, setDbRole] = useState<{ name: string; display: string } | null>(null);
-  const [availableResellerRoles, setAvailableResellerRoles] = useState<Array<{ id: number; name: string; display_name: string }>>([]);
+  const [availableResellerRoles, setAvailableResellerRoles] = useState<RoleWithPerms[]>([]);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [registerFields, setRegisterFields] = useState<Record<string, any>>({});
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState('');
+  const [registerPermissions, setRegisterPermissions] = useState<Record<string, boolean | null>>({});
+
+  // Permission overrides for existing registered partners
+  const [permissionOverrides, setPermissionOverrides] = useState<Record<string, boolean | null> | null>(null);
+  const [editingPermissions, setEditingPermissions] = useState(false);
+  const [editPerms, setEditPerms] = useState<Record<string, boolean | null>>({});
+  const [savingPerms, setSavingPerms] = useState(false);
 
   useEffect(() => { if (selectedResellerId) loadData(); }, [selectedResellerId]);
 
@@ -487,6 +514,7 @@ function ResellerDetailView() {
       setDbRegistered(resRes.dbRegistered ?? false);
       setDbRole(resRes.dbRole || null);
       setAvailableResellerRoles(resRes.availableRoles || []);
+      setPermissionOverrides(resRes.permissionOverrides || null);
     } catch {}
     setLoading(false);
   };
@@ -670,10 +698,17 @@ function ResellerDetailView() {
                   className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent transition-colors rounded-lg" />
               </div>
               <div>
-                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider block mb-1">Permission Level *</label>
-                <select value={registerFields.reseller_role_id} onChange={e => setRegisterFields(p => ({ ...p, reseller_role_id: e.target.value }))}
+                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider block mb-1">Permission Preset *</label>
+                <select value={registerFields.reseller_role_id} onChange={e => {
+                  const roleId = e.target.value;
+                  setRegisterFields(p => ({ ...p, reseller_role_id: roleId }));
+                  // Reset permission overrides to null (use defaults) when changing preset
+                  const nullPerms: Record<string, boolean | null> = {};
+                  PERMISSION_DEFS.forEach(p => { nullPerms[p.key] = null; });
+                  setRegisterPermissions(nullPerms);
+                }}
                   className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent transition-colors rounded-lg appearance-none cursor-pointer">
-                  <option value="">Select role...</option>
+                  <option value="">Select preset...</option>
                   {availableResellerRoles.map(r => (
                     <option key={r.id} value={r.id}>{r.display_name}</option>
                   ))}
@@ -717,8 +752,29 @@ function ResellerDetailView() {
               </div>
             </div>
 
+            {/* Permission Toggles */}
+            {registerFields.reseller_role_id && (
+              <div className="mt-4">
+                <h4 className="text-xs font-bold text-text-primary mb-2 flex items-center gap-2">
+                  <Shield size={13} className="text-csa-accent" /> Permissions
+                  <span className="text-[10px] text-text-muted font-normal">Click to override preset defaults</span>
+                </h4>
+                <PermissionToggles
+                  permissions={registerPermissions}
+                  onChange={setRegisterPermissions}
+                  roleDefaults={(() => {
+                    const role = availableResellerRoles.find(r => String(r.id) === String(registerFields.reseller_role_id));
+                    if (!role) return {};
+                    const defaults: Record<string, boolean> = {};
+                    PERMISSION_DEFS.forEach(p => { defaults[p.key] = !!(role as unknown as Record<string, unknown>)[p.key]; });
+                    return defaults;
+                  })()}
+                />
+              </div>
+            )}
+
             {registerError && (
-              <p className="text-xs text-error mb-3">{registerError}</p>
+              <p className="text-xs text-error mb-3 mt-3">{registerError}</p>
             )}
 
             <div className="flex gap-2 pt-3 border-t border-border-subtle">
@@ -726,10 +782,15 @@ function ResellerDetailView() {
               <button
                 onClick={async () => {
                   if (!registerFields.name || !registerFields.reseller_role_id) {
-                    setRegisterError('Name and permission level are required');
+                    setRegisterError('Name and permission preset are required');
                     return;
                   }
                   setRegistering(true); setRegisterError('');
+                  // Build permissions payload — only include overrides (non-null values)
+                  const permPayload: Record<string, boolean> = {};
+                  for (const [k, v] of Object.entries(registerPermissions)) {
+                    if (v !== null && v !== undefined) permPayload[k] = v;
+                  }
                   try {
                     const res = await fetch(`/api/resellers/${selectedResellerId}`, {
                       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -737,6 +798,7 @@ function ResellerDetailView() {
                         ...registerFields,
                         reseller_role_id: parseInt(registerFields.reseller_role_id),
                         distributor_id: registerFields.distributor_id || null,
+                        permissions: Object.keys(permPayload).length > 0 ? permPayload : undefined,
                       }),
                     });
                     const data = await res.json();
@@ -758,11 +820,106 @@ function ResellerDetailView() {
           </motion.div>
         )}
 
-        {/* DB Role Badge */}
+        {/* DB Role Badge + Permission Management */}
         {dbRegistered && dbRole && (
-          <div className="mb-4 flex items-center gap-2">
-            <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-success/15 text-success">Registered</span>
-            <span className="text-xs text-text-muted">Permission level: <span className="text-text-secondary font-semibold">{dbRole.display}</span></span>
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-success/15 text-success">Registered</span>
+              <span className="text-xs text-text-muted">Permission preset: <span className="text-text-secondary font-semibold">{dbRole.display}</span></span>
+              {isAdmin && !editingPermissions && (
+                <button onClick={() => {
+                  // Pre-fill from current overrides
+                  const currentPerms: Record<string, boolean | null> = {};
+                  if (permissionOverrides) {
+                    PERMISSION_DEFS.forEach(p => {
+                      const dbKey = 'perm_' + p.key.replace('can_', '');
+                      currentPerms[p.key] = (permissionOverrides as Record<string, boolean | null>)[dbKey] ?? null;
+                    });
+                  } else {
+                    PERMISSION_DEFS.forEach(p => { currentPerms[p.key] = null; });
+                  }
+                  setEditPerms(currentPerms);
+                  setEditingPermissions(true);
+                }}
+                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold text-warning bg-warning/10 border border-warning/30 rounded-lg hover:bg-warning/20 transition-colors cursor-pointer">
+                  <Shield size={12} /> Edit Permissions
+                </button>
+              )}
+            </div>
+
+            {/* Inline permission editor */}
+            {isAdmin && editingPermissions && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-surface border border-warning/30 rounded-xl p-4 mb-4">
+                <h4 className="text-xs font-bold text-text-primary mb-3 flex items-center gap-2">
+                  <Shield size={14} className="text-warning" /> Edit Permissions
+                  <span className="text-[10px] text-text-muted font-normal">Click to toggle. Orange dot = override from preset.</span>
+                </h4>
+                <PermissionToggles
+                  permissions={editPerms}
+                  onChange={setEditPerms}
+                  roleDefaults={(() => {
+                    const role = availableResellerRoles.find(r => r.name === dbRole?.name);
+                    if (!role) return {};
+                    const defaults: Record<string, boolean> = {};
+                    PERMISSION_DEFS.forEach(p => { defaults[p.key] = !!(role as unknown as Record<string, unknown>)[p.key]; });
+                    return defaults;
+                  })()}
+                />
+                <div className="flex gap-2 mt-3 pt-3 border-t border-border-subtle">
+                  <button onClick={() => setEditingPermissions(false)}
+                    className="px-3 py-1.5 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-lg cursor-pointer">Cancel</button>
+                  <button
+                    disabled={savingPerms}
+                    onClick={async () => {
+                      setSavingPerms(true);
+                      const permPayload: Record<string, boolean | null> = {};
+                      for (const [k, v] of Object.entries(editPerms)) {
+                        permPayload[k] = v ?? null;
+                      }
+                      try {
+                        await fetch(`/api/resellers/${selectedResellerId}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ _updatePermissions: true, permissions: permPayload }),
+                        });
+                        setEditingPermissions(false);
+                        loadData();
+                      } catch {}
+                      setSavingPerms(false);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-lg cursor-pointer disabled:opacity-50">
+                    {savingPerms ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} Save Permissions
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Show current effective permissions (read-only) when not editing */}
+            {!editingPermissions && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
+                {PERMISSION_DEFS.map(({ key, label }) => {
+                  const role = availableResellerRoles.find(r => r.name === dbRole?.name);
+                  const roleDefault = role ? !!(role as unknown as Record<string, unknown>)[key] : false;
+                  let overrideVal: boolean | null = null;
+                  if (permissionOverrides) {
+                    const dbKey = 'perm_' + key.replace('can_', '');
+                    overrideVal = (permissionOverrides as Record<string, boolean | null>)[dbKey] ?? null;
+                  }
+                  const effective = overrideVal ?? roleDefault;
+                  const isOverridden = overrideVal !== null;
+
+                  return (
+                    <div key={key} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] ${
+                      effective ? 'text-success' : 'text-text-muted'
+                    }`}>
+                      <span>{effective ? '\u2713' : '\u2715'}</span>
+                      <span className="font-semibold">{label}</span>
+                      {isOverridden && <span className="text-warning font-bold">\u2022</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -924,6 +1081,76 @@ function ResellerDetailView() {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// ============================================================
+// PERMISSION TOGGLES — reused in registration and detail views
+// ============================================================
+function PermissionToggles({
+  permissions,
+  onChange,
+  roleDefaults,
+}: {
+  permissions: Record<string, boolean | null>;
+  onChange: (perms: Record<string, boolean | null>) => void;
+  roleDefaults?: Record<string, boolean>;
+}) {
+  const toggle = (key: string) => {
+    const current = permissions[key];
+    const roleDefault = roleDefaults?.[key] ?? false;
+
+    // Cycle: null (use default) → true → false → null
+    let next: boolean | null;
+    if (current === null || current === undefined) {
+      next = !roleDefault; // Override to opposite of default
+    } else {
+      next = current === roleDefault ? null : !current;
+    }
+    onChange({ ...permissions, [key]: next });
+  };
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      {PERMISSION_DEFS.map(({ key, label, desc }) => {
+        const value = permissions[key];
+        const roleDefault = roleDefaults?.[key] ?? false;
+        const effective = value ?? roleDefault;
+        const isOverridden = value !== null && value !== undefined;
+
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => toggle(key)}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+              effective
+                ? isOverridden
+                  ? 'bg-success/12 border-success/40 ring-1 ring-success/20'
+                  : 'bg-success/8 border-success/25'
+                : isOverridden
+                  ? 'bg-error/12 border-error/40 ring-1 ring-error/20'
+                  : 'bg-surface border-border-subtle'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded-md flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${
+              effective
+                ? 'bg-success/25 text-success'
+                : 'bg-surface-raised text-text-muted'
+            }`}>
+              {effective ? '\u2713' : '\u2715'}
+            </div>
+            <div className="min-w-0">
+              <p className={`text-xs font-semibold truncate ${effective ? 'text-text-primary' : 'text-text-muted'}`}>
+                {label}
+                {isOverridden && <span className="ml-1 text-[9px] font-bold text-warning">\u2022 override</span>}
+              </p>
+              <p className="text-[10px] text-text-muted truncate">{desc}</p>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

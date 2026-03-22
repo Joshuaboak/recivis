@@ -192,8 +192,8 @@ Effective permission = user_role AND reseller_role
 - All routes (except auth/setup) require authentication
 - Write operations check specific permissions (see `api-auth.ts`)
 - Admin/IBM bypass all permission checks
-- **KNOWN ISSUE**: Account search in AI invoice assistant does NOT check reseller ownership — a reseller can currently create invoices for accounts assigned to other resellers. This needs to be fixed with ownership checks at both API level and AI prompt level.
-- **KNOWN ISSUE**: Individual permission toggles cannot be configured on partner registration — only preset roles are selectable. Need to add per-permission overrides on registration and allow admin/IBM to modify them from partner detail view.
+- Account search and invoice creation now enforce reseller ownership at both API and AI levels
+- Individual permission overrides are configurable on partner registration and from the partner detail view
 
 ---
 
@@ -481,21 +481,29 @@ Assets NOT eligible for renewal:
 
 ---
 
-## Outstanding Issues / Next Steps
+## RBAC Security Model (Implemented)
 
-### CRITICAL: RBAC Security Fixes Needed
-1. **Account ownership check** — The AI invoice assistant and account search APIs do NOT verify that the requesting user's reseller matches the account's reseller. A reseller can currently search for and create invoices against accounts belonging to other resellers. Fix needed at:
-   - `/api/accounts` GET — filter results by user's allowed reseller IDs
-   - `/api/invoices` POST — verify the account's reseller matches before creating
-   - AI system prompt (`src/lib/ai-tools.ts`) — instruct the assistant to verify ownership
+### Server-Side Enforcement
+All API routes enforce reseller ownership for non-admin users:
+- `GET /api/accounts` — forces reseller filter to `user.allowedResellerIds`
+- `GET /api/accounts/[id]` — verifies account's Reseller matches user's allowed IDs
+- `PATCH /api/accounts/[id]` — verifies ownership before update
+- `GET /api/invoices` — forces reseller filter to `user.allowedResellerIds`
+- `POST /api/invoices` — verifies invoice's Reseller is in user's allowed IDs
+- `GET /api/invoices/[id]` — verifies invoice's Reseller matches user
+- `PATCH /api/invoices/[id]` — verifies ownership + checks `canApproveInvoices` for Status=Approved, `canSendInvoices` for Send
 
-2. **Invoice approval permissions** — Resellers with the `reseller` role preset should NOT be able to approve invoices, but individual permission overrides aren't configurable yet.
+### AI Chat Enforcement
+- System prompt built from server-side auth (not client-provided user data)
+- `enforceToolRBAC()` intercepts tool calls: blocks invoice creation for wrong reseller, blocks approve/send without permission
+- AI system prompt includes explicit RBAC instructions with user's permissions and allowed reseller IDs
 
-3. **Partner permission management** — When registering a partner in the portal DB (`POST /api/resellers/[id]`), only a preset role can be selected (distributor/reseller/restricted). Need to:
-   - Show individual permission toggles on the registration form, pre-filled from the selected preset
-   - Allow overriding individual toggles before saving
-   - Allow admin/IBM to modify individual permissions from the partner detail view
-   - The three-tier permission model (user inherits reseller caps) is already built and working
+### Per-Reseller Permission Overrides
+- `resellers` table has nullable `perm_*` columns (NULL = use reseller_role default, true/false = override)
+- `api-auth.ts` computes: `effective = override ?? role_default`
+- Registration form shows permission toggles pre-filled from selected preset, allows overrides
+- Partner detail view shows current effective permissions with "Edit Permissions" button (admin/IBM only)
+- PATCH `/api/resellers/[id]` with `_updatePermissions: true` updates overrides
 
 ---
 
