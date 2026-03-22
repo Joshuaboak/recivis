@@ -3,9 +3,8 @@
  *
  * Features:
  * - Personalised greeting based on time of day
- * - Quick action cards (New Invoice, Renewal, Accounts, Existing Invoices)
+ * - 6 feature cards with navigation and "Learn more" links
  * - Recent accounts table (last 8 modified accounts from Zoho CRM)
- * - Getting started tips and helpful links
  *
  * Data: Fetches recent accounts from /api/accounts on mount.
  */
@@ -15,17 +14,17 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  FilePlus,
-  RefreshCw,
-  BarChart3,
+  Users,
   Building2,
   FileText,
-  Clock,
-  TrendingUp,
+  BarChart3,
+  MessageSquare,
+  Bot,
   ArrowRight,
   Loader2,
   MapPin,
   ExternalLink,
+  BookOpen,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 
@@ -37,38 +36,54 @@ interface RecentAccount {
   Reseller?: { name: string; id: string };
 }
 
-const quickActions = [
+const featureCards = [
   {
-    id: 'new',
-    label: 'New Invoice',
-    description: 'Create a new product invoice',
-    icon: FilePlus,
-    color: 'bg-csa-accent',
-    view: 'invoice' as const,
-  },
-  {
-    id: 'renewal',
-    label: 'Renewal',
-    description: 'Renew existing licences',
-    icon: RefreshCw,
-    color: 'bg-csa-purple',
-    view: 'invoice' as const,
+    id: 'leads',
+    label: 'Leads',
+    description: 'View and manage your existing leads.',
+    icon: Users,
+    color: 'bg-amber-600',
+    view: 'leads' as const,
   },
   {
     id: 'accounts',
     label: 'Accounts',
-    description: 'Browse customer accounts',
+    description: 'Create, view, and manage new and renewal invoices for existing accounts.',
     icon: Building2,
     color: 'bg-emerald-600',
     view: 'accounts' as const,
   },
   {
-    id: 'drafts',
-    label: 'Existing Invoices',
-    description: 'View and manage invoices',
+    id: 'invoices',
+    label: 'Invoices',
+    description: 'View and manage your existing invoices.',
     icon: FileText,
-    color: 'bg-amber-600',
+    color: 'bg-csa-accent',
     view: 'draft-invoices' as const,
+  },
+  {
+    id: 'reports-dashboard',
+    label: 'Reports Dashboard',
+    description: 'Check out your pre-made reports.',
+    icon: BarChart3,
+    color: 'bg-csa-purple',
+    view: 'reports-dashboard' as const,
+  },
+  {
+    id: 'invoice-assistant',
+    label: 'Invoice Assistant',
+    description: 'Upload a PO or chat with our AI invoicing agent to generate new and renewal invoices.',
+    icon: MessageSquare,
+    color: 'bg-sky-600',
+    view: 'invoice' as const,
+  },
+  {
+    id: 'reports-assistant',
+    label: 'Reports Assistant',
+    description: 'Chat with our reporting AI assistant to generate custom reports.',
+    icon: Bot,
+    color: 'bg-violet-600',
+    view: 'reports' as const,
   },
 ];
 
@@ -76,7 +91,7 @@ const container = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
-    transition: { staggerChildren: 0.08 },
+    transition: { staggerChildren: 0.06 },
   },
 };
 
@@ -100,9 +115,9 @@ export default function DashboardView() {
       .finally(() => setLoadingAccounts(false));
   }, []);
 
-  const handleAction = (action: (typeof quickActions)[number]) => {
+  const handleAction = (view: string) => {
     clearMessages();
-    setCurrentView(action.view);
+    setCurrentView(view as Parameters<typeof setCurrentView>[0]);
   };
 
   const openAccount = (id: string) => {
@@ -135,39 +150,52 @@ export default function DashboardView() {
           </p>
         </motion.div>
 
-        {/* Quick Actions */}
+        {/* Feature Cards */}
         <motion.div
           variants={container}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10"
         >
-          {quickActions.map((action) => (
-            <motion.button
-              key={action.id}
+          {featureCards.map((card) => (
+            <motion.div
+              key={card.id}
               variants={item}
-              onClick={() => handleAction(action)}
-              className="group bg-csa-dark border-2 border-border-subtle hover:border-csa-accent p-6 text-left transition-all duration-200 relative overflow-hidden rounded-2xl"
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.98 }}
+              className="group bg-csa-dark border-2 border-border-subtle hover:border-csa-accent/60 p-6 text-left transition-all duration-200 relative overflow-hidden rounded-2xl flex flex-col"
             >
               {/* Hover accent bar */}
               <div className="absolute top-0 left-0 right-0 h-1 bg-csa-accent scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-200 rounded-b" />
 
-              <div className={`w-10 h-10 ${action.color} flex items-center justify-center mb-4`}>
-                <action.icon size={20} className="text-white" />
+              <button
+                onClick={() => handleAction(card.view)}
+                className="flex-1 text-left cursor-pointer"
+              >
+                <div className={`w-10 h-10 ${card.color} flex items-center justify-center mb-4 rounded-lg`}>
+                  <card.icon size={20} className="text-white" />
+                </div>
+                <h3 className="text-base font-bold text-text-primary mb-2 group-hover:text-csa-accent transition-colors">
+                  {card.label}
+                </h3>
+                <p className="text-xs text-text-muted leading-relaxed">
+                  {card.description}
+                </p>
+              </button>
+
+              <div className="mt-4 pt-3 border-t border-border-subtle">
+                <button
+                  onClick={() => {/* TODO: navigate to guide */}}
+                  className="flex items-center gap-1.5 text-[11px] font-semibold text-text-muted hover:text-csa-accent transition-colors cursor-pointer"
+                >
+                  <BookOpen size={12} />
+                  Learn more
+                </button>
               </div>
-              <h3 className="text-base font-bold text-text-primary mb-1">
-                {action.label}
-              </h3>
-              <p className="text-xs text-text-muted">
-                {action.description}
-              </p>
+
               <ArrowRight
                 size={16}
-                className="absolute bottom-4 right-4 text-text-muted opacity-0 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-2 transition-all duration-200"
+                className="absolute top-6 right-5 text-text-muted opacity-0 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-2 transition-all duration-200"
               />
-            </motion.button>
+            </motion.div>
           ))}
         </motion.div>
 
@@ -247,62 +275,6 @@ export default function DashboardView() {
           ) : (
             <div className="text-center py-8 text-sm text-text-muted">No accounts found</div>
           )}
-        </motion.div>
-
-        {/* Stats row */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.4 }}
-          className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10"
-        >
-          <div className="bg-csa-dark border-2 border-border-subtle p-5 rounded-2xl">
-            <div className="flex items-center gap-2 mb-3">
-              <FileText size={16} className="text-csa-accent" />
-              <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-                Quick Start
-              </span>
-            </div>
-            <p className="text-sm text-text-secondary leading-relaxed">
-              Jump into the <button onClick={() => { clearMessages(); setCurrentView('invoice'); }} className="text-csa-accent hover:text-csa-highlight underline underline-offset-2">Invoice Assistant</button> and provide an email, contact name, or account name to begin.
-            </p>
-          </div>
-
-          <div className="bg-csa-dark border-2 border-border-subtle p-5 rounded-2xl">
-            <div className="flex items-center gap-2 mb-3">
-              <Clock size={16} className="text-csa-purple" />
-              <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-                Renewals
-              </span>
-            </div>
-            <p className="text-sm text-text-secondary leading-relaxed">
-              Check the <button onClick={() => setCurrentView('reports')} className="text-csa-accent hover:text-csa-highlight underline underline-offset-2">Reports</button> view for expiring assets and upcoming renewals.
-            </p>
-          </div>
-
-          <div className="bg-csa-dark border-2 border-border-subtle p-5 rounded-2xl">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp size={16} className="text-emerald-500" />
-              <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-                PO Upload
-              </span>
-            </div>
-            <p className="text-sm text-text-secondary leading-relaxed">
-              Upload a purchase order PDF and the assistant will extract details and create the invoice automatically.
-            </p>
-          </div>
-        </motion.div>
-
-        {/* Footer hint */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="text-center pb-8"
-        >
-          <p className="text-xs text-text-muted">
-            ReCivis connects to CSA Zoho CRM to manage invoices, accounts, contacts, and assets.
-          </p>
         </motion.div>
       </div>
     </div>
