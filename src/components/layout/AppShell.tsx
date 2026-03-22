@@ -49,6 +49,7 @@ const InvoiceDetailView = dynamic(() => import('../views/InvoiceDetailView'), { 
 const CreateInvoiceView = dynamic(() => import('../views/CreateInvoiceView'), { loading: ViewLoader });
 const DraftInvoicesView = dynamic(() => import('../views/DraftInvoicesView'), { loading: ViewLoader });
 const ReportsView = dynamic(() => import('../views/ReportsView'), { loading: ViewLoader });
+const ReportsDashboardView = dynamic(() => import('../views/ReportsDashboardView'), { loading: ViewLoader });
 const CouponsView = dynamic(() => import('../views/CouponsView'), { loading: ViewLoader });
 const CreateCouponView = dynamic(() => import('../views/CreateCouponView'), { loading: ViewLoader });
 const CouponDetailView = dynamic(() => import('../views/CouponDetailView'), { loading: ViewLoader });
@@ -67,7 +68,8 @@ const VIEW_TITLES: Record<string, string> = {
   'invoice-detail': 'Invoice',
   'create-invoice': 'New Invoice',
   'draft-invoices': 'Existing Invoices',
-  reports: 'Reports',
+  reports: 'AI Reports',
+  'reports-dashboard': 'Reports Dashboard',
   coupons: 'Coupons',
   'create-coupon': 'Create Coupon',
   'coupon-detail': 'Coupon',
@@ -158,6 +160,7 @@ export default function AppShell() {
     'create-invoice': CreateInvoiceView,
     'draft-invoices': DraftInvoicesView,
     reports: ReportsView,
+    'reports-dashboard': ReportsDashboardView,
     coupons: CouponsView,
     'create-coupon': CreateCouponView,
     'coupon-detail': CouponDetailView,

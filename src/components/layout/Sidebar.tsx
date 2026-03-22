@@ -33,7 +33,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import UserMenu from './UserMenu';
 
-type ViewId = 'dashboard' | 'leads' | 'lead-detail' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports' | 'coupons' | 'create-coupon' | 'resellers' | 'reseller-detail' | 'partner-resources';
+type ViewId = 'dashboard' | 'leads' | 'lead-detail' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports' | 'reports-dashboard' | 'coupons' | 'create-coupon' | 'resellers' | 'reseller-detail' | 'partner-resources';
 
 export default function Sidebar() {
   const { currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
@@ -42,6 +42,9 @@ export default function Sidebar() {
   );
   const [invoiceMenuOpen, setInvoiceMenuOpen] = useState(
     currentView === 'invoice' || currentView === 'draft-invoices' || currentView === 'invoice-detail'
+  );
+  const [reportsMenuOpen, setReportsMenuOpen] = useState(
+    currentView === 'reports' || currentView === 'reports-dashboard'
   );
   const [partnerMenuOpen, setPartnerMenuOpen] = useState(
     currentView === 'resellers' || currentView === 'reseller-detail' || currentView === 'partner-resources'
@@ -196,8 +199,43 @@ export default function Sidebar() {
           </AnimatePresence>
         </div>
 
-        {/* Reports */}
-        <NavItem id="reports" label="Reports" icon={BarChart3} active={currentView === 'reports'} onClick={() => handleNavClick('reports')} open={sidebarOpen} />
+        {/* Reports (with submenu) */}
+        {(() => {
+          const isReportsActive = currentView === 'reports' || currentView === 'reports-dashboard';
+          return (
+            <div>
+              <button
+                onClick={() => {
+                  if (!sidebarOpen) { handleNavClick('reports-dashboard'); }
+                  else {
+                    setReportsMenuOpen(!reportsMenuOpen);
+                    if (!isReportsActive) handleNavClick('reports-dashboard');
+                  }
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold transition-all duration-150 relative group rounded-xl cursor-pointer ${
+                  isReportsActive ? 'bg-csa-accent/15 text-csa-accent' : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
+                }`}
+              >
+                {isReportsActive && <motion.div layoutId="nav-indicator-reports" className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent rounded-r" transition={{ duration: 0.2 }} />}
+                <BarChart3 size={20} className="flex-shrink-0" />
+                <AnimatePresence>
+                  {sidebarOpen && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">Reports</motion.span>}
+                </AnimatePresence>
+                {sidebarOpen && <ChevronDown size={14} className={`text-text-muted transition-transform ${reportsMenuOpen ? 'rotate-180' : ''}`} />}
+              </button>
+              <AnimatePresence>
+                {sidebarOpen && reportsMenuOpen && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
+                    <div className="ml-8 mt-1 space-y-0.5">
+                      <SubNavItem label="Dashboard" active={currentView === 'reports-dashboard'} onClick={() => handleNavClick('reports-dashboard')} />
+                      <SubNavItem label="AI Assistant" active={currentView === 'reports'} onClick={() => handleNavClick('reports')} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })()}
 
         {/* Coupons */}
         <NavItem id="coupons" label="Coupons" icon={Ticket} active={currentView === 'coupons' || currentView === 'create-coupon' || currentView === 'coupon-detail'} onClick={() => handleNavClick('coupons')} open={sidebarOpen} />
