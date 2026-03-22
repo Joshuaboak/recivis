@@ -69,7 +69,7 @@ export default function ReportsDashboardView() {
     // Aggregate by currency across selected months
     const byCurrency: CurrencyTotals = {};
     for (const m of months) {
-      for (const [cur, vals] of Object.entries(m.byCurrency)) {
+      for (const [cur, vals] of Object.entries(m.byCurrency || {})) {
         if (!byCurrency[cur]) byCurrency[cur] = { revenue: 0, csaProfit: 0, distributorOwed: 0, resellerOwed: 0 };
         byCurrency[cur].revenue += vals.revenue;
         byCurrency[cur].csaProfit += vals.csaProfit;
@@ -98,7 +98,7 @@ export default function ReportsDashboardView() {
   };
 
   const fmt = (v: number) => `$${v.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const monthRevenue = (m: MonthReport) => Object.values(m.byCurrency).reduce((s, c) => s + c.revenue, 0);
+  const monthRevenue = (m: MonthReport) => Object.values(m.byCurrency || {}).reduce((s, c) => s + c.revenue, 0);
   const sym = (c: string) => c === 'EUR' ? '\u20AC' : c === 'GBP' ? '\u00A3' : c === 'INR' ? '\u20B9' : c === 'NZD' ? 'NZ$' : c === 'USD' ? 'US$' : '$';
   const fmtC = (v: number, c: string) => {
     const s = c === 'EUR' ? '\u20AC' : c === 'GBP' ? '\u00A3' : c === 'INR' ? '\u20B9' : c === 'NZD' ? 'NZ$' : '$';

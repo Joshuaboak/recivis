@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const cacheKey = `reports:v3:${resellerIds ? resellerIds.sort().join(',') : 'all'}:${regionFilter}:${monthCount}`;
+  const cacheKey = `reports:v4:${resellerIds ? resellerIds.sort().join(',') : 'all'}:${regionFilter}:${monthCount}`;
   const cached = await cacheGet<{ months: MonthReport[]; totals: Record<string, number> }>(cacheKey);
   if (cached) return NextResponse.json(cached);
 
