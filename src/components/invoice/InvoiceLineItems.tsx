@@ -34,6 +34,10 @@ interface InvoiceLineItemsProps {
   onRemoveLineItem: (index: number) => void;
   /** Open the SKU Builder modal for a specific line item index */
   onOpenSkuBuilder: (index: number) => void;
+  /** Reseller commission percentage (e.g. 40 = 40% commission, customer pays 60%) */
+  resellerPercentage?: number | null;
+  /** Whether invoice is in reseller pricing mode (not direct to customer) */
+  isResellerPricing?: boolean;
 }
 
 export default function InvoiceLineItems({
@@ -46,6 +50,8 @@ export default function InvoiceLineItems({
   onAddLineItem,
   onRemoveLineItem,
   onOpenSkuBuilder,
+  resellerPercentage,
+  isResellerPricing,
 }: InvoiceLineItemsProps) {
   // Permission flags derived from editing + invoice type
   const canEditProduct = editing && !isRenewal; // Can't change product on renewals
@@ -155,7 +161,14 @@ export default function InvoiceLineItems({
                           />
                         </div>
                       ) : (
-                        <span className="text-text-secondary">{symbol}{unitPrice?.toFixed(2)}</span>
+                        <span className="relative group/price">
+                          <span className="text-text-secondary">{symbol}{unitPrice?.toFixed(2)}</span>
+                          {isResellerPricing && resellerPercentage != null && unitPrice > 0 && (
+                            <span className="absolute right-0 top-full mt-1 z-10 bg-csa-dark border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover/price:opacity-100 transition-opacity shadow-lg">
+                              List price: {symbol}{(unitPrice / ((100 - resellerPercentage) / 100)).toFixed(2)} &minus; {resellerPercentage}% reseller commission
+                            </span>
+                          )}
+                        </span>
                       )}
                     </td>
 
@@ -188,7 +201,16 @@ export default function InvoiceLineItems({
                     </td>
 
                     {/* Total */}
-                    <td className="text-right text-text-primary font-semibold">{symbol}{total?.toFixed(2)}</td>
+                    <td className="text-right">
+                      <span className="relative group/total">
+                        <span className="text-text-primary font-semibold">{symbol}{total?.toFixed(2)}</span>
+                        {isResellerPricing && resellerPercentage != null && total > 0 && (
+                          <span className="absolute right-0 top-full mt-1 z-10 bg-csa-dark border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover/total:opacity-100 transition-opacity shadow-lg">
+                            Full price: {symbol}{(total / ((100 - resellerPercentage) / 100)).toFixed(2)} &minus; {resellerPercentage}% commission
+                          </span>
+                        )}
+                      </span>
+                    </td>
 
                     {/* Remove button */}
                     {canEditProduct ? (

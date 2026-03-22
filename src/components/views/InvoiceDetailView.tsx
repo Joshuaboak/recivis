@@ -62,6 +62,9 @@ export default function InvoiceDetailView() {
   // Payment refresh (delayed reload after save to wait for Stripe link generation)
   const [paymentRefreshing, setPaymentRefreshing] = useState(false);
 
+  // Reseller pricing
+  const [resellerPercentage, setResellerPercentage] = useState<number | null>(null);
+
   // PO
   const [editingPO, setEditingPO] = useState(false);
   const [editPONumber, setEditPONumber] = useState('');
@@ -87,7 +90,23 @@ export default function InvoiceDetailView() {
       .then(res => res.json())
       .then(data => {
         setInvoice(data.invoice);
-        setLineItems(data.lineItems || []);
+        // Store original list prices on line items for reseller toggle calculations
+        const items = (data.lineItems || []).map((li: Record<string, unknown>) => ({
+          ...li,
+          _listPrice: li._listPrice || li.List_Price, // Preserve original if already set
+        }));
+        setLineItems(items);
+        // Fetch reseller percentage
+        const resellerId = (data.invoice?.Reseller as { id?: string })?.id;
+        if (resellerId) {
+          fetch(`/api/resellers/${resellerId}`)
+            .then(r => r.json())
+            .then(rData => {
+              const pct = rData.reseller?.Reseller_Sale;
+              setResellerPercentage(pct != null ? Number(pct) : null);
+            })
+            .catch(() => {});
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -368,16 +387,66 @@ export default function InvoiceDetailView() {
     if (!selectedInvoiceId) return;
     setUpdatingDirectPurchase(true);
     try {
+      // When toggling, recalculate line item prices
+      // value=true means "direct to customer" → use full list price
+      // value=false means "via reseller" → apply reseller discount
+      const patchBody: Record<string, unknown> = { Reseller_Direct_Purchase: value };
+
+      if (resellerPercentage != null && lineItems.length > 0) {
+        const updatedItems = lineItems.map(li => {
+          const product = li.Product_Name as { name?: string; id?: string } | null;
+          const isCouponLine = (li.List_Price as number) < 0;
+          if (isCouponLine) {
+            // Leave coupon discount lines untouched
+            return { id: li.id };
+          }
+
+          const originalPrice = li._listPrice as number || li.List_Price as number;
+          let newPrice: number;
+
+          if (value) {
+            // Switching to customer → restore full list price
+            newPrice = originalPrice;
+          } else {
+            // Switching to reseller → apply discount
+            newPrice = Math.round(originalPrice * (100 - resellerPercentage) / 100 * 100) / 100;
+          }
+
+          const cleaned: Record<string, unknown> = { id: li.id };
+          cleaned.Quantity = li.Quantity;
+          cleaned.List_Price = newPrice;
+          cleaned.Contract_Term_Years = 0; // Signal custom pricing
+          if (li.Start_Date) cleaned.Start_Date = li.Start_Date;
+          if (li.Renewal_Date) cleaned.Renewal_Date = li.Renewal_Date;
+          return cleaned;
+        });
+
+        patchBody.Invoiced_Items = updatedItems;
+      }
+
       await fetch(`/api/invoices/${selectedInvoiceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ Reseller_Direct_Purchase: value }),
+        body: JSON.stringify(patchBody),
       });
+
       // Reload invoice
       const res = await fetch(`/api/invoices/${selectedInvoiceId}`);
       const data = await res.json();
       setInvoice(data.invoice);
       setLineItems(data.lineItems || []);
+
+      // Delayed reload for Stripe link
+      setPaymentRefreshing(true);
+      setTimeout(async () => {
+        try {
+          const refreshed = await fetch(`/api/invoices/${selectedInvoiceId}`);
+          const refreshedData = await refreshed.json();
+          setInvoice(refreshedData.invoice);
+          setLineItems(refreshedData.lineItems || []);
+        } catch { /* non-critical */ }
+        setPaymentRefreshing(false);
+      }, 6000);
     } catch { /* handled */ }
     setUpdatingDirectPurchase(false);
   };
@@ -572,6 +641,8 @@ export default function InvoiceDetailView() {
           onAddLineItem={addLineItem}
           onRemoveLineItem={removeLineItem}
           onOpenSkuBuilder={setSkuBuilderIndex}
+          resellerPercentage={resellerPercentage}
+          isResellerPricing={!invoice.Reseller_Direct_Purchase && resellerPercentage != null}
         />
 
         {/* Coupon */}

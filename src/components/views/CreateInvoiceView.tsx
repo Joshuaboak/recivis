@@ -61,19 +61,19 @@ export default function CreateInvoiceView() {
   const [currency, setCurrency] = useState('AUD');
   const [lineItems, setLineItems] = useState<Record<string, unknown>[]>([]);
 
-  // Fetch reseller currency on load
+  const [resellerPercentage, setResellerPercentage] = useState<number | null>(null);
+
+  // Fetch reseller currency and percentage on load
   useEffect(() => {
     if (!resellerData?.id) return;
-    fetch(`/api/resellers?resellerId=${resellerData.id}`)
+    fetch(`/api/resellers/${resellerData.id}`)
       .then(res => res.json())
       .then(data => {
-        const reseller = data.resellers?.[0];
-        if (reseller?.currency) {
-          setCurrency(reseller.currency);
-        }
-        if (reseller?.region) {
-          setResellerRegion(reseller.region);
-        }
+        const reseller = data.reseller;
+        if (reseller?.Currency) setCurrency(reseller.Currency);
+        if (reseller?.Region) setResellerRegion(reseller.Region);
+        const pct = reseller?.Reseller_Sale;
+        if (pct != null) setResellerPercentage(Number(pct));
       })
       .catch(() => {});
   }, [resellerData?.id]);
@@ -116,13 +116,18 @@ export default function CreateInvoiceView() {
   };
 
   const handleProductSelect = (index: number, product: { id: string; name: string; sku: string; unitPrice: number }) => {
+    // Apply reseller discount if applicable (reseller pays 100% - commission%)
+    const discountedPrice = resellerPercentage != null
+      ? Math.round(product.unitPrice * (100 - resellerPercentage) / 100 * 100) / 100
+      : product.unitPrice;
+
     setLineItems(prev => prev.map((li, i) => {
       if (i !== index) return li;
       return {
         ...li,
         Product_Name: { name: product.name, id: product.id },
-        List_Price: product.unitPrice,
-        _unitPrice: product.unitPrice,
+        List_Price: discountedPrice,
+        _unitPrice: product.unitPrice, // Store original for reference
       };
     }));
     setSkuBuilderIndex(null);
@@ -148,7 +153,7 @@ export default function CreateInvoiceView() {
           Start_Date: li.Start_Date,
           Renewal_Date: li.Renewal_Date,
         };
-        // If price differs from product unit price, set Contract_Term_Years to 0
+        // If price differs from product unit price (manual edit or reseller discount), signal custom pricing
         if (li.List_Price !== li._unitPrice) {
           item.Contract_Term_Years = 0;
         } else {
@@ -368,7 +373,16 @@ export default function CreateInvoiceView() {
                             className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent w-[130px]"
                           />
                         </td>
-                        <td className="text-right text-text-primary font-semibold">{symbol}{lineTotal.toFixed(2)}</td>
+                        <td className="text-right">
+                          <span className="relative group/total">
+                            <span className="text-text-primary font-semibold">{symbol}{lineTotal.toFixed(2)}</span>
+                            {resellerPercentage != null && (li._unitPrice as number) > 0 && unitPrice !== (li._unitPrice as number) && (
+                              <span className="absolute right-0 top-full mt-1 z-10 bg-csa-dark border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover/total:opacity-100 transition-opacity shadow-lg">
+                                List: {symbol}{((li._unitPrice as number) * qty).toFixed(2)} &minus; {resellerPercentage}% commission
+                              </span>
+                            )}
+                          </span>
+                        </td>
                         <td>
                           <button onClick={() => removeLineItem(i)} className="p-1 text-text-muted hover:text-error transition-colors cursor-pointer">
                             <Trash2 size={14} />
