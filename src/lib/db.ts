@@ -159,6 +159,22 @@ export async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_audit_log_email ON audit_log(email);
       CREATE INDEX IF NOT EXISTS idx_reset_tokens_token ON password_reset_tokens(token);
       CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
+
+      -- ============================================================
+      -- NOTIFICATION DISMISSALS — tracks which notifications a user
+      -- has clicked or explicitly cleared. Entries older than 30 days
+      -- are automatically ignored.
+      -- ============================================================
+      CREATE TABLE IF NOT EXISTS notification_dismissals (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) NOT NULL,
+        notification_key VARCHAR(150) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, notification_key)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_notif_dismiss_user ON notification_dismissals(user_id);
+      CREATE INDEX IF NOT EXISTS idx_notif_dismiss_created ON notification_dismissals(created_at);
     `);
   } finally {
     client.release();

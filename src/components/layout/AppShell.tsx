@@ -20,6 +20,7 @@ import { useAppStore } from '@/lib/store';
 import Sidebar from './Sidebar';
 import LoginView from '../views/LoginView';
 import SearchModal from '../SearchModal';
+import NotificationBell from '../NotificationBell';
 import { AnimatePresence, motion } from 'framer-motion';
 
 /** Loading spinner shown while a code-split view is being loaded. */
@@ -177,16 +178,19 @@ export default function AppShell() {
             <span className="h-4 w-px bg-border-subtle" />
             <span className="text-xs text-text-muted">Civil Survey Applications Partner Portal</span>
           </div>
-          <button
-            onClick={() => setSearchOpen(true)}
-            className="flex items-center gap-2.5 px-4 py-2 bg-surface border border-border-subtle rounded-xl text-text-muted hover:text-text-primary hover:border-csa-accent/50 transition-colors cursor-pointer group"
-          >
-            <Search size={15} className="group-hover:text-csa-accent transition-colors" />
-            <span className="text-xs font-medium">Search</span>
-            <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono font-semibold text-text-muted/60 bg-csa-dark border border-border-subtle rounded ml-2">
-              Ctrl K
-            </kbd>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="flex items-center gap-2.5 px-4 py-2 bg-surface border border-border-subtle rounded-xl text-text-muted hover:text-text-primary hover:border-csa-accent/50 transition-colors cursor-pointer group"
+            >
+              <Search size={15} className="group-hover:text-csa-accent transition-colors" />
+              <span className="text-xs font-medium">Search</span>
+              <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono font-semibold text-text-muted/60 bg-csa-dark border border-border-subtle rounded ml-2">
+                Ctrl K
+              </kbd>
+            </button>
+            <NotificationBell />
+          </div>
         </header>
 
         <div className="flex-1 overflow-hidden">
