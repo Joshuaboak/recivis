@@ -13,9 +13,9 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { Search } from 'lucide-react';
+import { Search, LogOut } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Sidebar from './Sidebar';
 import LoginView from '../views/LoginView';
@@ -76,8 +76,36 @@ const VIEW_TITLES: Record<string, string> = {
 };
 
 export default function AppShell() {
-  const { user, currentView } = useAppStore();
+  const { user, currentView, setUser } = useAppStore();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const interceptorInstalled = useRef(false);
+
+  // Global fetch interceptor — detect 401s and auto-logout
+  useEffect(() => {
+    if (interceptorInstalled.current || !user) return;
+    interceptorInstalled.current = true;
+
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await originalFetch(...args);
+      // Only intercept our own API calls, not external requests
+      const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request)?.url || '';
+      if (response.status === 401 && url.startsWith('/api/')) {
+        setSessionExpired(true);
+        setTimeout(() => {
+          setUser(null);
+          setSessionExpired(false);
+        }, 3000);
+      }
+      return response;
+    };
+
+    return () => {
+      window.fetch = originalFetch;
+      interceptorInstalled.current = false;
+    };
+  }, [user, setUser]);
 
   // Ctrl+K / Cmd+K shortcut to open search
   useEffect(() => {
@@ -92,7 +120,29 @@ export default function AppShell() {
   }, []);
 
   if (!user) {
-    return <LoginView />;
+    return (
+      <>
+        <LoginView />
+        <AnimatePresence>
+          {sessionExpired && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-csa-dark border border-warning/40 rounded-xl px-5 py-3 shadow-2xl flex items-center gap-3"
+            >
+              <div className="w-8 h-8 rounded-lg bg-warning/15 flex items-center justify-center flex-shrink-0">
+                <LogOut size={16} className="text-warning" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-text-primary">Session expired</p>
+                <p className="text-xs text-text-muted">Please log in again to continue.</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </>
+    );
   }
 
   const ViewComponent = {
