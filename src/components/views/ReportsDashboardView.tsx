@@ -22,6 +22,7 @@ interface MonthReport {
   invoices: InvoiceRow[]; accountItems: RecordRow[]; leadItems: RecordRow[]; prospectItems: RecordRow[];
 }
 interface ResellerFilter { id: string; name: string; region: string }
+interface CurrencyRate { code: string; symbol: string; rate: number; name: string }
 
 const REGION_LABELS: Record<string, string> = {
   AF: 'Africa', AS: 'Asia', AU: 'Australia', EU: 'Europe', NA: 'North America', NZ: 'New Zealand', WW: 'Worldwide',
@@ -31,7 +32,7 @@ type Tab = 'overview' | 'accounts' | 'leads' | 'revenue';
 
 export default function ReportsDashboardView() {
   const { user, setCurrentView, setSelectedAccountId, setSelectedLeadId, setSelectedLeadSource, setSelectedInvoiceId, setInvoiceReturnView } = useAppStore();
-  const [data, setData] = useState<{ months: MonthReport[]; totals: Record<string, number> } | null>(null);
+  const [data, setData] = useState<{ months: MonthReport[]; totals: Record<string, unknown> } | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('overview');
   const [selectedMonths, setSelectedMonths] = useState<Set<string>>(new Set());
@@ -40,15 +41,19 @@ export default function ReportsDashboardView() {
   const [resellers, setResellers] = useState<ResellerFilter[]>([]);
   const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedReseller, setSelectedReseller] = useState('');
+  const [rates, setRates] = useState<CurrencyRate[]>([]);
+  const [viewCurrency, setViewCurrency] = useState('ALL'); // ALL = converted to AUD
 
   const isAdminUser = user?.role === 'admin' || user?.role === 'ibm';
   const isDistributor = user?.permissions?.canViewChildRecords;
 
+  // Fetch resellers + currency rates
   useEffect(() => {
-    if (!isAdminUser) return;
-    fetch('/api/resellers').then(r => r.json()).then(d => setResellers(d.resellers || [])).catch(() => {});
+    if (isAdminUser) fetch('/api/resellers').then(r => r.json()).then(d => setResellers(d.resellers || [])).catch(() => {});
+    fetch('/api/currencies').then(r => r.json()).then(d => setRates(d.currencies || [])).catch(() => {});
   }, [isAdminUser]);
 
+  // Fetch report data
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams({ months: String(monthCount) });
@@ -61,13 +66,42 @@ export default function ReportsDashboardView() {
       .finally(() => setLoading(false));
   }, [monthCount, selectedRegion, selectedReseller]);
 
+  // Currency conversion helpers
+  const rateMap = useMemo(() => {
+    const m: Record<string, number> = { AUD: 1 };
+    for (const r of rates) m[r.code] = r.rate;
+    return m;
+  }, [rates]);
+
+  const toAud = useCallback((amount: number, fromCurrency: string) => {
+    const rate = rateMap[fromCurrency] || 1;
+    return rate > 0 ? amount / rate : amount;
+  }, [rateMap]);
+
+  const symFor = (c: string) => {
+    if (c === 'ALL') return '$';
+    const r = rates.find(x => x.code === c);
+    return r?.symbol || '$';
+  };
+
+  // Available currencies from the data
+  const availableCurrencies = useMemo(() => {
+    if (!data) return [];
+    const s = new Set<string>();
+    for (const m of data.months) for (const c of Object.keys(m.byCurrency || {})) s.add(c);
+    return ['ALL', ...Array.from(s).sort()];
+  }, [data]);
+
+  // Aggregate selected months with currency conversion
   const aggregated = useMemo(() => {
     if (!data) return null;
     const months = selectedMonths.size > 0
       ? data.months.filter(m => selectedMonths.has(m.month))
       : data.months;
-    // Aggregate by currency across selected months
+
+    let revenue = 0, csaProfit = 0, distributorOwed = 0, resellerOwed = 0;
     const byCurrency: CurrencyTotals = {};
+
     for (const m of months) {
       for (const [cur, vals] of Object.entries(m.byCurrency || {})) {
         if (!byCurrency[cur]) byCurrency[cur] = { revenue: 0, csaProfit: 0, distributorOwed: 0, resellerOwed: 0 };
@@ -78,76 +112,89 @@ export default function ReportsDashboardView() {
       }
     }
 
+    if (viewCurrency === 'ALL') {
+      // Convert everything to AUD
+      for (const [cur, vals] of Object.entries(byCurrency)) {
+        revenue += toAud(vals.revenue, cur);
+        csaProfit += toAud(vals.csaProfit, cur);
+        distributorOwed += toAud(vals.distributorOwed, cur);
+        resellerOwed += toAud(vals.resellerOwed, cur);
+      }
+    } else {
+      const vals = byCurrency[viewCurrency];
+      if (vals) { revenue = vals.revenue; csaProfit = vals.csaProfit; distributorOwed = vals.distributorOwed; resellerOwed = vals.resellerOwed; }
+    }
+
     return {
-      months,
+      months, byCurrency,
       accounts: months.reduce((s, m) => s + m.accounts, 0),
       leads: months.reduce((s, m) => s + m.leads, 0),
       prospects: months.reduce((s, m) => s + m.prospects, 0),
       invoiceCount: months.reduce((s, m) => s + m.invoiceCount, 0),
-      byCurrency,
+      revenue: Math.round(revenue * 100) / 100,
+      csaProfit: Math.round(csaProfit * 100) / 100,
+      distributorOwed: Math.round(distributorOwed * 100) / 100,
+      resellerOwed: Math.round(resellerOwed * 100) / 100,
       allInvoices: months.flatMap(m => m.invoices),
       allAccounts: months.flatMap(m => m.accountItems),
       allLeads: months.flatMap(m => m.leadItems),
       allProspects: months.flatMap(m => m.prospectItems),
     };
-  }, [data, selectedMonths]);
+  }, [data, selectedMonths, viewCurrency, toAud]);
 
   const toggleMonth = (m: string) => {
     setSelectedMonths(prev => { const next = new Set(prev); if (next.has(m)) next.delete(m); else next.add(m); return next; });
     setDrillMonth(null);
   };
 
-  const fmt = (v: number) => `$${v.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const monthRevenue = (m: MonthReport) => Object.values(m.byCurrency || {}).reduce((s, c) => s + c.revenue, 0);
-  const sym = (c: string) => c === 'EUR' ? '\u20AC' : c === 'GBP' ? '\u00A3' : c === 'INR' ? '\u20B9' : c === 'NZD' ? 'NZ$' : c === 'USD' ? 'US$' : '$';
+  const curSym = symFor(viewCurrency);
+  const fmtV = (v: number) => `${curSym}${v.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtC = (v: number, c: string) => {
-    const s = c === 'EUR' ? '\u20AC' : c === 'GBP' ? '\u00A3' : c === 'INR' ? '\u20B9' : c === 'NZD' ? 'NZ$' : '$';
+    const s = c === 'EUR' ? '\u20AC' : c === 'GBP' ? '\u00A3' : c === 'INR' ? '\u20B9' : c === 'NZD' ? 'NZ$' : c === 'USD' ? 'US$' : '$';
     return `${s}${v.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
   const fmtDate = (d: string) => { if (!d) return '\u2014'; const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`; };
+
+  // Get revenue for a month in the selected currency view
+  const monthRevenue = (m: MonthReport) => {
+    if (viewCurrency === 'ALL') {
+      return Object.entries(m.byCurrency || {}).reduce((s, [cur, v]) => s + toAud(v.revenue, cur), 0);
+    }
+    return (m.byCurrency || {})[viewCurrency]?.revenue || 0;
+  };
 
   // Export
   const exportCsv = useCallback((filename: string, headers: string[], rows: string[][]) => {
     const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
   }, []);
 
-  const exportAccounts = () => {
+  const doExport = () => {
     if (!aggregated) return;
-    exportCsv('accounts-report.csv', ['Name', 'Reseller', 'Country', 'Created'],
-      aggregated.allAccounts.map(a => [a.name, a.reseller, a.country, fmtDate(a.date)]));
-  };
-  const exportLeads = () => {
-    if (!aggregated) return;
-    const rows = [
-      ...aggregated.allLeads.map(l => [l.name, 'Lead', l.reseller, l.country, fmtDate(l.date)]),
-      ...aggregated.allProspects.map(p => [p.name, 'Prospect', p.reseller, p.country, fmtDate(p.date)]),
-    ];
-    exportCsv('leads-report.csv', ['Name', 'Type', 'Reseller', 'Country', 'Created'], rows);
-  };
-  const exportRevenue = () => {
-    if (!aggregated) return;
-    exportCsv('revenue-report.csv',
-      ['Invoice #', 'Account', 'Reseller', 'Date', 'Type', 'Revenue', 'CSA Profit', 'Distributor Owed', 'Reseller Owed', 'Status'],
-      aggregated.allInvoices.map(i => [i.ref, i.account, i.reseller, fmtDate(i.date),
-        i.isResellerDirect ? 'Reseller Direct' : 'Customer Direct',
-        String(i.revenue), String(i.csaProfit), String(i.distributorOwed), String(i.resellerOwed),
-        i.paymentStatus?.toLowerCase() === 'paid' ? 'Paid' : i.status]));
-  };
-  const exportOverview = () => {
-    if (!data) return;
-    exportCsv('overview-report.csv',
-      ['Month', 'Accounts', 'Leads', 'Prospects', 'Invoices', 'Revenue (by currency)', 'CSA Profit', 'Distributor Owed', 'Reseller Owed'],
-      data.months.map(m => {
-        const rev = Object.entries(m.byCurrency).map(([c,v]) => `${c}: ${v.revenue.toFixed(2)}`).join('; ') || '0';
-        const profit = Object.entries(m.byCurrency).map(([c,v]) => `${c}: ${v.csaProfit.toFixed(2)}`).join('; ') || '0';
-        const distro = Object.entries(m.byCurrency).map(([c,v]) => `${c}: ${v.distributorOwed.toFixed(2)}`).join('; ') || '0';
-        const reseller = Object.entries(m.byCurrency).map(([c,v]) => `${c}: ${v.resellerOwed.toFixed(2)}`).join('; ') || '0';
-        return [m.label, String(m.accounts), String(m.leads), String(m.prospects), String(m.invoiceCount), rev, profit, distro, reseller];
-      }));
+    const suffix = selectedMonths.size > 0 ? `${Array.from(selectedMonths).sort().join('_')}` : 'all';
+    if (tab === 'accounts') {
+      exportCsv(`accounts-${suffix}.csv`, ['Name', 'Reseller', 'Country', 'Created'],
+        aggregated.allAccounts.map(a => [a.name, a.reseller, a.country, fmtDate(a.date)]));
+    } else if (tab === 'leads') {
+      exportCsv(`leads-${suffix}.csv`, ['Name', 'Type', 'Reseller', 'Country', 'Created'],
+        [...aggregated.allLeads.map(l => [l.name, 'Lead', l.reseller, l.country, fmtDate(l.date)]),
+         ...aggregated.allProspects.map(p => [p.name, 'Prospect', p.reseller, p.country, fmtDate(p.date)])]);
+    } else if (tab === 'revenue') {
+      exportCsv(`revenue-${suffix}.csv`,
+        ['Invoice #', 'Account', 'Reseller', 'Date', 'Type', 'Currency', 'Revenue', 'CSA Profit', 'Distributor Owed', 'Reseller Owed', 'Status'],
+        aggregated.allInvoices.map(i => [i.ref, i.account, i.reseller, fmtDate(i.date),
+          i.isResellerDirect ? 'Reseller Direct' : 'Customer Direct', i.currency,
+          String(i.revenue), String(i.csaProfit), String(i.distributorOwed), String(i.resellerOwed),
+          i.paymentStatus?.toLowerCase() === 'paid' ? 'Paid' : i.status]));
+    } else {
+      exportCsv(`overview-${suffix}.csv`,
+        ['Month', 'Accounts', 'Leads', 'Prospects', 'Invoices', 'Revenue (by currency)'],
+        (data?.months || []).map(m => {
+          const rev = Object.entries(m.byCurrency || {}).map(([c, v]) => `${c}: ${v.revenue.toFixed(2)}`).join('; ') || '0';
+          return [m.label, String(m.accounts), String(m.leads), String(m.prospects), String(m.invoiceCount), rev];
+        }));
+    }
   };
 
   if (loading) {
@@ -163,6 +210,7 @@ export default function ReportsDashboardView() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-7xl mx-auto px-6 py-6">
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2"><BarChart3 size={24} className="text-csa-accent" /> Reports Dashboard</h1>
           <div className="flex items-center gap-2">
@@ -178,25 +226,34 @@ export default function ReportsDashboardView() {
                 </select>
               </>
             )}
-            <button onClick={() => {
-              if (tab === 'accounts') exportAccounts();
-              else if (tab === 'leads') exportLeads();
-              else if (tab === 'revenue') exportRevenue();
-              else exportOverview();
-            }} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer">
-              <Download size={13} /> Export
+            <button onClick={doExport} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer">
+              <Download size={13} /> Export {tab}
             </button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 mb-6 bg-surface rounded-xl p-1 w-fit">
-          {(['overview', 'accounts', 'leads', 'revenue'] as Tab[]).map(t => (
-            <button key={t} onClick={() => { setTab(t); setDrillMonth(null); }}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer capitalize ${tab === t ? 'bg-csa-accent/15 text-csa-accent' : 'text-text-muted hover:text-text-primary'}`}>
-              {t}
-            </button>
-          ))}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-1 bg-surface rounded-xl p-1">
+            {(['overview', 'accounts', 'leads', 'revenue'] as Tab[]).map(t => (
+              <button key={t} onClick={() => { setTab(t); setDrillMonth(null); }}
+                className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer capitalize ${tab === t ? 'bg-csa-accent/15 text-csa-accent' : 'text-text-muted hover:text-text-primary'}`}>
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {/* Currency switcher (for overview & revenue tabs) */}
+          {(tab === 'overview' || tab === 'revenue') && availableCurrencies.length > 1 && (
+            <div className="flex items-center gap-1 bg-surface rounded-xl p-1">
+              {availableCurrencies.map(c => (
+                <button key={c} onClick={() => setViewCurrency(c)}
+                  className={`px-3 py-1.5 text-[10px] font-semibold rounded-lg transition-colors cursor-pointer ${viewCurrency === c ? 'bg-csa-purple/15 text-csa-purple' : 'text-text-muted hover:text-text-secondary'}`}>
+                  {c === 'ALL' ? 'All (AUD)' : c}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Month picker */}
@@ -223,52 +280,45 @@ export default function ReportsDashboardView() {
         {tab === 'overview' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <SummaryCard label="New Accounts" value={aggregated.accounts} icon={Building2} color="text-csa-accent" prev={prev?.accounts} curr={curr?.accounts} />
-              <SummaryCard label="New Leads" value={aggregated.leads + aggregated.prospects} icon={UserSearch} color="text-success" prev={(prev?.leads||0)+(prev?.prospects||0)} curr={(curr?.leads||0)+(curr?.prospects||0)} />
-              <SummaryCard label="Approved Invoices" value={aggregated.invoiceCount} icon={FileText} color="text-csa-purple" prev={prev?.invoiceCount} curr={curr?.invoiceCount} />
-              <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
-                <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Revenue</span><DollarSign size={14} className="text-warning" /></div>
-                {Object.keys(aggregated.byCurrency).length > 0 ? (
-                  <div className="space-y-0.5">
-                    {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
-                      <p key={cur} className="text-sm font-bold text-text-primary">{sym(cur)}{vals.revenue.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p>
-                    ))}
-                  </div>
-                ) : <p className="text-xl font-bold text-text-primary">$0.00</p>}
-              </div>
+              <ClickCard label="New Accounts" value={aggregated.accounts} icon={Building2} color="text-csa-accent"
+                prev={prev?.accounts} curr={curr?.accounts} onClick={() => setTab('accounts')} />
+              <ClickCard label="New Leads" value={aggregated.leads + aggregated.prospects} icon={UserSearch} color="text-success"
+                prev={(prev?.leads||0)+(prev?.prospects||0)} curr={(curr?.leads||0)+(curr?.prospects||0)} onClick={() => setTab('leads')} />
+              <ClickCard label="Approved Invoices" value={aggregated.invoiceCount} icon={FileText} color="text-csa-purple"
+                prev={prev?.invoiceCount} curr={curr?.invoiceCount} onClick={() => setTab('revenue')} />
+              <ClickCard label="Revenue" value={fmtV(aggregated.revenue)} icon={DollarSign} color="text-warning" isText
+                onClick={() => setTab('revenue')} subtitle={viewCurrency === 'ALL' ? 'Converted to AUD' : viewCurrency} />
             </div>
 
-            {isAdminUser && Object.keys(aggregated.byCurrency).length > 0 && (
+            {isAdminUser && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <MetricCard label="CSA Profit" value={fmtV(aggregated.csaProfit)} color="text-success" subtitle={viewCurrency === 'ALL' ? 'AUD equivalent' : viewCurrency} />
+                <MetricCard label="Distributor Owed" value={fmtV(aggregated.distributorOwed)} color="text-warning" subtitle={viewCurrency === 'ALL' ? 'AUD equivalent' : viewCurrency} />
+                <MetricCard label="Reseller Owed" value={fmtV(aggregated.resellerOwed)} color="text-csa-purple" subtitle={viewCurrency === 'ALL' ? 'AUD equivalent' : viewCurrency} />
+              </div>
+            )}
+
+            {/* Per-currency breakdown when viewing ALL */}
+            {viewCurrency === 'ALL' && Object.keys(aggregated.byCurrency).length > 1 && (
               <div className="bg-surface border border-border-subtle rounded-xl p-4 mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div>
-                    <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">CSA Profit</p>
-                    {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
-                      <p key={cur} className="text-sm font-bold text-success">{sym(cur)}{vals.csaProfit.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p>
-                    ))}
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">Distributor Owed</p>
-                    {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
-                      vals.distributorOwed > 0 ? <p key={cur} className="text-sm font-bold text-warning">{sym(cur)}{vals.distributorOwed.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p> : null
-                    ))}
-                    {Object.values(aggregated.byCurrency).every(v => v.distributorOwed === 0) && <p className="text-sm text-text-muted">$0.00</p>}
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">Reseller Owed</p>
-                    {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
-                      vals.resellerOwed > 0 ? <p key={cur} className="text-sm font-bold text-csa-purple">{sym(cur)}{vals.resellerOwed.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p> : null
-                    ))}
-                    {Object.values(aggregated.byCurrency).every(v => v.resellerOwed === 0) && <p className="text-sm text-text-muted">$0.00</p>}
-                  </div>
+                <h3 className="text-xs font-bold text-text-primary mb-3">Breakdown by Currency</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
+                    <button key={cur} onClick={() => setViewCurrency(cur)}
+                      className="text-left bg-csa-dark/50 rounded-lg p-3 hover:bg-surface-raised transition-colors cursor-pointer">
+                      <p className="text-[10px] font-semibold text-text-muted uppercase mb-1">{cur}</p>
+                      <p className="text-sm font-bold text-text-primary">{fmtC(vals.revenue, cur)}</p>
+                      {isAdminUser && <p className="text-[10px] text-success">Profit: {fmtC(vals.csaProfit, cur)}</p>}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
 
             <div className="space-y-4 mb-6">
-              <BarChart title="Revenue (all currencies combined)" months={chartMonths} getValue={monthRevenue} color="bg-csa-accent" format={fmt} />
-              <BarChart title="New Accounts" months={chartMonths} getValue={m => m.accounts} color="bg-success" />
-              <BarChart title="New Leads & Prospects" months={chartMonths} getValue={m => m.leads + m.prospects} color="bg-csa-purple" />
+              <BarChart title={`Revenue per Month${viewCurrency === 'ALL' ? ' (AUD equivalent)' : ` (${viewCurrency})`}`} months={chartMonths} getValue={monthRevenue} color="bg-csa-accent" format={fmtV} />
+              <BarChart title="New Accounts per Month" months={chartMonths} getValue={m => m.accounts} color="bg-success" />
+              <BarChart title="New Leads & Prospects per Month" months={chartMonths} getValue={m => m.leads + m.prospects} color="bg-csa-purple" />
             </div>
           </motion.div>
         )}
@@ -331,49 +381,42 @@ export default function ReportsDashboardView() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <SummaryCard label="Approved Invoices" value={aggregated.invoiceCount} icon={FileText} color="text-csa-accent" />
-              <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
-                <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Revenue</span><DollarSign size={14} className="text-text-primary" /></div>
-                {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
-                  <p key={cur} className="text-sm font-bold text-text-primary">{sym(cur)}{vals.revenue.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p>
-                ))}
-                {Object.keys(aggregated.byCurrency).length === 0 && <p className="text-xl font-bold text-text-primary">$0.00</p>}
-              </div>
-              {isAdminUser && (
-                <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
-                  <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">CSA Profit</span><DollarSign size={14} className="text-success" /></div>
-                  {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => (
-                    <p key={cur} className="text-sm font-bold text-success">{sym(cur)}{vals.csaProfit.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p>
-                  ))}
-                  {Object.keys(aggregated.byCurrency).length === 0 && <p className="text-xl font-bold text-success">$0.00</p>}
-                </div>
-              )}
-              <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
-                <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">{isDistributor && !isAdminUser ? 'Your Earnings' : 'Partner Owed'}</span><DollarSign size={14} className="text-csa-purple" /></div>
-                {Object.entries(aggregated.byCurrency).sort(([a],[b]) => a.localeCompare(b)).map(([cur, vals]) => {
-                  const owed = isDistributor && !isAdminUser ? vals.distributorOwed : vals.distributorOwed + vals.resellerOwed;
-                  return owed > 0 ? <p key={cur} className="text-sm font-bold text-csa-purple">{sym(cur)}{owed.toLocaleString('en-AU', {minimumFractionDigits: 2})} <span className="text-[9px] font-normal text-text-muted">{cur}</span></p> : null;
-                })}
-                {Object.values(aggregated.byCurrency).every(v => v.distributorOwed + v.resellerOwed === 0) && <p className="text-xl font-bold text-csa-purple">$0.00</p>}
-              </div>
+              <MetricCard label="Revenue" value={fmtV(aggregated.revenue)} color="text-text-primary" subtitle={viewCurrency === 'ALL' ? 'AUD equivalent' : viewCurrency} />
+              {isAdminUser && <MetricCard label="CSA Profit" value={fmtV(aggregated.csaProfit)} color="text-success" subtitle={viewCurrency === 'ALL' ? 'AUD equivalent' : viewCurrency} />}
+              <MetricCard label={isDistributor && !isAdminUser ? 'Your Earnings' : isAdminUser ? 'Partner Owed' : 'Your Commission'} color="text-csa-purple"
+                value={fmtV(isDistributor && !isAdminUser ? aggregated.distributorOwed : isAdminUser ? aggregated.distributorOwed + aggregated.resellerOwed : aggregated.resellerOwed)}
+                subtitle={viewCurrency === 'ALL' ? 'AUD equivalent' : viewCurrency} />
             </div>
-            <BarChart title="Revenue per Month (all currencies)" months={chartMonths} getValue={monthRevenue} color="bg-csa-accent" format={fmt} />
+
+            <BarChart title={`Revenue per Month${viewCurrency === 'ALL' ? ' (AUD equivalent)' : ` (${viewCurrency})`}`} months={chartMonths} getValue={monthRevenue} color="bg-csa-accent" format={fmtV} />
+
             <div className="mt-6">
-              <DrillTable months={aggregated.months} field="invoiceCount" getDisplayValue={m => Object.entries(m.byCurrency).map(([c,v]) => `${sym(c)}${v.revenue.toLocaleString('en-AU',{minimumFractionDigits:2})}`).join(' / ') || '$0.00'} drillMonth={drillMonth} onDrill={setDrillMonth}
-                columns={['Invoice', 'Account', 'Reseller', 'Date', 'Type', 'Revenue', ...(isAdminUser ? ['CSA Profit', 'Distro Owed', 'Reseller Owed'] : isDistributor ? ['Your Earnings'] : ['Your Commission']), 'Status']}
-                renderRows={m => m.invoices.map(inv => (
-                  <tr key={inv.id} onClick={() => { setSelectedInvoiceId(inv.id); setInvoiceReturnView('draft-invoices'); setCurrentView('invoice-detail'); }} className="cursor-pointer hover:bg-csa-accent/5 transition-colors">
-                    <td className="text-text-muted text-xs font-mono">{inv.ref||'\u2014'}</td>
-                    <td className="text-text-secondary text-sm">{inv.account||'\u2014'}</td>
-                    <td className="text-text-secondary text-sm">{inv.reseller||'\u2014'}</td>
-                    <td className="text-text-muted text-xs">{fmtDate(inv.date)}</td>
-                    <td><span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase rounded ${inv.isResellerDirect ? 'bg-csa-accent/15 text-csa-accent' : 'bg-csa-purple/15 text-csa-purple'}`}>{inv.isResellerDirect ? 'Reseller' : 'Customer'}</span></td>
-                    <td className="text-text-primary font-semibold text-sm">{fmtC(inv.revenue, inv.currency)}</td>
-                    {isAdminUser && <><td className="text-success text-sm font-semibold">{fmtC(inv.csaProfit, inv.currency)}</td><td className="text-warning text-sm">{fmtC(inv.distributorOwed, inv.currency)}</td><td className="text-csa-purple text-sm">{fmtC(inv.resellerOwed, inv.currency)}</td></>}
-                    {isDistributor && !isAdminUser && <td className="text-warning text-sm font-semibold">{fmtC(inv.distributorOwed, inv.currency)}</td>}
-                    {!isDistributor && !isAdminUser && <td className="text-csa-purple text-sm font-semibold">{fmtC(inv.resellerOwed, inv.currency)}</td>}
-                    <td><span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase rounded ${inv.paymentStatus?.toLowerCase() === 'paid' ? 'bg-success/15 text-success' : inv.status === 'Approved' || inv.status === 'Sent' ? 'bg-csa-accent/15 text-csa-accent' : 'bg-warning/15 text-warning'}`}>{inv.paymentStatus?.toLowerCase() === 'paid' ? 'Paid' : inv.status}</span></td>
-                  </tr>
-                ))} />
+              <DrillTable months={aggregated.months} field="invoiceCount"
+                getDisplayValue={m => {
+                  if (viewCurrency === 'ALL') return fmtV(monthRevenue(m));
+                  const v = (m.byCurrency || {})[viewCurrency];
+                  return v ? fmtC(v.revenue, viewCurrency) : '$0.00';
+                }}
+                drillMonth={drillMonth} onDrill={setDrillMonth}
+                columns={['Invoice', 'Account', 'Reseller', 'Date', 'Type', 'Currency', 'Revenue', ...(isAdminUser ? ['CSA Profit', 'Distro Owed', 'Reseller Owed'] : isDistributor ? ['Your Earnings'] : ['Your Commission']), 'Status']}
+                renderRows={m => {
+                  const filtered = viewCurrency === 'ALL' ? m.invoices : m.invoices.filter(i => i.currency === viewCurrency);
+                  return filtered.map(inv => (
+                    <tr key={inv.id} onClick={() => { setSelectedInvoiceId(inv.id); setInvoiceReturnView('draft-invoices'); setCurrentView('invoice-detail'); }} className="cursor-pointer hover:bg-csa-accent/5 transition-colors">
+                      <td className="text-text-muted text-xs font-mono">{inv.ref||'\u2014'}</td>
+                      <td className="text-text-secondary text-sm">{inv.account||'\u2014'}</td>
+                      <td className="text-text-secondary text-sm">{inv.reseller||'\u2014'}</td>
+                      <td className="text-text-muted text-xs">{fmtDate(inv.date)}</td>
+                      <td><span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase rounded ${inv.isResellerDirect ? 'bg-csa-accent/15 text-csa-accent' : 'bg-csa-purple/15 text-csa-purple'}`}>{inv.isResellerDirect ? 'Reseller' : 'Customer'}</span></td>
+                      <td className="text-text-muted text-xs">{inv.currency}</td>
+                      <td className="text-text-primary font-semibold text-sm">{fmtC(inv.revenue, inv.currency)}</td>
+                      {isAdminUser && <><td className="text-success text-sm font-semibold">{fmtC(inv.csaProfit, inv.currency)}</td><td className="text-warning text-sm">{fmtC(inv.distributorOwed, inv.currency)}</td><td className="text-csa-purple text-sm">{fmtC(inv.resellerOwed, inv.currency)}</td></>}
+                      {isDistributor && !isAdminUser && <td className="text-warning text-sm font-semibold">{fmtC(inv.distributorOwed, inv.currency)}</td>}
+                      {!isDistributor && !isAdminUser && <td className="text-csa-purple text-sm font-semibold">{fmtC(inv.resellerOwed, inv.currency)}</td>}
+                      <td><span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase rounded ${inv.paymentStatus?.toLowerCase() === 'paid' ? 'bg-success/15 text-success' : 'bg-csa-accent/15 text-csa-accent'}`}>{inv.paymentStatus?.toLowerCase() === 'paid' ? 'Paid' : inv.status}</span></td>
+                    </tr>
+                  ));
+                }} />
             </div>
           </motion.div>
         )}
@@ -382,28 +425,42 @@ export default function ReportsDashboardView() {
   );
 }
 
-function SummaryCard({ label, value, icon: Icon, color, prev, curr, isText }: {
-  label: string; value: number | string; icon: typeof Building2; color: string; prev?: number; curr?: number; isText?: boolean;
+// --- Sub-components ---
+
+function SummaryCard({ label, value, icon: Icon, color, prev, curr }: {
+  label: string; value: number; icon: typeof Building2; color: string; prev?: number; curr?: number;
 }) {
   const growth = prev != null && curr != null && prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null;
   return (
     <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
       <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">{label}</span><Icon size={14} className={color} /></div>
-      <p className="text-xl font-bold text-text-primary">{isText ? value : (value as number).toLocaleString()}</p>
-      {growth !== null && (
-        <div className={`flex items-center gap-1 mt-1 text-[10px] font-semibold ${growth >= 0 ? 'text-success' : 'text-error'}`}>
-          {growth >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />} {growth >= 0 ? '+' : ''}{growth}% vs prev month
-        </div>
-      )}
+      <p className="text-xl font-bold text-text-primary">{value.toLocaleString()}</p>
+      {growth !== null && <div className={`flex items-center gap-1 mt-1 text-[10px] font-semibold ${growth >= 0 ? 'text-success' : 'text-error'}`}>{growth >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />} {growth >= 0 ? '+' : ''}{growth}% vs prev month</div>}
     </div>
   );
 }
 
-function MetricCard({ label, value, color }: { label: string; value: string; color: string }) {
+function ClickCard({ label, value, icon: Icon, color, prev, curr, onClick, isText, subtitle }: {
+  label: string; value: number | string; icon: typeof Building2; color: string; prev?: number; curr?: number;
+  onClick: () => void; isText?: boolean; subtitle?: string;
+}) {
+  const growth = prev != null && curr != null && prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null;
+  return (
+    <button onClick={onClick} className="bg-surface border border-border-subtle rounded-xl px-4 py-3 text-left hover:border-csa-accent/40 transition-colors cursor-pointer group">
+      <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider group-hover:text-csa-accent transition-colors">{label}</span><Icon size={14} className={color} /></div>
+      <p className="text-xl font-bold text-text-primary">{isText ? value : (value as number).toLocaleString()}</p>
+      {subtitle && <p className="text-[9px] text-text-muted">{subtitle}</p>}
+      {growth !== null && <div className={`flex items-center gap-1 mt-1 text-[10px] font-semibold ${growth >= 0 ? 'text-success' : 'text-error'}`}>{growth >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />} {growth >= 0 ? '+' : ''}{growth}% vs prev month</div>}
+    </button>
+  );
+}
+
+function MetricCard({ label, value, color, subtitle }: { label: string; value: string; color: string; subtitle?: string }) {
   return (
     <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
       <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1">{label}</p>
       <p className={`text-lg font-bold ${color}`}>{value}</p>
+      {subtitle && <p className="text-[9px] text-text-muted">{subtitle}</p>}
     </div>
   );
 }
@@ -414,22 +471,20 @@ function BarChart({ title, months, getValue, color, format }: {
 }) {
   const max = Math.max(...months.map(getValue), 1);
   const f = format || ((v: number) => String(v));
-  const barHeight = 200;
+  const barH = 200;
   return (
     <div className="bg-surface border border-border-subtle rounded-xl p-5">
       <h3 className="text-sm font-bold text-text-primary mb-4">{title}</h3>
-      <div className="flex items-end gap-1" style={{ height: `${barHeight}px` }}>
+      <div className="flex items-end gap-1" style={{ height: `${barH}px` }}>
         {months.map(m => {
           const val = getValue(m);
           const pct = max > 0 ? (val / max) * 100 : 0;
-          const h = Math.max(Math.round(barHeight * pct / 100), val > 0 ? 4 : 1);
+          const h = Math.max(Math.round(barH * pct / 100), val > 0 ? 4 : 1);
           return (
-            <div key={m.month} className="flex-1 flex flex-col items-center min-w-0 group relative" style={{ height: `${barHeight}px` }}>
+            <div key={m.month} className="flex-1 flex flex-col items-center min-w-0 group relative" style={{ height: `${barH}px` }}>
               <div className="flex-1" />
               <div className={`w-full ${color} rounded-t transition-all group-hover:brightness-125`} style={{ height: `${h}px` }} />
-              <div className="absolute bottom-[-20px] left-1/2 -translate-x-1/2 z-10">
-                <span className="text-[8px] text-text-muted whitespace-nowrap">{m.label.slice(0, 3)}</span>
-              </div>
+              <div className="absolute bottom-[-20px] left-1/2 -translate-x-1/2"><span className="text-[8px] text-text-muted whitespace-nowrap">{m.label.slice(0, 3)}</span></div>
               <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10 bg-csa-dark border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg">
                 <span className="font-semibold text-text-primary">{m.label}</span><br />{f(val)}
               </div>
@@ -460,9 +515,7 @@ function DrillTable({ months, field, secondField, isCurrency, getDisplayValue, d
             <button onClick={() => onDrill(isDrilling ? null : m.month)} className="w-full flex items-center justify-between px-4 py-3 bg-surface hover:bg-surface-raised transition-colors cursor-pointer">
               <span className="text-sm font-semibold text-text-primary">{m.label}</span>
               <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-csa-accent">
-                  {display}
-                </span>
+                <span className="text-sm font-bold text-csa-accent">{display}</span>
                 <ChevronDown size={14} className={`text-text-muted transition-transform ${isDrilling ? 'rotate-180' : ''}`} />
               </div>
             </button>
