@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   const resellerIds = searchParams.get('resellerIds');
 
   try {
-    const fields = 'Subject,Reference_Number,Account_Name,Invoice_Date,Status,Grand_Total,Currency,Invoice_Type,Reseller,Record_Status__s';
+    const fields = 'Subject,Reference_Number,Account_Name,Invoice_Date,Due_Date,Status,Grand_Total,Currency,Invoice_Type,Reseller,Record_Status__s';
 
     // Build Zoho COQL criteria — supports single reseller, multiple resellers, or all
     let criteria: string;

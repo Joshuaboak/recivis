@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, UserSearch, Loader2, MapPin, ExternalLink, ChevronDown, Building2, User, Beaker } from 'lucide-react';
+import { Search, UserSearch, Loader2, MapPin, ExternalLink, ChevronDown, Building2, User, Beaker, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
 
@@ -66,6 +66,7 @@ export default function LeadsView() {
   const [selectedEval, setSelectedEval] = useState<string>('');
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const pageSize = 50;
 
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
@@ -165,16 +166,25 @@ export default function LeadsView() {
     fetchLeads();
   }, [fetchLeads]);
 
+  // Sort by created date
+  const sortedLeads = useMemo(() => {
+    return [...leads].sort((a, b) => {
+      const dateA = a.createdTime ? new Date(a.createdTime).getTime() : 0;
+      const dateB = b.createdTime ? new Date(b.createdTime).getTime() : 0;
+      return sortDir === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+  }, [leads, sortDir]);
+
   // Pagination
-  const totalPages = Math.max(1, Math.ceil(leads.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(sortedLeads.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
-  const paginatedLeads = leads.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const paginatedLeads = sortedLeads.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  useEffect(() => { setCurrentPage(1); }, [searchDebounced, selectedReseller, selectedRegion, selectedStatus, selectedEval]);
+  useEffect(() => { setCurrentPage(1); }, [searchDebounced, selectedReseller, selectedRegion, selectedStatus, selectedEval, sortDir]);
 
   const openLead = (lead: UnifiedLead) => {
     setSelectedLeadId(lead.id);
@@ -317,9 +327,9 @@ export default function LeadsView() {
         )}
 
         {/* Pagination (top) */}
-        {!loading && leads.length > 0 && (
+        {!loading && sortedLeads.length > 0 && (
           <div className="mb-3">
-            <Pagination currentPage={safePage} totalItems={leads.length} pageSize={pageSize} onPageChange={setCurrentPage} />
+            <Pagination currentPage={safePage} totalItems={sortedLeads.length} pageSize={pageSize} onPageChange={setCurrentPage} />
           </div>
         )}
 
@@ -330,13 +340,21 @@ export default function LeadsView() {
               <thead>
                 <tr className="bg-surface-raised">
                   <th>Name</th>
-                  <th>Contact</th>
-                  <th>Country</th>
+                  <th>Reseller</th>
+                  <th>Lead Source</th>
                   <th>Status</th>
                   <th>Evaluations</th>
                   <th>Product of Interest</th>
-                  <th>Lead Source</th>
-                  <th>Reseller</th>
+                  <th>Country</th>
+                  <th onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')} className="cursor-pointer select-none group">
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap transition-colors text-csa-accent">
+                      Created
+                      {sortDir === 'asc'
+                        ? <ArrowUp size={13} strokeWidth={2.5} className="text-csa-accent" />
+                        : <ArrowDown size={13} strokeWidth={2.5} className="text-csa-accent" />
+                      }
+                    </span>
+                  </th>
                   <th className="w-10"></th>
                 </tr>
               </thead>
@@ -365,15 +383,10 @@ export default function LeadsView() {
                       </div>
                     </td>
                     <td className="text-text-secondary text-sm">
-                      {lead.contactName || '\u2014'}
+                      {lead.reseller?.name || '\u2014'}
                     </td>
-                    <td className="text-text-secondary">
-                      {lead.country ? (
-                        <span className="flex items-center gap-1">
-                          <MapPin size={12} className="text-text-muted" />
-                          {lead.country}
-                        </span>
-                      ) : '\u2014'}
+                    <td className="text-text-secondary text-sm">
+                      {lead.leadSource || '\u2014'}
                     </td>
                     <td>
                       {lead.leadStatus ? (
@@ -407,10 +420,10 @@ export default function LeadsView() {
                       )}
                     </td>
                     <td className="text-text-secondary text-sm">
-                      {lead.leadSource || '\u2014'}
+                      {lead.country || '\u2014'}
                     </td>
-                    <td className="text-text-secondary text-sm">
-                      {lead.reseller?.name || '\u2014'}
+                    <td className="text-text-muted text-xs whitespace-nowrap">
+                      {lead.createdTime ? (() => { const d = new Date(lead.createdTime); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; })() : '\u2014'}
                     </td>
                     <td>
                       <ExternalLink size={14} className="text-text-muted" />
@@ -423,9 +436,9 @@ export default function LeadsView() {
         )}
 
         {/* Pagination (bottom) */}
-        {!loading && leads.length > pageSize && (
+        {!loading && sortedLeads.length > pageSize && (
           <div className="mt-3">
-            <Pagination currentPage={safePage} totalItems={leads.length} pageSize={pageSize} onPageChange={setCurrentPage} />
+            <Pagination currentPage={safePage} totalItems={sortedLeads.length} pageSize={pageSize} onPageChange={setCurrentPage} />
           </div>
         )}
 

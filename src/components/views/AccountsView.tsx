@@ -18,7 +18,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Building2, Loader2, MapPin, ExternalLink, ChevronDown, Download } from 'lucide-react';
+import { Search, Building2, Loader2, MapPin, ExternalLink, ChevronDown, Download, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
 import { exportAccountsList } from '@/lib/export-lists';
@@ -30,6 +30,7 @@ interface Account {
   Email_Domain: string | null;
   Reseller?: { name: string; id: string };
   Owner?: { name: string };
+  Created_Time?: string;
 }
 
 interface ResellerFilter {
@@ -53,6 +54,7 @@ export default function AccountsView() {
   const [selectedRegion, setSelectedRegion] = useState<string>('');
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const pageSize = 50;
 
   const [exporting, setExporting] = useState(false);
@@ -155,17 +157,26 @@ export default function AccountsView() {
     fetchAccounts();
   }, [fetchAccounts]);
 
+  // Sort by created date
+  const sortedAccounts = useMemo(() => {
+    return [...accounts].sort((a, b) => {
+      const dateA = a.Created_Time ? new Date(a.Created_Time).getTime() : 0;
+      const dateB = b.Created_Time ? new Date(b.Created_Time).getTime() : 0;
+      return sortDir === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+  }, [accounts, sortDir]);
+
   // Pagination — clamp page to valid range
-  const totalPages = Math.max(1, Math.ceil(accounts.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(sortedAccounts.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
-  const paginatedAccounts = accounts.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const paginatedAccounts = sortedAccounts.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
   // Reset to page 1 when filters change
-  useEffect(() => { setCurrentPage(1); }, [searchDebounced, selectedReseller, selectedRegion]);
+  useEffect(() => { setCurrentPage(1); }, [searchDebounced, selectedReseller, selectedRegion, sortDir]);
 
   const openAccount = (id: string) => {
     setSelectedAccountId(id);
@@ -274,9 +285,9 @@ export default function AccountsView() {
         )}
 
         {/* Pagination (top) */}
-        {!loading && accounts.length > 0 && (
+        {!loading && sortedAccounts.length > 0 && (
           <div className="mb-3">
-            <Pagination currentPage={safePage} totalItems={accounts.length} pageSize={pageSize} onPageChange={setCurrentPage} />
+            <Pagination currentPage={safePage} totalItems={sortedAccounts.length} pageSize={pageSize} onPageChange={setCurrentPage} />
           </div>
         )}
 
@@ -287,9 +298,18 @@ export default function AccountsView() {
               <thead>
                 <tr className="bg-surface-raised">
                   <th>Account</th>
-                  <th>Country</th>
                   <th>Reseller</th>
-                  <th>Owner</th>
+                  <th>CSA Sales Rep</th>
+                  <th>Country</th>
+                  <th onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')} className="cursor-pointer select-none group">
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap transition-colors text-csa-accent">
+                      Created
+                      {sortDir === 'asc'
+                        ? <ArrowUp size={13} strokeWidth={2.5} className="text-csa-accent" />
+                        : <ArrowDown size={13} strokeWidth={2.5} className="text-csa-accent" />
+                      }
+                    </span>
+                  </th>
                   <th className="w-10"></th>
                 </tr>
               </thead>
@@ -311,19 +331,17 @@ export default function AccountsView() {
                         <span className="text-xs text-text-muted ml-6">{acc.Email_Domain}</span>
                       )}
                     </td>
-                    <td className="text-text-secondary">
-                      {acc.Billing_Country && (
-                        <span className="flex items-center gap-1">
-                          <MapPin size={12} className="text-text-muted" />
-                          {acc.Billing_Country}
-                        </span>
-                      )}
-                    </td>
                     <td className="text-text-secondary text-sm">
                       {acc.Reseller?.name || '\u2014'}
                     </td>
                     <td className="text-text-muted text-sm">
                       {acc.Owner?.name || '\u2014'}
+                    </td>
+                    <td className="text-text-secondary text-sm">
+                      {acc.Billing_Country || '\u2014'}
+                    </td>
+                    <td className="text-text-muted text-xs whitespace-nowrap">
+                      {acc.Created_Time ? (() => { const d = new Date(acc.Created_Time!); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; })() : '\u2014'}
                     </td>
                     <td>
                       <ExternalLink size={14} className="text-text-muted" />
@@ -336,9 +354,9 @@ export default function AccountsView() {
         )}
 
         {/* Pagination (bottom) */}
-        {!loading && accounts.length > pageSize && (
+        {!loading && sortedAccounts.length > pageSize && (
           <div className="mt-3">
-            <Pagination currentPage={safePage} totalItems={accounts.length} pageSize={pageSize} onPageChange={setCurrentPage} />
+            <Pagination currentPage={safePage} totalItems={sortedAccounts.length} pageSize={pageSize} onPageChange={setCurrentPage} />
           </div>
         )}
 

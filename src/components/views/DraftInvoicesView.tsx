@@ -30,6 +30,7 @@ interface Invoice {
   Reference_Number?: string;
   Account_Name?: { name: string; id: string };
   Invoice_Date: string;
+  Due_Date?: string;
   Status: string;
   Grand_Total: number;
   Currency: string;
@@ -47,7 +48,7 @@ const REGION_LABELS: Record<string, string> = {
   AF: 'Africa', AS: 'Asia', AU: 'Australia', EU: 'Europe', NA: 'North America', NZ: 'New Zealand', WW: 'Worldwide',
 };
 
-type SortField = 'Reference_Number' | 'Invoice_Date' | 'Grand_Total';
+type SortField = 'Reference_Number' | 'Invoice_Date' | 'Due_Date' | 'Grand_Total';
 type SortDir = 'asc' | 'desc';
 
 export default function DraftInvoicesView() {
@@ -192,6 +193,8 @@ export default function DraftInvoicesView() {
           cmp = aNum - bNum;
         } else if (sortField === 'Invoice_Date') {
           cmp = new Date(a.Invoice_Date || 0).getTime() - new Date(b.Invoice_Date || 0).getTime();
+        } else if (sortField === 'Due_Date') {
+          cmp = new Date(a.Due_Date || 0).getTime() - new Date(b.Due_Date || 0).getTime();
         } else if (sortField === 'Grand_Total') {
           cmp = (a.Grand_Total || 0) - (b.Grand_Total || 0);
         }
@@ -369,12 +372,11 @@ export default function DraftInvoicesView() {
               <thead>
                 <tr className="bg-surface-raised">
                   <SortHeader label="Invoice #" field="Reference_Number" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <th>Subject</th>
                   <th>Account</th>
-                  <SortHeader label="Date" field="Invoice_Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <th>Type</th>
-                  <SortHeader label="Total" field="Grand_Total" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <th>Reseller</th>
+                  <SortHeader label="Invoice Date" field="Invoice_Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Due Date" field="Due_Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Total" field="Grand_Total" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <th className="w-10"></th>
                 </tr>
               </thead>
@@ -392,27 +394,14 @@ export default function DraftInvoicesView() {
                     className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                   >
                     <td className="text-text-muted text-xs font-mono whitespace-nowrap">{inv.Reference_Number || '\u2014'}</td>
-                    <td>
-                      <span className="font-semibold text-csa-accent hover:text-csa-highlight transition-colors">
-                        {inv.Subject || `Invoice ${inv.id}`}
-                      </span>
-                    </td>
                     <td className="text-text-secondary">{inv.Account_Name?.name || '\u2014'}</td>
+                    <td className="text-text-muted text-sm">{inv.Reseller?.name || '\u2014'}</td>
                     <td className="text-text-secondary whitespace-nowrap">{formatDate(inv.Invoice_Date)}</td>
-                    <td>
-                      <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md whitespace-nowrap ${
-                        inv.Invoice_Type === 'Renewal'
-                          ? 'bg-csa-purple/20 text-csa-purple'
-                          : 'bg-csa-accent/20 text-csa-accent'
-                      }`}>
-                        {inv.Invoice_Type || 'New'}
-                      </span>
-                    </td>
+                    <td className="text-text-secondary whitespace-nowrap">{formatDate(inv.Due_Date || '')}</td>
                     <td className="text-text-primary font-semibold whitespace-nowrap">
                       {inv.Currency === 'AUD' ? '$' : inv.Currency === 'EUR' ? '\u20AC' : inv.Currency === 'GBP' ? '\u00A3' : '$'}
                       {inv.Grand_Total?.toFixed(2)}
                     </td>
-                    <td className="text-text-muted text-sm">{inv.Reseller?.name || '\u2014'}</td>
                     <td>
                       <ExternalLink size={14} className="text-text-muted" />
                     </td>

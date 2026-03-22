@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   const resellerIds = searchParams.get('resellerIds');
 
   try {
-    const fields = 'Account_Name,Billing_Country,Reseller,Email_Domain,Owner,Account_Type,Record_Status__s';
+    const fields = 'Account_Name,Billing_Country,Reseller,Email_Domain,Owner,Account_Type,Created_Time,Record_Status__s';
     let allRecords: Record<string, unknown>[];
 
     // Build reseller criteria fragment if needed
