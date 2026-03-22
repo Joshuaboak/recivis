@@ -92,7 +92,7 @@ export async function PATCH(
     const result = await executeZohoTool('update_records', {
       module: 'Invoices',
       records: [updateData],
-      trigger: [],
+      trigger: ['workflow'],
     });
 
     const parsed = parseMcpResult(result);
