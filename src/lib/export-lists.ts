@@ -243,3 +243,66 @@ export function exportInvoicesList(
   const timestamp = new Date().toISOString().slice(0, 10);
   XLSX.writeFile(wb, `Invoices Export - ${filters?.status || 'All'} - ${timestamp}.xlsx`);
 }
+
+/**
+ * Export leads list to XLSX.
+ */
+export function exportLeadsList(
+  leads: Array<{
+    _source: string; name: string; contactName: string; email: string; phone: string;
+    country: string; leadStatus: string; productInterest: string; leadSource: string;
+    reseller: { name: string } | null; evaluations: string[]; createdTime: string;
+  }>,
+  filters?: { status?: string; evaluation?: string; region?: string; reseller?: string; search?: string }
+) {
+  const wb = XLSX.utils.book_new();
+
+  const headers = ['Type', 'Company / Name', 'Contact', 'Email', 'Phone', 'Country', 'Status', 'Product Interest', 'Evaluations', 'Lead Source', 'Reseller', 'Created'];
+  const rows = leads.map(l => [
+    l._source === 'lead' ? 'Lead' : 'Prospect',
+    l.name,
+    l.contactName,
+    l.email,
+    l.phone,
+    l.country,
+    l.leadStatus,
+    l._source === 'prospect' && l.evaluations.length > 0 ? l.evaluations.join(', ') : l.productInterest,
+    l._source === 'prospect' ? l.evaluations.join(', ') : '',
+    l.leadSource,
+    l.reseller?.name || '',
+    formatDate(l.createdTime),
+  ]);
+
+  // Filter summary
+  const filterLines: string[][] = [];
+  if (filters?.status) filterLines.push(['Status', filters.status]);
+  if (filters?.evaluation) filterLines.push(['Evaluation', filters.evaluation]);
+  if (filters?.region) filterLines.push(['Region', filters.region]);
+  if (filters?.reseller) filterLines.push(['Reseller', filters.reseller]);
+  if (filters?.search) filterLines.push(['Search', filters.search]);
+
+  // Counts
+  const leadCount = leads.filter(l => l._source === 'lead').length;
+  const prospectCount = leads.filter(l => l._source === 'prospect').length;
+
+  const data = [
+    ...filterLines,
+    ...(filterLines.length > 0 ? [[]] : []),
+    headers,
+    ...rows,
+    [],
+    ['Total', leads.length],
+    ['  Leads', leadCount],
+    ['  Prospects', prospectCount],
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const headerRowIdx = filterLines.length + (filterLines.length > 0 ? 1 : 0);
+  ws['!cols'] = [{ wch: 10 }, { wch: 35 }, { wch: 25 }, { wch: 30 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 30 }, { wch: 30 }, { wch: 15 }, { wch: 25 }, { wch: 12 }];
+  ws['!freeze'] = { xSplit: 0, ySplit: headerRowIdx + 1, topLeftCell: `A${headerRowIdx + 2}` };
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+
+  const timestamp = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `Leads Export - ${timestamp}.xlsx`);
+}

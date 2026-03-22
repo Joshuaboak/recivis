@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, UserSearch, Loader2, MapPin, ExternalLink, ChevronDown, Building2, User, Beaker, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, UserSearch, Loader2, MapPin, ExternalLink, ChevronDown, Building2, User, Beaker, ArrowUp, ArrowDown, Download } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
+import { exportLeadsList } from '@/lib/export-lists';
 
 interface UnifiedLead {
   id: string;
@@ -215,6 +216,20 @@ export default function LeadsView() {
                 </div>
               )}
             </div>
+            {!loading && sortedLeads.length > 0 && (
+              <button
+                onClick={() => exportLeadsList(sortedLeads, {
+                  status: selectedStatus || undefined,
+                  evaluation: selectedEval || undefined,
+                  region: selectedRegion || undefined,
+                  reseller: resellers.find(r => r.id === selectedReseller)?.name,
+                  search: searchDebounced || undefined,
+                })}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
+              >
+                <Download size={14} /> Export
+              </button>
+            )}
           </div>
 
           {/* Search + Filters Row 1 */}
