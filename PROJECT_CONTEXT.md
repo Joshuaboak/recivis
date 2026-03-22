@@ -3,7 +3,7 @@
 ## Project Context for AI Assistants
 
 **Read this file to understand the full project before making changes.**
-**Last updated: 2026-03-19**
+**Last updated: 2026-03-22**
 
 ---
 
@@ -40,16 +40,17 @@
 
 ```
 Browser (React SPA)
-    ↓ HTTP-only JWT cookie
+    ↓ HTTP-only JWT cookie (24h expiry, auto-logout on 401)
 Next.js API Routes (server-side)
     ↓                    ↓                    ↓
 PostgreSQL          Zoho CRM MCP         Zoho REST API
 (users, roles,      (accounts,           (coupons, file
  resellers DB,       invoices,            attachments,
- audit log)          products,            OAuth tokens)
-                     assets, etc.)
+ audit log,          products,            OAuth tokens,
+ notification        assets, leads,       lead conversion)
+ dismissals)         emails, etc.)
     ↓
-Redis (optional cache for resellers, products, coupons)
+Redis (optional cache for resellers, products, coupons, reports, notifications, currencies)
 ```
 
 ### Zoho CRM Integration — Two Methods
@@ -58,27 +59,30 @@ Redis (optional cache for resellers, products, coupons)
    - URL: `https://recivis-7006508204.zohomcp.com.au/mcp/<key>/message`
    - Configured in: `src/lib/zoho-mcp-auth.ts`
    - Client: `src/lib/zoho.ts`
-   - Available tools: `searchRecords`, `getRecords`, `getRecord`, `getRelatedRecords`, `getVariables`, `createRecords`, `updateRecords`
+   - Available tools: `searchRecords`, `getRecords`, `getRecord`, `getRelatedRecords`, `getVariables`, `createRecords`, `updateRecords`, `getEmails`, `getSpecificEmail`, `getLeadsRecords`, `getLeadsRecord`, `getLeadConversionOptions`, `getCurrencies`, `getAttachmentById`
    - **IMPORTANT**: Tool names are camelCase (e.g., `ZohoCRM_searchRecords` not `ZohoCRM_Search_Records`)
+   - **IMPORTANT**: `getRecords` only supports `id`, `Created_Time`, `Modified_Time` as sort_by fields — NOT custom fields like `Invoice_Date`
    - Session management: auto-retry on stale sessions in `callMcpTool()`
    - The MCP key changes periodically — update in `.env.local` (`ZOHO_MCP_URL`) and Railway env vars
 
 2. **REST API with API Key** — For operations MCP doesn't support
    - Deluge functions called via `https://www.zohoapis.com.au/crm/v7/functions/<name>/actions/execute?auth_type=apikey&zapikey=<key>`
    - Used for: renewal generation, licence deactivation, QLM key details, coupon product creation
-   - OAuth tokens for file attachments obtained via `getresellerzohotoken` Deluge function
+   - OAuth tokens for file attachments AND lead conversion obtained via `getresellerzohotoken` Deluge function
+   - Lead conversion: `POST /crm/v7/Leads/{id}/actions/convert` with OAuth token
    - API key stored in `ZOHO_API_KEY` env var — **never hardcode it**
 
 ### Key Zoho Modules
 
 | Module | API Name | Purpose |
 |--------|----------|---------|
-| Accounts | `Accounts` | Customer companies |
+| Accounts | `Accounts` | Customer companies (Account_Type: Customer or Prospect) |
 | Contacts | `Contacts` | People at accounts |
 | Invoices | `Invoices` | Sales invoices with line items (subform: `Invoiced_Items`) |
 | Products | `Products` | SKU-based products with lookup filters |
 | Assets | `Assets1` | Software licences (note: `Assets1` not `Assets`) |
 | Resellers | `Resellers` | Partner organizations |
+| Leads | `Leads` | Web form submissions (unconverted contacts) |
 | Coupons | `Coupons` | Discount coupons |
 
 ### Zoho Field Gotchas
@@ -91,7 +95,9 @@ Redis (optional cache for resellers, products, coupons)
 - `Reference_Number` is the invoice auto-number field (label: INV)
 - `Reseller_Region` on invoices must be set for product lookup filters to work (maps AU→ANZ, NZ→ANZ)
 - Multi-select picklists come as arrays from Zoho, not semicolon strings
-- `Direct_Customer_Contact` boolean controls invoice routing (reseller vs customer)
+- `Reseller_Direct_Purchase` = true means reseller IS purchasing (invoice to reseller, apply discount)
+- `Reseller_Direct_Purchase` = false means customer is purchasing (invoice to customer, full list price)
+- IMAP-synced emails return `NO_PERMISSION` from MCP when fetching content — handle gracefully
 
 ---
 
@@ -144,27 +150,22 @@ Effective permission = user_role AND reseller_role
 | `users` | Portal user accounts | `email`, `password_hash` (bcrypt), `reseller_id`, `user_role_id`, `is_active` |
 | `audit_log` | Security audit trail | `user_id`, `email`, `action`, `details`, `ip_address` |
 | `password_reset_tokens` | Reset tokens (SHA-256 hashed) | `user_id`, `token` (hashed), `expires_at`, `used` |
+| `notification_dismissals` | Tracks dismissed notifications per user | `user_id`, `notification_key`, `created_at` (auto-cleanup >30d) |
+
+### Reseller Roles (seeded)
+
+| Role | Create Invoices | Approve | Send | View All | View Children | Modify Prices |
+|------|----------------|---------|------|----------|---------------|---------------|
+| `internal` | Yes | Yes | Yes | Yes | Yes | Yes |
+| `distributor` | Yes | No | Yes | No | Yes | Yes |
+| `reseller` | Yes | No | No | No | No | No |
+| `restricted` | Yes | No | No | No | No | No |
 
 ### CSA Internal Mapping
 
 - PostgreSQL `reseller_id = 'csa-internal'` for CSA staff (Josh, Andrew)
 - Zoho CRM `Resellers` module ID for CSA = `55779000000560184`
 - The `resellers/[id]/route.ts` API maps between these two IDs
-
-### Indexes
-
-```sql
-idx_resellers_distributor ON resellers(distributor_id)
-idx_resellers_role ON resellers(reseller_role_id)
-idx_users_email ON users(email)
-idx_users_reseller ON users(reseller_id)
-idx_users_role ON users(user_role_id)
-idx_audit_log_user ON audit_log(user_id)
-idx_audit_log_email ON audit_log(email)
-idx_audit_log_created ON audit_log(created_at)
-idx_reset_tokens_token ON password_reset_tokens(token)
-idx_password_reset_user ON password_reset_tokens(user_id)
-```
 
 ---
 
@@ -176,6 +177,7 @@ idx_password_reset_user ON password_reset_tokens(user_id)
 3. Server sets HTTP-only cookie `recivis-token` with JWT (24h expiry)
 4. All subsequent API requests include the cookie automatically
 5. `src/lib/api-auth.ts` → `requireAuth(request)` reads cookie, verifies JWT, loads full permissions from DB
+6. Global fetch interceptor in AppShell detects 401s → shows "Session expired" toast → auto-logout
 
 ### Role Hierarchy
 | Role | Can Create Invoices | Can Approve | Can Send | Can Manage Users | Can View All |
@@ -190,6 +192,136 @@ idx_password_reset_user ON password_reset_tokens(user_id)
 - All routes (except auth/setup) require authentication
 - Write operations check specific permissions (see `api-auth.ts`)
 - Admin/IBM bypass all permission checks
+- **KNOWN ISSUE**: Account search in AI invoice assistant does NOT check reseller ownership — a reseller can currently create invoices for accounts assigned to other resellers. This needs to be fixed with ownership checks at both API level and AI prompt level.
+- **KNOWN ISSUE**: Individual permission toggles cannot be configured on partner registration — only preset roles are selectable. Need to add per-permission overrides on registration and allow admin/IBM to modify them from partner detail view.
+
+---
+
+## Leads Module
+
+The leads page merges data from two Zoho sources into a unified view:
+
+1. **Leads** (Zoho Leads module) — web form contacts without evaluations
+2. **Prospects** (Accounts where `Account_Type = 'Prospect'`) — contacts with product evaluations
+
+### Key Behaviors
+- Accounts page filters OUT `Account_Type = 'Prospect'`
+- Leads page shows both with source badges (Lead vs Prospect)
+- Lead detail has inline editing for all fields + "Convert to Prospect" button (admin only)
+- Convert uses Zoho REST API: `POST /Leads/{id}/actions/convert` with OAuth token and `trigger: ['workflow']`
+- Prospect detail shows contacts, evaluation assets, invoices (like account detail)
+- Tooltips on Lead/Prospect badges explain the difference
+
+### Lead Fields
+- Company, Full_Name, First_Name, Last_Name, Email, Phone, Mobile, Website
+- Lead_Status: Not Contacted, Attempted to Contact, Contacted, Future Interest, No Interest Ever, Dormant, Lost Lead, Pre-Qualified, Suspect
+- Product_Interest: Civil Site Design for BricsCAD/Civil 3D, Corridor EZ for Civil 3D, Stringer Topo for BricsCAD/Civil 3D, Customization/Design/Training Services, Software Maintenance Plan
+- Industry: Civil Engineering, Utilities, Academic, Builder, Developer, Government, Mining, Survey, etc.
+- Lead_Source, Reseller (lookup), Owner, Job_Title3, Country, Converted__s
+
+---
+
+## Reseller Pricing
+
+### Commission Logic
+- `Reseller_Sale` field on the Resellers module = reseller's commission percentage
+- Products in Zoho always store the full customer list price
+- When `Reseller_Direct_Purchase = true` (reseller is buying): prices discounted by `(100 - commission%)`
+- When toggled to customer: prices restored to full list price
+- Coupon discount line items (negative prices) are never modified
+- `Contract_Term_Years = 0` signals custom pricing to Zoho
+
+### Revenue Splits (for reports)
+For a $100 list price, Reseller% = 40, Distributor% = 50:
+
+**Customer Direct** (invoice to customer at $100):
+- Customer pays: $100
+- Reseller earns: $40 (40%)
+- Distributor earns: $10 (50% - 40% = 10%)
+- CSA keeps: $50 (100% - 50%)
+
+**Reseller Direct** (invoice to reseller at $60):
+- Reseller pays: $60 (discounted)
+- Reseller earns from us: $0 (they mark up to customer)
+- Distributor earns: $10 (same margin)
+- CSA keeps: $50
+
+**CSA-owned resellers** (Civil Survey Applications, LLC, India, Europe) = 100% CSA revenue, no splits.
+
+---
+
+## Email History
+
+- `EmailHistory` component on Account detail, Lead detail, Prospect detail
+- Admin/IBM only
+- Fetches via `ZohoCRM_getEmails` (metadata list) and `ZohoCRM_getSpecificEmail` (full content)
+- For accounts: fetches emails for each Contact (not the account ID) since Zoho ties emails to contacts
+- IMAP-synced emails show "IMAP" badge and graceful error when content is unavailable
+- Full HTML rendered in sandboxed iframe (`srcdoc`)
+- Attachment download on demand (not stored)
+
+---
+
+## Notifications
+
+Poll-based system querying Zoho for recent events:
+
+| Type | Trigger | Who Sees It |
+|------|---------|-------------|
+| New Lead Assigned | Lead created with reseller | Reseller + Distributor + Admin/IBM |
+| Evaluation Started | Prospect account created | Reseller + Distributor + Admin/IBM |
+| Invoice Approved/Paid | Invoice status change | Reseller + Distributor + Admin/IBM |
+
+- Cached in Redis per reseller (3 min TTL), admin sees all
+- Dismissals stored in PostgreSQL (auto-cleanup >30 days)
+- Bell icon in header with unread count badge
+- Click → navigate to record + auto-dismiss
+- Frontend polls every 3 minutes
+
+---
+
+## Reports Dashboard
+
+Tabs: Overview | Accounts | Leads | Revenue
+
+### Features
+- 13-month default range, "Load More" for history
+- Multi-month selection (click months to combine)
+- Currency switcher: All (converted to AUD) | individual currencies
+- Exchange rates from Zoho CRM `getCurrencies` API (cached 1 hour)
+- Clickable summary cards navigate to relevant tab
+- Bar charts for revenue, accounts, leads trends
+- Drill-down tables per month with clickable rows
+- CSV export per tab with month range in filename
+- Only Approved invoices in revenue reports
+
+### RBAC for Reports
+- Admin/IBM: all data + region/partner filters + full breakdown (CSA Profit, Distributor Owed, Reseller Owed)
+- Distributor: own + child reseller data, sees "Your Earnings"
+- Reseller: own data only, sees "Your Commission"
+
+---
+
+## Stripe Payments
+
+- `InvoicePayment` component on invoice detail (after Send To section)
+- Zoho fields: `Stripe_Payment_Link`, `Stripe_Total`, `Payment_Status`, `Grand_Total_with_Stripe_Fee`, `Stripe_Transaction_Fee`
+- Payment link locked when invoice is Approved/Sent
+- Invoice updates trigger `['workflow']` which generates Stripe link
+- 6-second delayed reload after save to fetch generated payment details
+- Note: licence keys auto-sent to payee after payment
+
+---
+
+## Global Search
+
+- Ctrl+K / Cmd+K shortcut opens search modal
+- Module filter pills: All | Accounts | Prospects | Leads | Contacts | Invoices | Partners
+- Searches Zoho via word search, results grouped by module
+- Click result → navigate to detail view
+- RBAC: non-admin users only see results matching their reseller IDs
+- Partners module admin/IBM only
+- Re-searches automatically when changing module filter
 
 ---
 
@@ -202,6 +334,9 @@ Configured in `src/lib/cache.ts`. Completely optional — falls back gracefully.
 | `resellers:*` | 5 min | POST /api/resellers |
 | `products:<sku>` | 10 min | Never (products rarely change) |
 | `coupons:all` | 2 min | POST /api/coupons |
+| `notifications:*` | 3 min | Auto |
+| `reports:v4:*` | 10 min | Auto |
+| `currencies:rates` | 1 hour | Auto |
 
 ---
 
@@ -212,12 +347,14 @@ src/
 ├── app/
 │   ├── api/
 │   │   ├── auth/              — Login, forgot-password, reset-password, logout
-│   │   ├── accounts/          — GET (list), POST (create)
+│   │   ├── accounts/          — GET (list, filters out Prospects), POST (create)
 │   │   ├── accounts/[id]/     — GET (detail + contacts/assets/invoices), PATCH (update)
 │   │   ├── invoices/          — GET (list), POST (create)
-│   │   ├── invoices/[id]/     — GET (detail + line items), PATCH (update)
-│   │   ├── resellers/         — GET (list + user counts), POST (create)
-│   │   ├── resellers/[id]/    — GET (detail + users), PATCH (update)
+│   │   ├── invoices/[id]/     — GET (detail + line items), PATCH (update, triggers workflows)
+│   │   ├── leads/             — GET (unified leads + prospects list)
+│   │   ├── leads/[id]/        — GET (lead or prospect detail), POST (convert lead), PATCH (update lead)
+│   │   ├── resellers/         — GET (list + user counts), POST (create in Zoho)
+│   │   ├── resellers/[id]/    — GET (detail + users + DB status), PATCH (update), POST (register in DB)
 │   │   ├── users/             — GET (list), POST (create)
 │   │   ├── users/[id]/        — PATCH (update), PUT (reset password)
 │   │   ├── contacts/          — POST (create)
@@ -228,6 +365,11 @@ src/
 │   │   ├── coupons/[id]/      — GET (detail), PATCH (update)
 │   │   ├── coupons/validate/  — POST (validate coupon code against restrictions)
 │   │   ├── attach-file/       — POST (upload file to Zoho record)
+│   │   ├── emails/            — GET (list emails, specific email content, attachment download)
+│   │   ├── search/            — GET (global search across modules with RBAC)
+│   │   ├── notifications/     — GET (poll notifications), POST (dismiss)
+│   │   ├── reports/           — GET (monthly aggregates with revenue splits)
+│   │   ├── currencies/        — GET (exchange rates from Zoho)
 │   │   ├── chat/              — POST (AI chat with OpenRouter)
 │   │   ├── parse-file/        — POST (parse PO file)
 │   │   ├── logs/              — GET (app logs)
@@ -238,47 +380,55 @@ src/
 │
 ├── components/
 │   ├── layout/
-│   │   ├── AppShell.tsx       — Root layout, view routing, code splitting
-│   │   ├── Sidebar.tsx        — Navigation with collapsible submenus
-│   │   └── UserMenu.tsx       — User profile, add user modal, logout
+│   │   ├── AppShell.tsx       — Root layout, view routing, code splitting, session expiry, search + notifications
+│   │   ├── Sidebar.tsx        — Navigation with collapsible submenus (Accounts, Invoices, Reports, Partners)
+│   │   └── UserMenu.tsx       — User profile, logout
 │   ├── views/
 │   │   ├── DashboardView.tsx  — Landing page, quick actions, recent accounts
-│   │   ├── AccountsView.tsx   — Account list with filters, search, export
-│   │   ├── AccountDetailView.tsx — Account detail (info, contacts, invoices, assets)
+│   │   ├── AccountsView.tsx   — Account list (excludes Prospects), sortable by Created
+│   │   ├── AccountDetailView.tsx — Account detail (info, contacts, emails, invoices, assets)
 │   │   ├── CreateAccountView.tsx — New account + contact form
+│   │   ├── LeadsView.tsx      — Unified leads + prospects list with filters
+│   │   ├── LeadDetailView.tsx — Lead detail (editable) or Prospect detail (account-like)
 │   │   ├── InvoiceView.tsx    — AI chat invoice assistant
-│   │   ├── InvoiceDetailView.tsx — Invoice detail orchestrator
-│   │   ├── CreateInvoiceView.tsx — New invoice from account context
-│   │   ├── DraftInvoicesView.tsx — Invoice list with filters, sort, search
+│   │   ├── InvoiceDetailView.tsx — Invoice detail with payment, pricing, send-to toggle
+│   │   ├── CreateInvoiceView.tsx — New invoice with reseller pricing auto-applied
+│   │   ├── DraftInvoicesView.tsx — Invoice list with sortable columns
 │   │   ├── ReportsView.tsx    — AI chat for reports
+│   │   ├── ReportsDashboardView.tsx — Pre-baked reports with currency conversion
 │   │   ├── CouponsView.tsx    — Coupon list
 │   │   ├── CreateCouponView.tsx — Coupon creation form
 │   │   ├── CouponDetailView.tsx — Coupon detail with restrictions
-│   │   ├── ResellerManagementView.tsx — Partner grid + detail + users
+│   │   ├── ResellerManagementView.tsx — Partner grid + detail + users + DB registration
 │   │   ├── PartnerResourcesView.tsx — External resource links
 │   │   └── LoginView.tsx      — Auth screen
 │   ├── invoice/               — InvoiceDetailView sub-components
 │   │   ├── InvoiceHeader.tsx
-│   │   ├── InvoiceLineItems.tsx
+│   │   ├── InvoiceLineItems.tsx — With reseller pricing tooltips
 │   │   ├── InvoicePurchaseOrder.tsx
 │   │   ├── InvoiceSendTo.tsx
-│   │   └── InvoiceCoupon.tsx
+│   │   ├── InvoiceCoupon.tsx
+│   │   └── InvoicePayment.tsx — Stripe payment link, status, fees
+│   ├── EmailHistory.tsx       — Reusable email list + detail modal (admin/IBM only)
+│   ├── EmailDetailModal.tsx   — Full email viewer with iframe, tracking, attachments
+│   ├── SearchModal.tsx        — Global search with module filter pills
+│   ├── NotificationBell.tsx   — Notification dropdown with dismiss/clear
 │   ├── Pagination.tsx         — Shared pagination with sliding window
 │   ├── SKUBuilder.tsx         — Product SKU wizard modal
 │   └── AssetDetailModal.tsx   — Asset + QLM key details modal
 │
 ├── lib/
-│   ├── store.ts               — Zustand state (user, view, messages, selections)
+│   ├── store.ts               — Zustand state (user, view, messages, selections, leads)
 │   ├── types.ts               — TypeScript interfaces (permissions, chat, Zoho)
 │   ├── zoho.ts                — MCP client, tool mapping, pagination helpers
 │   ├── zoho-mcp-auth.ts       — MCP endpoint configuration
 │   ├── auth.ts                — User CRUD, JWT, password reset, seeding
-│   ├── db.ts                  — PostgreSQL schema, connection pool
+│   ├── db.ts                  — PostgreSQL schema, connection pool, notification_dismissals table
 │   ├── api-auth.ts            — JWT cookie auth middleware for API routes
 │   ├── api-response.ts        — Standardized API response helpers
 │   ├── cache.ts               — Redis caching with graceful fallback
 │   ├── validation.ts          — Zod schemas for input validation
-│   ├── constants.ts           — Centralized constants (IDs, regions, currencies)
+│   ├── constants.ts           — Centralized constants (IDs, regions, currencies, page sizes)
 │   ├── env.ts                 — Safe environment variable access
 │   ├── ai-tools.ts            — AI system prompt + tool definitions
 │   ├── logger.ts              — Async debounced file logger
@@ -312,6 +462,7 @@ Products are identified by SKU codes built from selections:
 - New rows: send `Product_Name: {id}` without row `id`
 - Deleted rows: send `{id, _delete: true}` (Zoho requires explicit deletion)
 - Price changes: set `Contract_Term_Years = 0` to signal custom pricing
+- Invoice updates trigger `['workflow']` for Stripe link generation
 
 ### Renewal Eligibility
 Assets NOT eligible for renewal:
@@ -327,6 +478,24 @@ Assets NOT eligible for renewal:
 2. `create_coupon_product` Deluge function creates a discount product
 3. Users apply coupons by code → validates restrictions → adds discount product as negative-price line item
 4. Restrictions: region, partner, product, order type, date range, usage limit, order value
+
+---
+
+## Outstanding Issues / Next Steps
+
+### CRITICAL: RBAC Security Fixes Needed
+1. **Account ownership check** — The AI invoice assistant and account search APIs do NOT verify that the requesting user's reseller matches the account's reseller. A reseller can currently search for and create invoices against accounts belonging to other resellers. Fix needed at:
+   - `/api/accounts` GET — filter results by user's allowed reseller IDs
+   - `/api/invoices` POST — verify the account's reseller matches before creating
+   - AI system prompt (`src/lib/ai-tools.ts`) — instruct the assistant to verify ownership
+
+2. **Invoice approval permissions** — Resellers with the `reseller` role preset should NOT be able to approve invoices, but individual permission overrides aren't configurable yet.
+
+3. **Partner permission management** — When registering a partner in the portal DB (`POST /api/resellers/[id]`), only a preset role can be selected (distributor/reseller/restricted). Need to:
+   - Show individual permission toggles on the registration form, pre-filled from the selected preset
+   - Allow overriding individual toggles before saving
+   - Allow admin/IBM to modify individual permissions from the partner detail view
+   - The three-tier permission model (user inherits reseller caps) is already built and working
 
 ---
 
