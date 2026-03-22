@@ -42,7 +42,10 @@ export default function ReportsDashboardView() {
   const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedReseller, setSelectedReseller] = useState('');
   const [rates, setRates] = useState<CurrencyRate[]>([]);
-  const [viewCurrency, setViewCurrency] = useState('ALL'); // ALL = converted to AUD
+  const isAdminInit = user?.role === 'admin' || user?.role === 'ibm';
+  const [viewCurrency, setViewCurrency] = useState(
+    !isAdminInit && user?.reseller?.currency ? user.reseller.currency : 'ALL'
+  );
 
   const isAdminUser = user?.role === 'admin' || user?.role === 'ibm';
   const isDistributor = user?.permissions?.canViewChildRecords;
@@ -91,6 +94,13 @@ export default function ReportsDashboardView() {
     for (const m of data.months) for (const c of Object.keys(m.byCurrency || {})) s.add(c);
     return ['ALL', ...Array.from(s).sort()];
   }, [data]);
+
+  // If the user's default currency isn't in the data, fall back to ALL
+  useEffect(() => {
+    if (availableCurrencies.length > 0 && viewCurrency !== 'ALL' && !availableCurrencies.includes(viewCurrency)) {
+      setViewCurrency('ALL');
+    }
+  }, [availableCurrencies, viewCurrency]);
 
   // Aggregate selected months with currency conversion
   const aggregated = useMemo(() => {
