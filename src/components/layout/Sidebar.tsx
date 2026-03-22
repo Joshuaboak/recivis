@@ -123,7 +123,7 @@ export default function Sidebar() {
               )}
             </AnimatePresence>
             {sidebarOpen && (
-              <ChevronRight size={14} className={`text-text-muted transition-transform ${leadsMenuOpen ? 'rotate-90' : ''}`} />
+              <ChevronDown size={14} className={`text-text-muted transition-transform ${leadsMenuOpen ? 'rotate-180' : ''}`} />
             )}
           </button>
           <AnimatePresence>
