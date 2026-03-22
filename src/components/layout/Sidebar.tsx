@@ -128,9 +128,17 @@ export default function Sidebar() {
           </button>
           <AnimatePresence>
             {sidebarOpen && leadsMenuOpen && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden ml-4 border-l border-border-subtle">
-                <SubNavItem label="Browse Leads" active={currentView === 'leads'} onClick={() => handleNavClick('leads')} />
-                <SubNavItem label="Create Lead" active={currentView === 'create-lead'} onClick={() => handleNavClick('create-lead')} />
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="overflow-hidden"
+              >
+                <div className="ml-8 mt-1 space-y-0.5">
+                  <SubNavItem label="Browse Leads" active={currentView === 'leads'} onClick={() => handleNavClick('leads')} />
+                  <SubNavItem label="Create Lead" active={currentView === 'create-lead'} onClick={() => handleNavClick('create-lead')} />
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
