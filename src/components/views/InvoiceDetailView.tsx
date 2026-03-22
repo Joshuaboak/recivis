@@ -62,8 +62,10 @@ export default function InvoiceDetailView() {
   // Payment refresh (delayed reload after save to wait for Stripe link generation)
   const [paymentRefreshing, setPaymentRefreshing] = useState(false);
 
-  // Reseller pricing
+  // Reseller pricing — originalListPrices stores the FULL list prices keyed by line item id
+  // so we can toggle between reseller/customer pricing without losing the base price
   const [resellerPercentage, setResellerPercentage] = useState<number | null>(null);
+  const [originalListPrices, setOriginalListPrices] = useState<Record<string, number>>({});
 
   // PO
   const [editingPO, setEditingPO] = useState(false);
@@ -90,20 +92,38 @@ export default function InvoiceDetailView() {
       .then(res => res.json())
       .then(data => {
         setInvoice(data.invoice);
-        // Store original list prices on line items for reseller toggle calculations
-        const items = (data.lineItems || []).map((li: Record<string, unknown>) => ({
-          ...li,
-          _listPrice: li._listPrice || li.List_Price, // Preserve original if already set
-        }));
-        setLineItems(items);
-        // Fetch reseller percentage
+        setLineItems(data.lineItems || []);
+
+        // Fetch reseller percentage, then calculate original list prices
         const resellerId = (data.invoice?.Reseller as { id?: string })?.id;
         if (resellerId) {
           fetch(`/api/resellers/${resellerId}`)
             .then(r => r.json())
             .then(rData => {
               const pct = rData.reseller?.Reseller_Sale;
-              setResellerPercentage(pct != null ? Number(pct) : null);
+              const percentage = pct != null ? Number(pct) : null;
+              setResellerPercentage(percentage);
+
+              // Calculate and store original (full) list prices
+              // If invoice is currently in reseller mode, current prices ARE discounted
+              // so we need to reverse-calculate the full price
+              if (percentage != null && data.lineItems?.length) {
+                const isResellerMode = !!data.invoice?.Reseller_Direct_Purchase;
+                const prices: Record<string, number> = {};
+                for (const li of data.lineItems) {
+                  const price = li.List_Price as number;
+                  if (li.id && price > 0) {
+                    if (isResellerMode) {
+                      // Currently discounted → reverse to get full price
+                      prices[li.id as string] = Math.round(price / ((100 - percentage) / 100) * 100) / 100;
+                    } else {
+                      // Currently at full price
+                      prices[li.id as string] = price;
+                    }
+                  }
+                }
+                setOriginalListPrices(prices);
+              }
             })
             .catch(() => {});
         }
@@ -387,29 +407,29 @@ export default function InvoiceDetailView() {
     if (!selectedInvoiceId) return;
     setUpdatingDirectPurchase(true);
     try {
-      // When toggling, recalculate line item prices
-      // value=true means "direct to customer" → use full list price
-      // value=false means "via reseller" → apply reseller discount
+      // Reseller_Direct_Purchase:
+      //   true  = reseller is purchasing (invoice goes to reseller) → apply reseller discount
+      //   false = customer is purchasing (invoice goes to customer) → full list price
       const patchBody: Record<string, unknown> = { Reseller_Direct_Purchase: value };
 
       if (resellerPercentage != null && lineItems.length > 0) {
         const updatedItems = lineItems.map(li => {
-          const product = li.Product_Name as { name?: string; id?: string } | null;
           const isCouponLine = (li.List_Price as number) < 0;
           if (isCouponLine) {
             // Leave coupon discount lines untouched
             return { id: li.id };
           }
 
-          const originalPrice = li._listPrice as number || li.List_Price as number;
+          const liId = li.id as string;
+          const fullPrice = originalListPrices[liId] || (li.List_Price as number);
           let newPrice: number;
 
           if (value) {
-            // Switching to customer → restore full list price
-            newPrice = originalPrice;
+            // Reseller mode → apply discount (reseller pays 100% - commission%)
+            newPrice = Math.round(fullPrice * (100 - resellerPercentage) / 100 * 100) / 100;
           } else {
-            // Switching to reseller → apply discount
-            newPrice = Math.round(originalPrice * (100 - resellerPercentage) / 100 * 100) / 100;
+            // Customer mode → restore full list price
+            newPrice = fullPrice;
           }
 
           const cleaned: Record<string, unknown> = { id: li.id };
@@ -642,7 +662,7 @@ export default function InvoiceDetailView() {
           onRemoveLineItem={removeLineItem}
           onOpenSkuBuilder={setSkuBuilderIndex}
           resellerPercentage={resellerPercentage}
-          isResellerPricing={!invoice.Reseller_Direct_Purchase && resellerPercentage != null}
+          isResellerPricing={!!invoice.Reseller_Direct_Purchase && resellerPercentage != null}
         />
 
         {/* Coupon */}
