@@ -31,7 +31,7 @@ import { motion } from 'framer-motion';
 import {
   Users, UserPlus, Search, Loader2, Shield, ShieldOff, KeyRound,
   ChevronDown, X, AlertCircle, Building2, Pencil, Save, Plus,
-  ArrowLeft, Globe, DollarSign, Mail, ExternalLink,
+  ArrowLeft, Globe, DollarSign, Mail, ExternalLink, RefreshCw,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
@@ -635,6 +635,20 @@ function ResellerDetailView() {
             <p className="text-sm text-text-muted">{REGION_LABELS[reseller.Region] || reseller.Region} &bull; {reseller.Partner_Category}</p>
           </div>
           <div className="flex items-center gap-2">
+            {isAdmin && dbRegistered && (
+              <button onClick={async () => {
+                try {
+                  await fetch(`/api/resellers/${selectedResellerId}`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ _syncDistributor: true }),
+                  });
+                  loadData();
+                } catch {}
+              }} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl hover:border-csa-accent/30 hover:text-csa-accent transition-colors cursor-pointer"
+                title="Sync distributor/child relationships from Zoho CRM">
+                <RefreshCw size={14} /> Sync
+              </button>
+            )}
             {isAdmin && !editingReseller ? (
               <button onClick={startEditReseller} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-warning bg-warning/10 border border-warning/30 rounded-xl hover:bg-warning/20 transition-colors cursor-pointer">
                 <Pencil size={14} /> Edit

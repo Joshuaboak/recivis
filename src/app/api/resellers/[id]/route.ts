@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
+import { executeZohoTool, parseMcpResult, callMcpTool } from '@/lib/zoho';
 import { query } from '@/lib/db';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
@@ -126,6 +126,43 @@ export async function PATCH(
   try {
     const body = await request.json();
     const zohoId = id === CSA_INTERNAL_ID ? CSA_ZOHO_ID : id;
+
+    // Sync distributor relationships from Zoho → PostgreSQL
+    if (body._syncDistributor) {
+      const dbId = id === CSA_ZOHO_ID ? CSA_INTERNAL_ID : id;
+
+      // Check if this reseller's distributor is in Zoho but not set in PostgreSQL
+      const zohoResult = await executeZohoTool('get_record', { module: 'Resellers', record_id: id === CSA_INTERNAL_ID ? CSA_ZOHO_ID : id });
+      const zohoParsed = parseMcpResult(zohoResult);
+      const zohoRecord = zohoParsed.data[0] as Record<string, unknown> | undefined;
+      const zohoDistId = (zohoRecord?.Distributor as { id?: string })?.id;
+
+      if (zohoDistId) {
+        const distExists = await query('SELECT id FROM resellers WHERE id = $1', [zohoDistId]);
+        if (distExists.rows.length > 0) {
+          await query('UPDATE resellers SET distributor_id = $1, updated_at = NOW() WHERE id = $2', [zohoDistId, dbId]);
+        }
+      }
+
+      // Also backfill children: find Zoho resellers whose Distributor = this reseller
+      const zohoId = id === CSA_INTERNAL_ID ? CSA_ZOHO_ID : id;
+      try {
+        const childResult = await callMcpTool('ZohoCRM_searchRecords', {
+          path_variables: { module: 'Resellers' },
+          query_params: { criteria: `(Distributor:equals:${zohoId})`, fields: 'Name' },
+        });
+        const childParsed = parseMcpResult(childResult);
+        for (const child of childParsed.data) {
+          await query(
+            'UPDATE resellers SET distributor_id = $1, updated_at = NOW() WHERE id = $2 AND distributor_id IS NULL',
+            [dbId, child.id as string]
+          );
+        }
+      } catch { /* non-critical */ }
+
+      log('info', 'api', `Distributor relationships synced for ${id}`, { by: user.email });
+      return NextResponse.json({ success: true });
+    }
 
     // If updating portal permissions (from the permission management UI)
     if (body._updatePermissions) {
@@ -255,6 +292,43 @@ export async function POST(
     );
 
     log('info', 'api', `Reseller ${id} registered in portal`, { name, role_id: reseller_role_id, by: user.email });
+
+    // Auto-backfill: if this reseller is a distributor, find any already-registered
+    // child resellers in Zoho and update their distributor_id in PostgreSQL.
+    // This fixes the case where children were registered before their distributor.
+    try {
+      const childSearchResult = await callMcpTool('ZohoCRM_searchRecords', {
+        path_variables: { module: 'Resellers' },
+        query_params: {
+          criteria: `(Distributor:equals:${id})`,
+          fields: 'Name',
+        },
+      });
+      const childParsed = parseMcpResult(childSearchResult);
+      for (const child of childParsed.data) {
+        const childId = child.id as string;
+        await query(
+          'UPDATE resellers SET distributor_id = $1, updated_at = NOW() WHERE id = $2 AND distributor_id IS NULL',
+          [id, childId]
+        );
+      }
+      // Also: if this reseller has a distributor in Zoho that's already registered, set the FK
+      if (!distributor_id) {
+        const zohoResult = await executeZohoTool('get_record', { module: 'Resellers', record_id: id });
+        const zohoParsed = parseMcpResult(zohoResult);
+        const zohoRecord = zohoParsed.data[0] as Record<string, unknown> | undefined;
+        const zohoDistId = (zohoRecord?.Distributor as { id?: string })?.id;
+        if (zohoDistId) {
+          const distExists = await query('SELECT id FROM resellers WHERE id = $1', [zohoDistId]);
+          if (distExists.rows.length > 0) {
+            await query('UPDATE resellers SET distributor_id = $1, updated_at = NOW() WHERE id = $2', [zohoDistId, id]);
+          }
+        }
+      }
+    } catch (e) {
+      log('warn', 'api', `Distributor backfill skipped for ${id}`, { error: e instanceof Error ? e.message : String(e) });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     log('error', 'api', `Reseller registration failed for ${id}`, {
