@@ -25,6 +25,8 @@ const pool = new Pool({
 
 export default pool;
 
+let dbInitialized = false;
+
 /**
  * Initialize database tables.
  *
@@ -32,8 +34,11 @@ export default pool;
  * 1. reseller_roles — what a reseller ORG is allowed to do (org-level caps)
  * 2. user_roles — what a USER within a reseller can do (user-level within org)
  * 3. Effective permission = reseller_role AND user_role (user can't exceed org caps)
+ *
+ * Only runs once per server lifecycle — subsequent calls are no-ops.
  */
 export async function initDB() {
+  if (dbInitialized) return;
   const client = await pool.connect();
   try {
     await client.query(`
@@ -190,6 +195,7 @@ export async function initDB() {
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_view_reports BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_export_data BOOLEAN;
     `);
+    dbInitialized = true;
   } finally {
     client.release();
   }
