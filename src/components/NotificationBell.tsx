@@ -28,8 +28,6 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
-
   const fetchNotifications = useCallback(async () => {
     try {
       const res = await fetch('/api/notifications');
@@ -42,11 +40,10 @@ export default function NotificationBell() {
 
   // Fetch on mount + poll every 3 minutes
   useEffect(() => {
-    if (isAdmin) return; // Admins don't get notifications
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 180000);
     return () => clearInterval(interval);
-  }, [fetchNotifications, isAdmin]);
+  }, [fetchNotifications]);
 
   // Close panel on outside click
   useEffect(() => {
@@ -119,9 +116,6 @@ export default function NotificationBell() {
     const days = Math.floor(hours / 24);
     return `${days}d ago`;
   };
-
-  // Don't render for admins (they see everything anyway)
-  if (isAdmin) return null;
 
   return (
     <div className="relative" ref={panelRef}>

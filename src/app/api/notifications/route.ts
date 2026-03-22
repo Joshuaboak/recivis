@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { searchAllPages } from '@/lib/zoho';
+import { searchAllPages, getAllRecordPages } from '@/lib/zoho';
 import { query, initDB } from '@/lib/db';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
@@ -33,26 +33,23 @@ function resellerCriteria(ids: string[]): string {
   return `(${ids.map(id => `(Reseller:equals:${id})`).join('or')})`;
 }
 
-/** Fetch raw notification data from Zoho for given reseller IDs. */
-async function fetchNotificationsFromZoho(resellerIds: string[]): Promise<Notification[]> {
+/** Fetch raw notification data from Zoho. Pass null for all resellers (admin mode). */
+async function fetchNotificationsFromZoho(resellerIds: string[] | null): Promise<Notification[]> {
   const notifications: Notification[] = [];
-  const criteria = resellerCriteria(resellerIds);
+  const criteria = resellerIds ? resellerCriteria(resellerIds) : null;
 
   // Run all 3 queries in parallel
   const [leads, prospects, invoices] = await Promise.all([
-    // 1. Recent leads assigned to these resellers
-    searchAllPages(
-      'Leads',
-      criteria,
-      'Company,Full_Name,Email,Lead_Status,Reseller,Created_Time,Converted__s,Record_Status__s',
-      'desc',
-      1 // Just first page
+    // 1. Recent leads
+    (criteria
+      ? searchAllPages('Leads', criteria, 'Company,Full_Name,Email,Lead_Status,Reseller,Created_Time,Converted__s,Record_Status__s', 'desc', 1)
+      : getAllRecordPages('Leads', 'Company,Full_Name,Email,Lead_Status,Reseller,Created_Time,Converted__s,Record_Status__s', 'Created_Time', 'desc', 1)
     ).catch(() => [] as Record<string, unknown>[]),
 
     // 2. Recent prospect accounts (= evaluation started)
     searchAllPages(
       'Accounts',
-      `((Account_Type:equals:Prospect)and${criteria})`,
+      criteria ? `((Account_Type:equals:Prospect)and${criteria})` : '(Account_Type:equals:Prospect)',
       'Account_Name,Reseller,Created_Time,Record_Status__s',
       'desc',
       1
@@ -61,7 +58,9 @@ async function fetchNotificationsFromZoho(resellerIds: string[]): Promise<Notifi
     // 3. Recently approved/paid invoices
     searchAllPages(
       'Invoices',
-      `(((Status:equals:Approved)or(Status:equals:Sent))and${criteria})`,
+      criteria
+        ? `(((Status:equals:Approved)or(Status:equals:Sent))and${criteria})`
+        : '((Status:equals:Approved)or(Status:equals:Sent))',
       'Subject,Reference_Number,Account_Name,Status,Payment_Status,Reseller,Modified_Time,Record_Status__s',
       'desc',
       1
@@ -170,10 +169,12 @@ export async function GET(request: NextRequest) {
     await initDB();
 
     // Determine which reseller IDs to check
-    let resellerIds: string[] = [];
-    if (isAdmin(user)) {
-      // Admins don't get reseller-specific notifications
-      return NextResponse.json({ notifications: [], unreadCount: 0 });
+    let resellerIds: string[] | null = null;
+    const userIsAdmin = isAdmin(user);
+
+    if (userIsAdmin) {
+      // Admins see ALL notifications across every reseller
+      resellerIds = null;
     } else if (user.resellerId) {
       resellerIds = user.allowedResellerIds.length > 0
         ? user.allowedResellerIds
@@ -183,7 +184,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Check Redis cache first (keyed by reseller set, 3 min TTL)
-    const cacheKey = `notifications:${resellerIds.sort().join(',')}`;
+    const cacheKey = resellerIds
+      ? `notifications:${resellerIds.sort().join(',')}`
+      : 'notifications:all';
     let allNotifications: Notification[] | null = await cacheGet<Notification[]>(cacheKey);
 
     if (!allNotifications) {
