@@ -240,7 +240,7 @@ export default function DraftInvoicesView() {
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-text-primary">Existing Invoices</h1>
-            {processedInvoices.length > 0 ? (
+            {processedInvoices.length > 0 && user?.permissions?.canExportData ? (
               <button
                 onClick={() => exportInvoicesList(processedInvoices, {
                   status: statusFilter,

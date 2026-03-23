@@ -190,7 +190,7 @@ export default function AccountsView() {
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-text-primary">Accounts</h1>
-            {accounts.length > 0 ? (
+            {accounts.length > 0 && user?.permissions?.canExportData ? (
               <button
                 onClick={async () => {
                   setExporting(true);

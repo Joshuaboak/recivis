@@ -216,7 +216,7 @@ export default function LeadsView() {
                 </div>
               )}
             </div>
-            {!loading && sortedLeads.length > 0 && (
+            {!loading && sortedLeads.length > 0 && user?.permissions?.canExportData && (
               <button
                 onClick={() => exportLeadsList(sortedLeads, {
                   status: selectedStatus || undefined,

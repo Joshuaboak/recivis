@@ -338,13 +338,15 @@ export default function AccountDetailView() {
             <p className="text-sm text-text-muted">{account.Email_Domain as string || ''}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => exportFullAccount(account, contacts, invoices, activeAssets, archivedAssets, primaryContact?.id, secondaryContact?.id)}
-              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer"
-            >
-              <Download size={14} />
-              Export All
-            </button>
+            {user?.permissions?.canExportData && (
+              <button
+                onClick={() => exportFullAccount(account, contacts, invoices, activeAssets, archivedAssets, primaryContact?.id, secondaryContact?.id)}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer"
+              >
+                <Download size={14} />
+                Export All
+              </button>
+            )}
             <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
               <ExternalLink size={14} />
               Open in CRM
@@ -471,7 +473,7 @@ export default function AccountDetailView() {
               Contacts ({contacts.length})
             </h2>
             <div className="flex items-center gap-2">
-              {contacts.length > 0 ? (
+              {contacts.length > 0 && user?.permissions?.canExportData ? (
                 <button onClick={() => exportContacts(contacts, account.Account_Name as string, primaryContact?.id, secondaryContact?.id)} className="p-1.5 text-text-muted hover:text-success transition-colors cursor-pointer" title="Export Contacts">
                   <Download size={14} />
                 </button>
@@ -617,7 +619,7 @@ export default function AccountDetailView() {
               Invoices ({invoices.length})
             </h2>
             <div className="flex items-center gap-2">
-              {invoices.length > 0 ? (
+              {invoices.length > 0 && user?.permissions?.canExportData ? (
                 <button onClick={() => exportInvoices(invoices, account.Account_Name as string)} className="p-1.5 text-text-muted hover:text-success transition-colors cursor-pointer" title="Export Invoices">
                   <Download size={14} />
                 </button>
@@ -710,7 +712,7 @@ export default function AccountDetailView() {
                 <Package size={18} className="text-success" />
                 Active Assets ({activeAssets.length})
               </h2>
-              {(activeAssets.length > 0 || archivedAssets.length > 0) ? (
+              {(activeAssets.length > 0 || archivedAssets.length > 0) && user?.permissions?.canExportData ? (
                 <button onClick={() => exportAssets(activeAssets, archivedAssets, account.Account_Name as string)} className="p-1.5 text-text-muted hover:text-success transition-colors cursor-pointer" title="Export Assets">
                   <Download size={14} />
                 </button>

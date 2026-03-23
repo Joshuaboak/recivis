@@ -236,9 +236,11 @@ export default function ReportsDashboardView() {
                 </select>
               </>
             )}
-            <button onClick={doExport} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer">
-              <Download size={13} /> Export {tab}
-            </button>
+            {user?.permissions?.canExportData && (
+              <button onClick={doExport} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer">
+                <Download size={13} /> Export {tab}
+              </button>
+            )}
           </div>
         </div>
 
