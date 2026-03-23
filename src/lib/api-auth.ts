@@ -64,16 +64,21 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
               ur.can_send_invoices AS ur_send, ur.can_modify_prices AS ur_price,
               ur.can_upload_po AS ur_po, ur.can_manage_users AS ur_users,
               ur.can_view_reports AS ur_reports, ur.can_export_data AS ur_export,
+              ur.can_create_evaluations AS ur_eval, ur.can_extend_evaluations AS ur_extend_eval,
               rr.can_create_invoices AS rr_create, rr.can_approve_invoices AS rr_approve,
               rr.can_send_invoices AS rr_send, rr.can_view_all_records AS rr_all,
               rr.can_view_child_records AS rr_child, rr.can_modify_prices AS rr_price,
               rr.can_upload_po AS rr_po, rr.can_view_reports AS rr_reports,
               rr.can_export_data AS rr_export,
+              rr.can_create_evaluations AS rr_eval, rr.max_evaluations_per_account AS rr_max_eval,
+              rr.can_extend_evaluations AS rr_extend_eval,
               r.perm_create_invoices AS ro_create, r.perm_approve_invoices AS ro_approve,
               r.perm_send_invoices AS ro_send, r.perm_view_all_records AS ro_all,
               r.perm_view_child_records AS ro_child, r.perm_modify_prices AS ro_price,
               r.perm_upload_po AS ro_po, r.perm_view_reports AS ro_reports,
-              r.perm_export_data AS ro_export
+              r.perm_export_data AS ro_export,
+              r.perm_create_evaluations AS ro_eval, r.perm_max_evaluations_per_account AS ro_max_eval,
+              r.perm_extend_evaluations AS ro_extend_eval
        FROM users u
        LEFT JOIN user_roles ur ON ur.id = u.user_role_id
        LEFT JOIN resellers r ON r.id = u.reseller_id
@@ -98,6 +103,9 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
     const rrPo = row.ro_po ?? row.rr_po ?? false;
     const rrReports = row.ro_reports ?? row.rr_reports ?? false;
     const rrExport = row.ro_export ?? row.rr_export ?? false;
+    const rrEval = row.ro_eval ?? row.rr_eval ?? false;
+    const rrMaxEval: number = row.ro_max_eval ?? row.rr_max_eval ?? 0;
+    const rrExtendEval = row.ro_extend_eval ?? row.rr_extend_eval ?? false;
 
     const permissions: UserPermissions = {
       canCreateInvoices: isSystemAdmin || ((row.ur_create ?? false) && rrCreate),
@@ -110,6 +118,9 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
       canManageUsers: isSystemAdmin || (row.ur_users ?? false),
       canViewReports: isSystemAdmin || ((row.ur_reports ?? false) && rrReports),
       canExportData: isSystemAdmin || ((row.ur_export ?? false) && rrExport),
+      canCreateEvaluations: isSystemAdmin || ((row.ur_eval ?? false) && rrEval),
+      maxEvaluationsPerAccount: isSystemAdmin ? -1 : ((row.ur_eval ?? false) && rrEval ? rrMaxEval : 0),
+      canExtendEvaluations: isSystemAdmin || ((row.ur_extend_eval ?? false) && rrExtendEval),
     };
 
     // Compute allowed reseller IDs

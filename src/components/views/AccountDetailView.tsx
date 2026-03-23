@@ -20,11 +20,12 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Pencil, Save, Download, Ban } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Pencil, Save, Download, Ban, Beaker } from 'lucide-react';
 import { exportFullAccount, exportContacts, exportInvoices, exportAssets } from '@/lib/export-account';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
+import CreateEvaluationModal from '../CreateEvaluationModal';
 import EmailHistory from '../EmailHistory';
 
 interface ResellerOption {
@@ -54,6 +55,7 @@ export default function AccountDetailView() {
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
   const [generatingRenewal, setGeneratingRenewal] = useState(false);
   const [viewingAsset, setViewingAsset] = useState<Record<string, unknown> | null>(null);
+  const [showEvalModal, setShowEvalModal] = useState(false);
 
   // Asset pagination
   const [activeAssetPage, setActiveAssetPage] = useState(1);
@@ -717,6 +719,15 @@ export default function AccountDetailView() {
                   <Download size={14} />
                 </button>
               ) : null}
+              {user?.permissions?.canCreateEvaluations && (
+                <button
+                  onClick={() => setShowEvalModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer"
+                >
+                  <Beaker size={13} />
+                  Create Evaluation
+                </button>
+              )}
             </div>
             {selectedAssets.size > 0 ? (
               <button
@@ -895,6 +906,28 @@ export default function AccountDetailView() {
           }}
         />
       ) : null}
+
+      {/* Create Evaluation Modal */}
+      {showEvalModal && account && (
+        <CreateEvaluationModal
+          accountId={selectedAccountId!}
+          accountName={account.Account_Name as string}
+          region={(account.Reseller_Region as string) || 'ANZ'}
+          canExtend={user?.permissions?.canExtendEvaluations ?? false}
+          onSuccess={() => {
+            setShowEvalModal(false);
+            // Reload to show new asset
+            fetch(`/api/accounts/${selectedAccountId}`)
+              .then(res => res.json())
+              .then(data => {
+                setActiveAssets(data.activeAssets || []);
+                setArchivedAssets(data.archivedAssets || []);
+              })
+              .catch(() => {});
+          }}
+          onClose={() => setShowEvalModal(false)}
+        />
+      )}
     </div>
   );
 }

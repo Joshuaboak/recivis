@@ -26,6 +26,9 @@ export interface UserPermissions {
   canManageUsers: boolean;
   canViewReports: boolean;
   canExportData: boolean;
+  canCreateEvaluations: boolean;
+  maxEvaluationsPerAccount: number; // -1 = unlimited, 0 = disabled
+  canExtendEvaluations: boolean;
 }
 
 // --- Organisation Model ---

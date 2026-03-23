@@ -71,6 +71,8 @@ const PERMISSION_DEFS = [
   { key: 'can_upload_po', label: 'Upload PO', desc: 'Upload purchase order documents' },
   { key: 'can_view_reports', label: 'View Reports', desc: 'Access the reports dashboard' },
   { key: 'can_export_data', label: 'Export Data', desc: 'Export data to Excel/CSV' },
+  { key: 'can_create_evaluations', label: 'Create Evaluations', desc: 'Create evaluation licences for accounts' },
+  { key: 'can_extend_evaluations', label: 'Extend Evaluations', desc: 'Extend evaluation licences beyond 30 days' },
 ];
 
 interface RoleWithPerms {
@@ -78,6 +80,7 @@ interface RoleWithPerms {
   can_create_invoices: boolean; can_approve_invoices: boolean; can_send_invoices: boolean;
   can_view_all_records: boolean; can_view_child_records: boolean; can_modify_prices: boolean;
   can_upload_po: boolean; can_view_reports: boolean; can_export_data: boolean;
+  can_create_evaluations: boolean; max_evaluations_per_account: number; can_extend_evaluations: boolean;
 }
 
 const inputCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg";
@@ -492,11 +495,13 @@ function ResellerDetailView() {
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState('');
   const [registerPermissions, setRegisterPermissions] = useState<Record<string, boolean | null>>({});
+  const [registerMaxEvals, setRegisterMaxEvals] = useState<number | null>(null);
 
   // Permission overrides for existing registered partners
   const [permissionOverrides, setPermissionOverrides] = useState<Record<string, boolean | null> | null>(null);
   const [editingPermissions, setEditingPermissions] = useState(false);
   const [editPerms, setEditPerms] = useState<Record<string, boolean | null>>({});
+  const [editMaxEvals, setEditMaxEvals] = useState<number | null>(null);
   const [savingPerms, setSavingPerms] = useState(false);
 
   useEffect(() => { if (selectedResellerId) loadData(); }, [selectedResellerId]);
@@ -783,6 +788,12 @@ function ResellerDetailView() {
                     PERMISSION_DEFS.forEach(p => { defaults[p.key] = !!(role as unknown as Record<string, unknown>)[p.key]; });
                     return defaults;
                   })()}
+                  maxEvalsValue={registerMaxEvals}
+                  maxEvalsRoleDefault={(() => {
+                    const role = availableResellerRoles.find(r => String(r.id) === String(registerFields.reseller_role_id));
+                    return role?.max_evaluations_per_account ?? 0;
+                  })()}
+                  onMaxEvalsChange={setRegisterMaxEvals}
                 />
               </div>
             )}
@@ -801,10 +812,11 @@ function ResellerDetailView() {
                   }
                   setRegistering(true); setRegisterError('');
                   // Build permissions payload — only include overrides (non-null values)
-                  const permPayload: Record<string, boolean> = {};
+                  const permPayload: Record<string, unknown> = {};
                   for (const [k, v] of Object.entries(registerPermissions)) {
                     if (v !== null && v !== undefined) permPayload[k] = v;
                   }
+                  if (registerMaxEvals !== null) permPayload.max_evaluations_per_account = registerMaxEvals;
                   try {
                     const res = await fetch(`/api/resellers/${selectedResellerId}`, {
                       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -849,8 +861,10 @@ function ResellerDetailView() {
                       const dbKey = 'perm_' + p.key.replace('can_', '');
                       currentPerms[p.key] = (permissionOverrides as Record<string, boolean | null>)[dbKey] ?? null;
                     });
+                    setEditMaxEvals((permissionOverrides as Record<string, number | null>)['perm_max_evaluations_per_account'] ?? null);
                   } else {
                     PERMISSION_DEFS.forEach(p => { currentPerms[p.key] = null; });
+                    setEditMaxEvals(null);
                   }
                   setEditPerms(currentPerms);
                   setEditingPermissions(true);
@@ -878,6 +892,12 @@ function ResellerDetailView() {
                     PERMISSION_DEFS.forEach(p => { defaults[p.key] = !!(role as unknown as Record<string, unknown>)[p.key]; });
                     return defaults;
                   })()}
+                  maxEvalsValue={editMaxEvals}
+                  maxEvalsRoleDefault={(() => {
+                    const role = availableResellerRoles.find(r => r.name === dbRole?.name);
+                    return role?.max_evaluations_per_account ?? 0;
+                  })()}
+                  onMaxEvalsChange={setEditMaxEvals}
                 />
                 <div className="flex gap-2 mt-3 pt-3 border-t border-border-subtle">
                   <button onClick={() => setEditingPermissions(false)}
@@ -886,10 +906,11 @@ function ResellerDetailView() {
                     disabled={savingPerms}
                     onClick={async () => {
                       setSavingPerms(true);
-                      const permPayload: Record<string, boolean | null> = {};
+                      const permPayload: Record<string, unknown> = {};
                       for (const [k, v] of Object.entries(editPerms)) {
                         permPayload[k] = v ?? null;
                       }
+                      permPayload.max_evaluations_per_account = editMaxEvals;
                       try {
                         await fetch(`/api/resellers/${selectedResellerId}`, {
                           method: 'PATCH',
@@ -1106,10 +1127,16 @@ function PermissionToggles({
   permissions,
   onChange,
   roleDefaults,
+  maxEvalsValue,
+  maxEvalsRoleDefault,
+  onMaxEvalsChange,
 }: {
   permissions: Record<string, boolean | null>;
   onChange: (perms: Record<string, boolean | null>) => void;
   roleDefaults?: Record<string, boolean>;
+  maxEvalsValue?: number | null;
+  maxEvalsRoleDefault?: number;
+  onMaxEvalsChange?: (v: number | null) => void;
 }) {
   const toggle = (key: string) => {
     const current = permissions[key];
@@ -1125,8 +1152,12 @@ function PermissionToggles({
     onChange({ ...permissions, [key]: next });
   };
 
+  const evalEnabled = (permissions['can_create_evaluations'] ?? roleDefaults?.['can_create_evaluations'] ?? false);
+  const effectiveMaxEvals = maxEvalsValue ?? maxEvalsRoleDefault ?? 0;
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+    <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
       {PERMISSION_DEFS.map(({ key, label, desc }) => {
         const value = permissions[key];
         const roleDefault = roleDefaults?.[key] ?? false;
@@ -1165,6 +1196,28 @@ function PermissionToggles({
           </button>
         );
       })}
+      </div>
+      {evalEnabled && onMaxEvalsChange && (
+        <div className="mt-3 flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border-subtle bg-surface">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-text-primary">Max Evaluations Per Account</p>
+            <p className="text-[10px] text-text-muted">-1 = unlimited, 0 = disabled{maxEvalsValue !== null && maxEvalsValue !== undefined ? '' : ` (default: ${maxEvalsRoleDefault ?? 0})`}</p>
+          </div>
+          <input
+            type="number"
+            min={-1}
+            value={effectiveMaxEvals}
+            onChange={e => {
+              const v = parseInt(e.target.value);
+              onMaxEvalsChange(isNaN(v) ? null : v);
+            }}
+            className="w-20 bg-csa-dark border border-border-subtle px-2 py-1 text-sm text-text-primary rounded-lg text-center"
+          />
+          {maxEvalsValue !== null && maxEvalsValue !== undefined && (
+            <button type="button" onClick={() => onMaxEvalsChange(null)} className="text-[9px] text-warning hover:text-warning/80 cursor-pointer">Reset</button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

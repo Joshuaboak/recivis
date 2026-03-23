@@ -75,6 +75,7 @@ export async function authenticateUser(
        ur.can_send_invoices AS ur_send, ur.can_modify_prices AS ur_price,
        ur.can_upload_po AS ur_po, ur.can_manage_users AS ur_users,
        ur.can_view_reports AS ur_reports, ur.can_export_data AS ur_export,
+       ur.can_create_evaluations AS ur_eval, ur.can_extend_evaluations AS ur_extend_eval,
        r.id AS reseller_zoho_id, r.name AS reseller_name, r.email AS reseller_email,
        r.region, r.currency, r.partner_category, r.direct_customer_contact, r.distributor_id,
        rr.name AS reseller_role_name, rr.display_name AS reseller_role_display,
@@ -83,11 +84,15 @@ export async function authenticateUser(
        rr.can_view_child_records AS rr_child, rr.can_modify_prices AS rr_price,
        rr.can_upload_po AS rr_po, rr.can_view_reports AS rr_reports,
        rr.can_export_data AS rr_export,
+       rr.can_create_evaluations AS rr_eval, rr.max_evaluations_per_account AS rr_max_eval,
+       rr.can_extend_evaluations AS rr_extend_eval,
        r.perm_create_invoices AS ro_create, r.perm_approve_invoices AS ro_approve,
        r.perm_send_invoices AS ro_send, r.perm_view_all_records AS ro_all,
        r.perm_view_child_records AS ro_child, r.perm_modify_prices AS ro_price,
        r.perm_upload_po AS ro_po, r.perm_view_reports AS ro_reports,
-       r.perm_export_data AS ro_export
+       r.perm_export_data AS ro_export,
+       r.perm_create_evaluations AS ro_eval, r.perm_max_evaluations_per_account AS ro_max_eval,
+       r.perm_extend_evaluations AS ro_extend_eval
      FROM users u
      LEFT JOIN user_roles ur ON ur.id = u.user_role_id
      LEFT JOIN resellers r ON r.id = u.reseller_id
@@ -119,6 +124,9 @@ export async function authenticateUser(
   const rrPo = row.ro_po ?? row.rr_po ?? false;
   const rrReports = row.ro_reports ?? row.rr_reports ?? false;
   const rrExport = row.ro_export ?? row.rr_export ?? false;
+  const rrEval = row.ro_eval ?? row.rr_eval ?? false;
+  const rrMaxEval: number = row.ro_max_eval ?? row.rr_max_eval ?? 0;
+  const rrExtendEval = row.ro_extend_eval ?? row.rr_extend_eval ?? false;
 
   const permissions: UserPermissions = {
     canCreateInvoices: isSystemAdmin || ((row.ur_create ?? false) && rrCreate),
@@ -131,6 +139,9 @@ export async function authenticateUser(
     canManageUsers: isSystemAdmin || (row.ur_users ?? false),
     canViewReports: isSystemAdmin || ((row.ur_reports ?? false) && rrReports),
     canExportData: isSystemAdmin || ((row.ur_export ?? false) && rrExport),
+    canCreateEvaluations: isSystemAdmin || ((row.ur_eval ?? false) && rrEval),
+    maxEvaluationsPerAccount: isSystemAdmin ? -1 : ((row.ur_eval ?? false) && rrEval ? rrMaxEval : 0),
+    canExtendEvaluations: isSystemAdmin || ((row.ur_extend_eval ?? false) && rrExtendEval),
   };
 
   // Build the list of reseller IDs this user can see.
@@ -241,11 +252,11 @@ export async function seedAdminUsers() {
   const existingRR = await query('SELECT COUNT(*) FROM reseller_roles');
   if (parseInt(existingRR.rows[0].count) === 0) {
     await query(`
-      INSERT INTO reseller_roles (name, display_name, description, can_create_invoices, can_approve_invoices, can_send_invoices, can_view_all_records, can_view_child_records, can_modify_prices, can_upload_po, can_view_reports, can_export_data, is_system_role) VALUES
-      ('internal', 'Internal (CSA Staff)', 'Full access — for CSA admin and staff accounts.', true, true, true, true, true, true, true, true, true, true),
-      ('distributor', 'Distributor', 'Can create and send invoices for own and child reseller accounts.', true, false, true, false, true, true, true, true, true, false),
-      ('reseller', 'Reseller', 'Can create invoices and upload POs for own accounts only.', true, false, false, false, false, false, true, true, false, false),
-      ('restricted', 'Restricted Reseller', 'Can create invoices at list price only. Cannot modify prices or approve.', true, false, false, false, false, false, true, true, false, false)
+      INSERT INTO reseller_roles (name, display_name, description, can_create_invoices, can_approve_invoices, can_send_invoices, can_view_all_records, can_view_child_records, can_modify_prices, can_upload_po, can_view_reports, can_export_data, can_create_evaluations, max_evaluations_per_account, can_extend_evaluations, is_system_role) VALUES
+      ('internal', 'Internal (CSA Staff)', 'Full access — for CSA admin and staff accounts.', true, true, true, true, true, true, true, true, true, true, -1, true, true),
+      ('distributor', 'Distributor', 'Can create and send invoices for own and child reseller accounts.', true, false, true, false, true, true, true, true, true, true, 3, false, false),
+      ('reseller', 'Reseller', 'Can create invoices and upload POs for own accounts only.', true, false, false, false, false, false, true, true, false, true, 2, false, false),
+      ('restricted', 'Restricted Reseller', 'Can create invoices at list price only. Cannot modify prices or approve.', true, false, false, false, false, false, true, true, false, false, 0, false, false)
     `);
     console.log('Reseller roles seeded');
   }
@@ -254,12 +265,12 @@ export async function seedAdminUsers() {
   const existingUR = await query('SELECT COUNT(*) FROM user_roles');
   if (parseInt(existingUR.rows[0].count) === 0) {
     await query(`
-      INSERT INTO user_roles (name, display_name, description, can_create_invoices, can_approve_invoices, can_send_invoices, can_modify_prices, can_upload_po, can_manage_users, can_view_reports, can_export_data, is_system_role) VALUES
-      ('admin', 'System Administrator', 'Full access to everything. Manages users and system settings.', true, true, true, true, true, true, true, true, true),
-      ('ibm', 'International Business Manager', 'Full access to invoicing and records. Cannot manage system users.', true, true, true, true, true, false, true, true, true),
-      ('manager', 'Reseller Manager', 'Can manage users within their reseller org, create/send invoices.', true, false, true, true, true, true, true, true, false),
-      ('standard', 'Standard User', 'Can create invoices and upload POs. Cannot manage users or approve.', true, false, false, false, true, false, true, false, false),
-      ('viewer', 'Viewer', 'Read-only access to reports and records.', false, false, false, false, false, false, true, false, false)
+      INSERT INTO user_roles (name, display_name, description, can_create_invoices, can_approve_invoices, can_send_invoices, can_modify_prices, can_upload_po, can_manage_users, can_view_reports, can_export_data, can_create_evaluations, can_extend_evaluations, is_system_role) VALUES
+      ('admin', 'System Administrator', 'Full access to everything. Manages users and system settings.', true, true, true, true, true, true, true, true, true, true, true),
+      ('ibm', 'International Business Manager', 'Full access to invoicing and records. Cannot manage system users.', true, true, true, true, true, false, true, true, true, true, true),
+      ('manager', 'Reseller Manager', 'Can manage users within their reseller org, create/send invoices.', true, false, true, true, true, true, true, true, true, false, false),
+      ('standard', 'Standard User', 'Can create invoices and upload POs. Cannot manage users or approve.', true, false, false, false, true, false, true, false, true, false, false),
+      ('viewer', 'Viewer', 'Read-only access to reports and records.', false, false, false, false, false, false, true, false, false, false, false)
     `);
     console.log('User roles seeded');
   }

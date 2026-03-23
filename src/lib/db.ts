@@ -62,6 +62,9 @@ export async function initDB() {
         can_upload_po BOOLEAN DEFAULT false,
         can_view_reports BOOLEAN DEFAULT false,
         can_export_data BOOLEAN DEFAULT false,
+        can_create_evaluations BOOLEAN DEFAULT false,
+        max_evaluations_per_account INTEGER DEFAULT 0,
+        can_extend_evaluations BOOLEAN DEFAULT false,
         is_system_role BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
@@ -105,6 +108,8 @@ export async function initDB() {
         can_upload_po BOOLEAN DEFAULT false,
         can_view_reports BOOLEAN DEFAULT false,
         can_export_data BOOLEAN DEFAULT false,
+        can_create_evaluations BOOLEAN DEFAULT false,
+        can_extend_evaluations BOOLEAN DEFAULT false,
         can_manage_users BOOLEAN DEFAULT false,
         is_system_role BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT NOW(),
@@ -194,6 +199,16 @@ export async function initDB() {
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_upload_po BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_view_reports BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_export_data BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_create_evaluations BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_max_evaluations_per_account INTEGER;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_extend_evaluations BOOLEAN;
+
+      -- Add evaluation columns to role tables (idempotent)
+      ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_create_evaluations BOOLEAN DEFAULT false;
+      ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS max_evaluations_per_account INTEGER DEFAULT 0;
+      ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_extend_evaluations BOOLEAN DEFAULT false;
+      ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS can_create_evaluations BOOLEAN DEFAULT false;
+      ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS can_extend_evaluations BOOLEAN DEFAULT false;
     `);
     dbInitialized = true;
   } finally {

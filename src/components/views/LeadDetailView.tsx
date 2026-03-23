@@ -11,6 +11,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
+import CreateEvaluationModal from '../CreateEvaluationModal';
 import EmailHistory from '../EmailHistory';
 
 interface ResellerOption {
@@ -74,6 +75,7 @@ export default function LeadDetailView() {
 
   // Asset detail modal
   const [viewingAsset, setViewingAsset] = useState<Record<string, unknown> | null>(null);
+  const [showEvalModal, setShowEvalModal] = useState(false);
 
   // Pagination
   const [contactPage, setContactPage] = useState(1);
@@ -643,10 +645,21 @@ export default function LeadDetailView() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-8">
-          <h2 className="text-lg font-bold text-text-primary flex items-center gap-2 mb-3">
-            <Beaker size={18} className="text-success" />
-            Evaluations ({evaluationAssets.length})
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+              <Beaker size={18} className="text-success" />
+              Evaluations ({evaluationAssets.length})
+            </h2>
+            {user?.permissions?.canCreateEvaluations && (
+              <button
+                onClick={() => setShowEvalModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer"
+              >
+                <Beaker size={13} />
+                Create Evaluation
+              </button>
+            )}
+          </div>
           {evaluationAssets.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-hidden">
               <table className="w-full">
@@ -885,6 +898,33 @@ export default function LeadDetailView() {
                 .catch(() => {});
             }
           }}
+        />
+      )}
+
+      {/* Create Evaluation Modal */}
+      {showEvalModal && account && (
+        <CreateEvaluationModal
+          accountId={selectedLeadId!}
+          accountName={account.Account_Name as string}
+          region={(account.Reseller_Region as string) || 'ANZ'}
+          canExtend={user?.permissions?.canExtendEvaluations ?? false}
+          onSuccess={() => {
+            setShowEvalModal(false);
+            // Reload to show new evaluation
+            if (selectedLeadId && selectedLeadSource) {
+              fetch(`/api/leads/${selectedLeadId}?source=${selectedLeadSource}`)
+                .then(res => res.json())
+                .then(data => {
+                  if (data.source === 'prospect') {
+                    setEvaluationAssets(data.evaluationAssets || []);
+                    setActiveAssets(data.activeAssets || []);
+                    setArchivedAssets(data.archivedAssets || []);
+                  }
+                })
+                .catch(() => {});
+            }
+          }}
+          onClose={() => setShowEvalModal(false)}
         />
       )}
     </div>
