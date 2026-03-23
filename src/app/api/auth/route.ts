@@ -15,7 +15,23 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, seedAdminUsers, auditLog } from '@/lib/auth';
+import { requireAuth } from '@/lib/api-auth';
 import { log } from '@/lib/logger';
+
+/**
+ * GET /api/auth — Refresh the current user session.
+ *
+ * Reads the JWT from the cookie, recomputes permissions from the database,
+ * and returns the updated user object. Called on app mount to keep the
+ * localStorage-persisted user in sync with server-side permission changes.
+ */
+export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) {
+    return NextResponse.json({ user: null }, { status: 401 });
+  }
+  return NextResponse.json({ user: authResult });
+}
 
 export async function POST(request: NextRequest) {
   try {

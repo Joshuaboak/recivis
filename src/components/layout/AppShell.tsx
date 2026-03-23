@@ -112,6 +112,16 @@ export default function AppShell() {
     };
   }, [user, setUser]);
 
+  // Refresh user permissions from server on mount (keeps localStorage in sync)
+  useEffect(() => {
+    if (!user) return;
+    fetch('/api/auth')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.user) setUser(data.user); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount only
+
   // Ctrl+K / Cmd+K shortcut to open search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
