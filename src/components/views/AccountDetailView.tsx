@@ -39,6 +39,7 @@ export default function AccountDetailView() {
   const { user, selectedAccountId, setCurrentView, setSelectedInvoiceId, setInvoiceReturnView, setNewInvoiceContext } = useAppStore();
   const [account, setAccount] = useState<Record<string, unknown> | null>(null);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
+  const [evaluationAssets, setEvaluationAssets] = useState<Record<string, unknown>[]>([]);
   const [activeAssets, setActiveAssets] = useState<Record<string, unknown>[]>([]);
   const [archivedAssets, setArchivedAssets] = useState<Record<string, unknown>[]>([]);
   const [invoices, setInvoices] = useState<Record<string, unknown>[]>([]);
@@ -92,6 +93,7 @@ export default function AccountDetailView() {
       .then(data => {
         setAccount(data.account);
         setContacts(data.contacts || []);
+        setEvaluationAssets(data.evaluationAssets || []);
         setActiveAssets(data.activeAssets || []);
         setArchivedAssets(data.archivedAssets || []);
         setInvoices(data.invoices || []);
@@ -187,6 +189,7 @@ export default function AccountDetailView() {
         const reloadData = await reload.json();
         setAccount(reloadData.account);
         setInvoices(reloadData.invoices || []);
+        setEvaluationAssets(reloadData.evaluationAssets || []);
         setActiveAssets(reloadData.activeAssets || []);
         setSelectedAssets(new Set());
       }
@@ -740,6 +743,62 @@ export default function AccountDetailView() {
           <EmailHistory module="Contacts" contactIds={contacts.map(c => c.id as string)} />
         </motion.div>
 
+        {/* Evaluations */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+              <Beaker size={18} className="text-success" />
+              Evaluations ({evaluationAssets.length})
+            </h2>
+            {user?.permissions?.canCreateEvaluations && (
+              <button
+                onClick={() => setShowEvalModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer"
+              >
+                <Beaker size={13} />
+                Create Evaluation
+              </button>
+            )}
+          </div>
+          {evaluationAssets.length > 0 ? (
+            <div className="border border-border-subtle rounded-xl overflow-hidden">
+              <table className="w-full">
+                <thead><tr className="bg-surface-raised">
+                  <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Serial Key</th><th>Status</th><th className="w-10"></th>
+                </tr></thead>
+                <tbody>
+                  {evaluationAssets.map((a, i) => {
+                    const product = a.Product as { name?: string } | null;
+                    return (
+                      <tr key={i}>
+                        <td className="text-text-primary">{product?.name || a.Name as string}</td>
+                        <td className="text-text-secondary">{a.Quantity as number}</td>
+                        <td className="text-text-secondary">{formatDate(a.Start_Date)}</td>
+                        <td className="text-text-secondary">{formatDate(a.Renewal_Date)}</td>
+                        <td className="text-text-muted text-xs font-mono">{a.Serial_Key as string || '\u2014'}</td>
+                        <td>
+                          <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${
+                            a.Status === 'Active' ? 'bg-success/20 text-success' : 'bg-text-muted/20 text-text-muted'
+                          }`}>
+                            {a.Status as string}
+                          </span>
+                        </td>
+                        <td>
+                          <button onClick={() => setViewingAsset(a)} className="p-1 text-text-muted hover:text-csa-accent transition-colors cursor-pointer">
+                            <Eye size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-text-muted py-4">No evaluations</p>
+          )}
+        </motion.div>
+
         {/* Active Assets */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="mb-8">
           <div className="flex items-center justify-between mb-3">
@@ -753,15 +812,6 @@ export default function AccountDetailView() {
                   <Download size={14} />
                 </button>
               ) : null}
-              {user?.permissions?.canCreateEvaluations && (
-                <button
-                  onClick={() => setShowEvalModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer"
-                >
-                  <Beaker size={13} />
-                  Create Evaluation
-                </button>
-              )}
             </div>
             {selectedAssets.size > 0 ? (
               <div className="flex items-center gap-2">
@@ -949,6 +999,7 @@ export default function AccountDetailView() {
               .then(res => res.json())
               .then(data => {
                 setAccount(data.account);
+                setEvaluationAssets(data.evaluationAssets || []);
                 setActiveAssets(data.activeAssets || []);
                 setArchivedAssets(data.archivedAssets || []);
               })

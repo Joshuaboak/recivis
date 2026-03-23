@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
       Product: { id: productId },
       Serial_Key: 'create123982',
       Quantity: Number(quantity),
+      Status: 'Active',
       Start_Date: todayStr,
       Renewal_Date: endStr,
     };

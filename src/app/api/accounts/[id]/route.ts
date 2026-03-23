@@ -86,8 +86,17 @@ export async function GET(
         a.Record_Status__s !== 'Trash' && !a.Upgraded_To_Key
     );
 
+    const isEvalAsset = (a: Record<string, unknown>) => {
+      if (a.Evaluation_License === true) return true;
+      const productName = ((a.Product as { name?: string })?.name || a.Name as string || '').toLowerCase();
+      return productName.includes('evaluation');
+    };
+
     const activeAssets = allAssets.filter(
-      (a: Record<string, unknown>) => a.Status === 'Active'
+      (a: Record<string, unknown>) => a.Status === 'Active' && !isEvalAsset(a)
+    );
+    const evaluationAssets = allAssets.filter(
+      (a: Record<string, unknown>) => a.Status === 'Active' && isEvalAsset(a)
     );
     const archivedAssets = allAssets.filter(
       (a: Record<string, unknown>) => a.Status !== 'Active'
@@ -97,7 +106,7 @@ export async function GET(
       (inv: Record<string, unknown>) => inv.Record_Status__s !== 'Trash'
     );
 
-    return NextResponse.json({ account, contacts, activeAssets, archivedAssets, invoices });
+    return NextResponse.json({ account, contacts, evaluationAssets, activeAssets, archivedAssets, invoices });
   } catch (error) {
     log('error', 'api', `Account detail failed for ${id}`, {
       error: error instanceof Error ? error.message : String(error),
