@@ -77,14 +77,15 @@ export async function POST(request: NextRequest) {
     const endStr = end.toISOString().slice(0, 10);
 
     // Step 1: Create placeholder asset in Zoho
+    // Field names: Name (not Asset_Name), Renewal_Date (not End_Date)
     const assetData = {
-      Asset_Name: 'placeholder',
+      Name: 'placeholder',
       Account: { id: accountId },
       Product: { id: productId },
       Serial_Key: 'create123982',
       Quantity: Number(quantity),
       Start_Date: todayStr,
-      End_Date: endStr,
+      Renewal_Date: endStr,
     };
 
     const createResult = await executeZohoTool('create_records', {
@@ -97,10 +98,10 @@ export async function POST(request: NextRequest) {
     const created = (createParsed.data as Record<string, unknown>[])?.[0];
 
     if (!created || created.code !== 'SUCCESS') {
-      log('error', 'api', 'Evaluation asset creation failed', {
-        data: JSON.stringify(createParsed.data).slice(0, 500),
-      });
-      return NextResponse.json({ error: 'Failed to create evaluation asset in Zoho' }, { status: 500 });
+      const errorDetail = JSON.stringify(createParsed.data).slice(0, 500);
+      log('error', 'api', 'Evaluation asset creation failed', { data: errorDetail });
+      const msg = (created?.message as string) || errorDetail || 'Failed to create evaluation asset in Zoho';
+      return NextResponse.json({ error: msg }, { status: 500 });
     }
 
     const placeholderAssetId = (created.details as Record<string, unknown>)?.id as string;
