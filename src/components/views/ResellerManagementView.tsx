@@ -947,9 +947,9 @@ function ResellerDetailView() {
                     <div key={key} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] ${
                       effective ? 'text-success' : 'text-text-muted'
                     }`}>
-                      <span>{effective ? '\u2713' : '\u2715'}</span>
+                      <span>{effective ? '✓' : '✕'}</span>
                       <span className="font-semibold">{label}</span>
-                      {isOverridden && <span className="text-warning font-bold">\u2022</span>}
+                      {isOverridden && <span className="text-warning font-bold">&#x2022;</span>}
                     </div>
                   );
                 })}
@@ -1184,12 +1184,12 @@ function PermissionToggles({
                 ? 'bg-success/25 text-success'
                 : 'bg-surface-raised text-text-muted'
             }`}>
-              {effective ? '\u2713' : '\u2715'}
+              {effective ? '✓' : '✕'}
             </div>
             <div className="min-w-0">
               <p className={`text-xs font-semibold truncate ${effective ? 'text-text-primary' : 'text-text-muted'}`}>
                 {label}
-                {isOverridden && <span className="ml-1 text-[9px] font-bold text-warning">\u2022 override</span>}
+                {isOverridden && <span className="ml-1 text-[9px] font-bold text-warning">&#x2022; override</span>}
               </p>
               <p className="text-[10px] text-text-muted truncate">{desc}</p>
             </div>
@@ -1201,17 +1201,31 @@ function PermissionToggles({
         <div className="mt-3 flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border-subtle bg-surface">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-text-primary">Max Evaluations Per Account</p>
-            <p className="text-[10px] text-text-muted">-1 = unlimited, 0 = disabled{maxEvalsValue !== null && maxEvalsValue !== undefined ? '' : ` (default: ${maxEvalsRoleDefault ?? 0})`}</p>
+            <p className="text-[10px] text-text-muted">
+              {effectiveMaxEvals === -1 ? 'Unlimited' : effectiveMaxEvals === 0 ? 'Disabled' : `${effectiveMaxEvals} per account`}
+              {maxEvalsValue === null || maxEvalsValue === undefined ? ` (default: ${maxEvalsRoleDefault === -1 ? 'unlimited' : maxEvalsRoleDefault ?? 0})` : ''}
+            </p>
           </div>
+          <label className="flex items-center gap-1.5 text-[10px] text-text-secondary cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={effectiveMaxEvals === -1}
+              onChange={e => onMaxEvalsChange(e.target.checked ? -1 : 0)}
+              className="accent-csa-accent cursor-pointer"
+            />
+            Unlimited
+          </label>
           <input
             type="number"
-            min={-1}
-            value={effectiveMaxEvals}
+            min={0}
+            value={effectiveMaxEvals === -1 ? '' : effectiveMaxEvals}
+            disabled={effectiveMaxEvals === -1}
+            placeholder="—"
             onChange={e => {
               const v = parseInt(e.target.value);
-              onMaxEvalsChange(isNaN(v) ? null : v);
+              onMaxEvalsChange(isNaN(v) ? 0 : Math.max(0, v));
             }}
-            className="w-20 bg-csa-dark border border-border-subtle px-2 py-1 text-sm text-text-primary rounded-lg text-center"
+            className="w-16 bg-csa-dark border border-border-subtle px-2 py-1 text-sm text-text-primary rounded-lg text-center disabled:opacity-30 disabled:cursor-not-allowed"
           />
           {maxEvalsValue !== null && maxEvalsValue !== undefined && (
             <button type="button" onClick={() => onMaxEvalsChange(null)} className="text-[9px] text-warning hover:text-warning/80 cursor-pointer">Reset</button>
