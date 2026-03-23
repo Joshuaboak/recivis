@@ -6,7 +6,7 @@ import {
   ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone,
   MapPin, FileText, Star, Plus, X, Eye, Beaker, ArrowRightLeft, Check,
   AlertTriangle, Globe, Briefcase, Tag, Clock, MessageSquare, Pencil, Save,
-  Smartphone, Factory, ChevronDown,
+  Smartphone, Factory, ChevronDown, Send,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
@@ -76,6 +76,12 @@ export default function LeadDetailView() {
   // Asset detail modal
   const [viewingAsset, setViewingAsset] = useState<Record<string, unknown> | null>(null);
   const [showEvalModal, setShowEvalModal] = useState(false);
+
+  // Asset selection & send keys
+  const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
+  const [sendKeysConfirm, setSendKeysConfirm] = useState<'customer' | 'reseller' | null>(null);
+  const [sendingKeys, setSendingKeys] = useState(false);
+  const [sendKeysResult, setSendKeysResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Pagination
   const [contactPage, setContactPage] = useState(1);
@@ -223,6 +229,34 @@ export default function LeadDetailView() {
     if (!d || typeof d !== 'string') return '\u2014';
     const date = new Date(d);
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+  };
+
+  const sendKeys = async (toCustomer: boolean) => {
+    if (selectedAssets.size === 0) return;
+    setSendingKeys(true);
+    setSendKeysResult(null);
+    try {
+      const res = await fetch('/api/send-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetIds: Array.from(selectedAssets),
+          sendToCustomer: toCustomer,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSendKeysResult({ success: true, message: `Keys sent to ${toCustomer ? 'customer' : 'reseller'} successfully` });
+        setSelectedAssets(new Set());
+      } else {
+        setSendKeysResult({ success: false, message: data.error || 'Failed to send keys' });
+      }
+    } catch {
+      setSendKeysResult({ success: false, message: 'Failed to send keys' });
+    }
+    setSendingKeys(false);
+    setSendKeysConfirm(null);
+    setTimeout(() => setSendKeysResult(null), 5000);
   };
 
   if (loading) {
@@ -835,20 +869,68 @@ export default function LeadDetailView() {
 
         {activeAssets.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-8">
-            <h2 className="text-lg font-bold text-text-primary flex items-center gap-2 mb-3">
-              <Package size={18} className="text-success" />
-              Assets ({activeAssets.length})
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+                <Package size={18} className="text-success" />
+                Assets ({activeAssets.length})
+              </h2>
+              {selectedAssets.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSendKeysConfirm('reseller')}
+                    disabled={sendingKeys}
+                    className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <Send size={13} /> Send Keys to Reseller
+                  </button>
+                  <button
+                    onClick={() => setSendKeysConfirm('customer')}
+                    disabled={sendingKeys}
+                    className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-warning bg-warning/10 border border-warning/30 rounded-xl hover:bg-warning/20 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <Send size={13} /> Send Keys to Customer
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="border border-border-subtle rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead><tr className="bg-surface-raised">
+                  <th className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedAssets.size === activeAssets.length && activeAssets.length > 0}
+                      onChange={() => {
+                        if (selectedAssets.size === activeAssets.length) {
+                          setSelectedAssets(new Set());
+                        } else {
+                          setSelectedAssets(new Set(activeAssets.map(a => a.id as string)));
+                        }
+                      }}
+                      className="accent-csa-accent cursor-pointer"
+                    />
+                  </th>
                   <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Serial Key</th><th>Status</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
                   {activeAssets.map((a, i) => {
                     const product = a.Product as { name?: string } | null;
+                    const assetId = a.id as string;
+                    const isSelected = selectedAssets.has(assetId);
                     return (
-                      <tr key={i}>
+                      <tr key={i} className={isSelected ? 'bg-csa-accent/5' : ''}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              const next = new Set(selectedAssets);
+                              if (isSelected) next.delete(assetId); else next.add(assetId);
+                              setSelectedAssets(next);
+                            }}
+                            className="accent-csa-accent cursor-pointer"
+                          />
+                        </td>
                         <td className="text-text-primary">{product?.name || a.Name as string}</td>
                         <td className="text-text-secondary">{a.Quantity as number}</td>
                         <td className="text-text-secondary">{formatDate(a.Start_Date)}</td>
@@ -926,6 +1008,75 @@ export default function LeadDetailView() {
           onClose={() => setShowEvalModal(false)}
         />
       )}
+
+      {/* Send Keys Confirmation Dialog */}
+      <AnimatePresence>
+        {sendKeysConfirm && account && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSendKeysConfirm(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative bg-csa-dark border border-border rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-5"
+            >
+              <h3 className="text-base font-bold text-text-primary mb-2">
+                Send Keys to {sendKeysConfirm === 'customer' ? 'Customer' : 'Reseller'}
+              </h3>
+              <p className="text-sm text-text-secondary mb-1">
+                This will email the licence details for <span className="font-semibold text-text-primary">{selectedAssets.size} asset{selectedAssets.size !== 1 ? 's' : ''}</span> to:
+              </p>
+              <p className="text-sm font-semibold text-csa-accent mb-4">
+                {sendKeysConfirm === 'customer'
+                  ? (() => {
+                      const pc = contacts.find(c => c.id === primaryContact?.id);
+                      return pc ? `${pc.Full_Name} (${pc.Email})` : primaryContact?.name || 'Primary contact';
+                    })()
+                  : reseller?.name || 'Reseller'
+                }
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setSendKeysConfirm(null)}
+                  className="px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => sendKeys(sendKeysConfirm === 'customer')}
+                  disabled={sendingKeys}
+                  className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl cursor-pointer disabled:opacity-50 ${
+                    sendKeysConfirm === 'customer'
+                      ? 'text-warning bg-warning/10 border border-warning/30'
+                      : 'text-csa-accent bg-csa-accent/10 border border-csa-accent/30'
+                  }`}
+                >
+                  {sendingKeys ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  {sendingKeys ? 'Sending...' : 'Confirm Send'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Send Keys Result Toast */}
+      <AnimatePresence>
+        {sendKeysResult && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl border shadow-lg text-sm font-semibold ${
+              sendKeysResult.success
+                ? 'bg-success/15 border-success/30 text-success'
+                : 'bg-error/15 border-error/30 text-error'
+            }`}
+          >
+            {sendKeysResult.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -20,7 +20,8 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Pencil, Save, Download, Ban, Beaker } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Pencil, Save, Download, Ban, Beaker, Send } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
 import { exportFullAccount, exportContacts, exportInvoices, exportAssets } from '@/lib/export-account';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
@@ -56,6 +57,11 @@ export default function AccountDetailView() {
   const [generatingRenewal, setGeneratingRenewal] = useState(false);
   const [viewingAsset, setViewingAsset] = useState<Record<string, unknown> | null>(null);
   const [showEvalModal, setShowEvalModal] = useState(false);
+
+  // Send keys state
+  const [sendKeysConfirm, setSendKeysConfirm] = useState<'customer' | 'reseller' | null>(null);
+  const [sendingKeys, setSendingKeys] = useState(false);
+  const [sendKeysResult, setSendKeysResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Asset pagination
   const [activeAssetPage, setActiveAssetPage] = useState(1);
@@ -186,6 +192,34 @@ export default function AccountDetailView() {
       }
     } catch { /* handled by UI */ }
     setGeneratingRenewal(false);
+  };
+
+  const sendKeys = async (toCustomer: boolean) => {
+    if (selectedAssets.size === 0) return;
+    setSendingKeys(true);
+    setSendKeysResult(null);
+    try {
+      const res = await fetch('/api/send-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetIds: Array.from(selectedAssets),
+          sendToCustomer: toCustomer,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSendKeysResult({ success: true, message: `Keys sent to ${toCustomer ? 'customer' : 'reseller'} successfully` });
+        setSelectedAssets(new Set());
+      } else {
+        setSendKeysResult({ success: false, message: data.error || 'Failed to send keys' });
+      }
+    } catch {
+      setSendKeysResult({ success: false, message: 'Failed to send keys' });
+    }
+    setSendingKeys(false);
+    setSendKeysConfirm(null);
+    setTimeout(() => setSendKeysResult(null), 5000);
   };
 
   const setContactRole = async (contactId: string, role: 'primary' | 'secondary') => {
@@ -730,14 +764,30 @@ export default function AccountDetailView() {
               )}
             </div>
             {selectedAssets.size > 0 ? (
-              <button
-                onClick={generateRenewal}
-                disabled={generatingRenewal}
-                className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-csa-purple bg-csa-purple/10 border border-csa-purple/30 rounded-xl hover:bg-csa-purple/20 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {generatingRenewal ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                {generatingRenewal ? 'Generating...' : `Generate Renewal (${selectedAssets.size})`}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={generateRenewal}
+                  disabled={generatingRenewal || sendingKeys}
+                  className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-csa-purple bg-csa-purple/10 border border-csa-purple/30 rounded-xl hover:bg-csa-purple/20 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {generatingRenewal ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  {generatingRenewal ? 'Generating...' : `Generate Renewal (${selectedAssets.size})`}
+                </button>
+                <button
+                  onClick={() => setSendKeysConfirm('reseller')}
+                  disabled={sendingKeys || generatingRenewal}
+                  className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <Send size={13} /> Send Keys to Reseller
+                </button>
+                <button
+                  onClick={() => setSendKeysConfirm('customer')}
+                  disabled={sendingKeys || generatingRenewal}
+                  className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-warning bg-warning/10 border border-warning/30 rounded-xl hover:bg-warning/20 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <Send size={13} /> Send Keys to Customer
+                </button>
+              </div>
             ) : null}
           </div>
           {activeAssets.length > 0 ? (
@@ -927,6 +977,75 @@ export default function AccountDetailView() {
           onClose={() => setShowEvalModal(false)}
         />
       )}
+
+      {/* Send Keys Confirmation Dialog */}
+      <AnimatePresence>
+        {sendKeysConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSendKeysConfirm(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative bg-csa-dark border border-border rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-5"
+            >
+              <h3 className="text-base font-bold text-text-primary mb-2">
+                Send Keys to {sendKeysConfirm === 'customer' ? 'Customer' : 'Reseller'}
+              </h3>
+              <p className="text-sm text-text-secondary mb-1">
+                This will email the licence details for <span className="font-semibold text-text-primary">{selectedAssets.size} asset{selectedAssets.size !== 1 ? 's' : ''}</span> to:
+              </p>
+              <p className="text-sm font-semibold text-csa-accent mb-4">
+                {sendKeysConfirm === 'customer'
+                  ? (() => {
+                      const pc = contacts.find(c => c.id === primaryContact?.id);
+                      return pc ? `${pc.Full_Name} (${pc.Email})` : primaryContact?.name || 'Primary contact';
+                    })()
+                  : reseller?.name || 'Reseller'
+                }
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setSendKeysConfirm(null)}
+                  className="px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => sendKeys(sendKeysConfirm === 'customer')}
+                  disabled={sendingKeys}
+                  className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl cursor-pointer disabled:opacity-50 ${
+                    sendKeysConfirm === 'customer'
+                      ? 'text-warning bg-warning/10 border border-warning/30'
+                      : 'text-csa-accent bg-csa-accent/10 border border-csa-accent/30'
+                  }`}
+                >
+                  {sendingKeys ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  {sendingKeys ? 'Sending...' : 'Confirm Send'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Send Keys Result Toast */}
+      <AnimatePresence>
+        {sendKeysResult && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl border shadow-lg text-sm font-semibold ${
+              sendKeysResult.success
+                ? 'bg-success/15 border-success/30 text-success'
+                : 'bg-error/15 border-error/30 text-error'
+            }`}
+          >
+            {sendKeysResult.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
