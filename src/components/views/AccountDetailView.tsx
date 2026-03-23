@@ -20,7 +20,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Pencil, Save, Download, Ban, Beaker, Send } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Pencil, Save, Download, Beaker, Send } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { exportFullAccount, exportContacts, exportInvoices, exportAssets } from '@/lib/export-account';
 import { useAppStore } from '@/lib/store';
@@ -159,13 +159,21 @@ export default function AccountDetailView() {
     return null;
   };
 
-  const allEligible = [...activeAssets, ...archivedAssets].filter(isEligibleForRenewal);
+  const allAssetIds = [...activeAssets, ...archivedAssets].map(a => a.id as string);
+  const allAssetsMap = Object.fromEntries([...activeAssets, ...archivedAssets].map(a => [a.id as string, a]));
+
+  // Check if any selected asset is ineligible for renewal
+  const selectedIneligible = Array.from(selectedAssets)
+    .map(id => allAssetsMap[id])
+    .filter(a => a && !isEligibleForRenewal(a));
+  const renewalBlocked = selectedIneligible.length > 0;
+  const renewalBlockReasons = [...new Set(selectedIneligible.map(a => getIneligibleReason(a)).filter(Boolean))] as string[];
 
   const toggleAllAssets = () => {
-    if (selectedAssets.size === allEligible.length) {
+    if (selectedAssets.size === allAssetIds.length) {
       setSelectedAssets(new Set());
     } else {
-      setSelectedAssets(new Set(allEligible.map(a => a.id as string)));
+      setSelectedAssets(new Set(allAssetIds));
     }
   };
 
@@ -815,14 +823,25 @@ export default function AccountDetailView() {
             </div>
             {selectedAssets.size > 0 ? (
               <div className="flex items-center gap-2">
-                <button
-                  onClick={generateRenewal}
-                  disabled={generatingRenewal || sendingKeys}
-                  className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-csa-purple bg-csa-purple/10 border border-csa-purple/30 rounded-xl hover:bg-csa-purple/20 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  {generatingRenewal ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                  {generatingRenewal ? 'Generating...' : `Generate Renewal (${selectedAssets.size})`}
-                </button>
+                <div className="relative group">
+                  <button
+                    onClick={generateRenewal}
+                    disabled={generatingRenewal || sendingKeys || renewalBlocked}
+                    className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-csa-purple bg-csa-purple/10 border border-csa-purple/30 rounded-xl hover:bg-csa-purple/20 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {generatingRenewal ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                    {generatingRenewal ? 'Generating...' : `Generate Renewal (${selectedAssets.size})`}
+                  </button>
+                  {renewalBlocked && (
+                    <div className="absolute left-0 top-full mt-1.5 z-20 bg-csa-dark border border-border rounded-xl px-3 py-2 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity w-72">
+                      <p className="text-[10px] font-semibold text-warning mb-1">Cannot generate renewal:</p>
+                      {renewalBlockReasons.map((r, i) => (
+                        <p key={i} className="text-[10px] text-text-secondary leading-relaxed">&#x2022; {r}</p>
+                      ))}
+                      <p className="text-[10px] text-text-muted mt-1">Deselect ineligible assets to enable renewals.</p>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => setSendKeysConfirm('reseller')}
                   disabled={sendingKeys || generatingRenewal}
@@ -848,7 +867,7 @@ export default function AccountDetailView() {
                   <th className="w-10">
                     <input
                       type="checkbox"
-                      checked={selectedAssets.size === allEligible.length && allEligible.length > 0}
+                      checked={selectedAssets.size === allAssetIds.length && allAssetIds.length > 0}
                       onChange={toggleAllAssets}
                       className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
                     />
@@ -861,31 +880,20 @@ export default function AccountDetailView() {
                     const assetId = a.id as string;
                     const isSelected = selectedAssets.has(assetId);
                     const upgradedTo = a.Upgraded_To_Key as string | null;
-                    const eligible = isEligibleForRenewal(a);
-                    const ineligibleReason = getIneligibleReason(a);
                     return (
                       <tr
                         key={i}
-                        onClick={() => eligible && toggleAsset(assetId)}
-                        className={`transition-colors ${!eligible ? 'opacity-60' : 'cursor-pointer'} ${isSelected ? 'bg-csa-purple/8' : eligible ? 'hover:bg-csa-accent/5' : ''}`}
+                        onClick={() => toggleAsset(assetId)}
+                        className={`transition-colors cursor-pointer ${isSelected ? 'bg-csa-purple/8' : 'hover:bg-csa-accent/5'}`}
                       >
                         <td>
-                          {!eligible ? (
-                            <div className="relative group">
-                              <Ban size={16} className="text-text-muted/50" />
-                              <div className="absolute left-6 top-1/2 -translate-y-1/2 z-10 bg-csa-dark border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg">
-                                {ineligibleReason}
-                              </div>
-                            </div>
-                          ) : (
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleAsset(assetId)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
-                            />
-                          )}
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleAsset(assetId)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
+                          />
                         </td>
                         <td className="text-text-primary">{product?.name || a.Name as string}</td>
                         <td className="text-text-secondary">{a.Quantity as number}</td>
@@ -926,7 +934,21 @@ export default function AccountDetailView() {
             <div className="border border-border-subtle rounded-xl overflow-hidden opacity-70">
               <table className="w-full">
                 <thead><tr className="bg-surface-raised">
-                  <th className="w-10"></th><th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Status</th><th>Upgraded To</th><th className="w-10"></th>
+                  <th className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={archivedAssets.length > 0 && archivedAssets.every(a => selectedAssets.has(a.id as string))}
+                      onChange={() => {
+                        const archivedIds = archivedAssets.map(a => a.id as string);
+                        const allSelected = archivedIds.every(id => selectedAssets.has(id));
+                        const next = new Set(selectedAssets);
+                        if (allSelected) { archivedIds.forEach(id => next.delete(id)); }
+                        else { archivedIds.forEach(id => next.add(id)); }
+                        setSelectedAssets(next);
+                      }}
+                      className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
+                    />
+                  </th><th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Status</th><th>Upgraded To</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
                   {archivedAssets.slice((archivedAssetPage - 1) * assetPageSize, archivedAssetPage * assetPageSize).map((a, i) => {
@@ -934,31 +956,20 @@ export default function AccountDetailView() {
                     const assetId = a.id as string;
                     const upgradedTo = a.Upgraded_To_Key as string | null;
                     const isSelected = selectedAssets.has(assetId);
-                    const eligible = isEligibleForRenewal(a);
-                    const ineligibleReason = getIneligibleReason(a);
                     return (
                       <tr
                         key={i}
-                        onClick={() => eligible && toggleAsset(assetId)}
-                        className={`transition-colors ${!eligible ? '' : 'cursor-pointer'} ${isSelected ? 'bg-csa-purple/8' : eligible ? 'hover:bg-csa-accent/5' : ''}`}
+                        onClick={() => toggleAsset(assetId)}
+                        className={`transition-colors cursor-pointer ${isSelected ? 'bg-csa-purple/8' : 'hover:bg-csa-accent/5'}`}
                       >
                         <td>
-                          {!eligible ? (
-                            <div className="relative group">
-                              <Ban size={16} className="text-text-muted/50" />
-                              <div className="absolute left-6 top-1/2 -translate-y-1/2 z-10 bg-csa-dark border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg">
-                                {ineligibleReason}
-                              </div>
-                            </div>
-                          ) : (
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleAsset(assetId)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
-                            />
-                          )}
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleAsset(assetId)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
+                          />
                         </td>
                         <td className="text-text-secondary">{product?.name || a.Name as string}</td>
                         <td className="text-text-muted">{a.Quantity as number}</td>
