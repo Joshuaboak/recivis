@@ -912,7 +912,6 @@ export default function AccountDetailView() {
         <CreateEvaluationModal
           accountId={selectedAccountId!}
           accountName={account.Account_Name as string}
-          region={(account.Reseller_Region as string) || 'ANZ'}
           canExtend={user?.permissions?.canExtendEvaluations ?? false}
           onSuccess={() => {
             setShowEvalModal(false);

@@ -1,9 +1,9 @@
 /**
  * CreateEvaluationModal — Create an evaluation licence for an account/prospect.
  *
- * Two-step flow:
- * 1. Select a product via SKUBuilder
- * 2. Set quantity (default 1) and end date (default today + 30 days)
+ * Evaluation SKUs follow a fixed pattern: {PRODUCT}-SU-CB-EVA-1YR-SUB-WW
+ * The user only selects the product (CSD, CSP, STR, CEZ), then sets
+ * quantity (default 1) and end date (default today + 30 days).
  *
  * Permission-gated: canCreateEvaluations, canExtendEvaluations (for > 30 days).
  */
@@ -12,16 +12,25 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Loader2, Package, Calendar, Hash, Beaker } from 'lucide-react';
-import SKUBuilder from './SKUBuilder';
+import { X, Loader2, Calendar, Hash, Beaker } from 'lucide-react';
 
 interface CreateEvaluationModalProps {
   accountId: string;
   accountName: string;
-  region: string;
   canExtend: boolean;
   onSuccess: (assetId: string) => void;
   onClose: () => void;
+}
+
+const EVAL_PRODUCTS = [
+  { code: 'CSD', label: 'Civil Site Design' },
+  { code: 'CSP', label: 'Civil Site Design Plus' },
+  { code: 'STR', label: 'Stringer' },
+  { code: 'CEZ', label: 'Corridor EZ' },
+];
+
+function buildEvalSku(productCode: string): string {
+  return `${productCode}-SU-CB-EVA-1YR-SUB-WW`;
 }
 
 function getDefaultEndDate(): string {
@@ -37,22 +46,20 @@ function getTodayStr(): string {
 export default function CreateEvaluationModal({
   accountId,
   accountName,
-  region,
   canExtend,
   onSuccess,
   onClose,
 }: CreateEvaluationModalProps) {
-  const [step, setStep] = useState<'product' | 'details'>('product');
-  const [selectedProduct, setSelectedProduct] = useState<{ id: string; name: string; sku: string; unitPrice: number } | null>(null);
+  const [selectedCode, setSelectedCode] = useState('');
+  const [resolvedProduct, setResolvedProduct] = useState<{ id: string; name: string; sku: string } | null>(null);
+  const [resolving, setResolving] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [endDate, setEndDate] = useState(getDefaultEndDate());
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
-  // Max end date: 30 days unless canExtend
   const maxEndDate = canExtend ? '' : getDefaultEndDate();
 
-  // Calculate days from today
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const endDateObj = new Date(endDate);
@@ -65,13 +72,38 @@ export default function CreateEvaluationModal({
     return () => document.removeEventListener('keydown', handleEsc);
   }, [stableClose]);
 
-  const handleProductSelect = (product: { id: string; name: string; sku: string; unitPrice: number }) => {
-    setSelectedProduct(product);
-    setStep('details');
-  };
+  // Resolve SKU to Zoho product when product code changes
+  useEffect(() => {
+    if (!selectedCode) {
+      setResolvedProduct(null);
+      return;
+    }
+
+    setResolving(true);
+    setError('');
+    const sku = buildEvalSku(selectedCode);
+
+    fetch(`/api/products?sku=${encodeURIComponent(sku)}`)
+      .then(res => res.json())
+      .then(data => {
+        const products = data.products || [];
+        if (products.length > 0) {
+          const p = products[0];
+          setResolvedProduct({ id: p.id, name: p.Product_Name || p.Product_Code, sku });
+        } else {
+          setResolvedProduct(null);
+          setError(`No product found for SKU: ${sku}`);
+        }
+        setResolving(false);
+      })
+      .catch(() => {
+        setError('Failed to look up product');
+        setResolving(false);
+      });
+  }, [selectedCode]);
 
   const handleCreate = async () => {
-    if (!selectedProduct) return;
+    if (!resolvedProduct) return;
     setCreating(true);
     setError('');
 
@@ -81,7 +113,7 @@ export default function CreateEvaluationModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accountId,
-          productId: selectedProduct.id,
+          productId: resolvedProduct.id,
           quantity,
           endDate,
         }),
@@ -101,18 +133,6 @@ export default function CreateEvaluationModal({
     }
   };
 
-  // Step 1: Product selection via SKUBuilder
-  if (step === 'product') {
-    return (
-      <SKUBuilder
-        region={region}
-        onSelect={handleProductSelect}
-        onCancel={onClose}
-      />
-    );
-  }
-
-  // Step 2: Quantity and date
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
@@ -140,19 +160,34 @@ export default function CreateEvaluationModal({
             <p className="text-sm text-text-primary font-semibold">{accountName}</p>
           </div>
 
-          {/* Selected Product */}
-          <div className="bg-surface rounded-xl px-4 py-3 border border-border-subtle">
-            <label className="text-[10px] uppercase font-bold text-text-muted tracking-wider flex items-center gap-1.5">
-              <Package size={11} /> Product
-            </label>
-            <p className="text-sm text-text-primary font-semibold mt-1">{selectedProduct?.name}</p>
-            <p className="text-[11px] text-text-muted font-mono">{selectedProduct?.sku}</p>
-            <button
-              onClick={() => setStep('product')}
-              className="mt-2 text-[10px] text-csa-accent hover:text-csa-accent/80 cursor-pointer"
-            >
-              Change product
-            </button>
+          {/* Product Selector */}
+          <div>
+            <label className="text-[10px] uppercase font-bold text-text-muted tracking-wider mb-1.5 block">Product</label>
+            <div className="grid grid-cols-2 gap-2">
+              {EVAL_PRODUCTS.map(p => (
+                <button
+                  key={p.code}
+                  type="button"
+                  onClick={() => setSelectedCode(p.code)}
+                  className={`px-3 py-2.5 text-xs font-semibold rounded-xl border transition-all cursor-pointer text-left ${
+                    selectedCode === p.code
+                      ? 'bg-success/15 border-success/40 text-success ring-1 ring-success/20'
+                      : 'bg-surface border-border-subtle text-text-secondary hover:border-border hover:bg-surface-raised'
+                  }`}
+                >
+                  <span className="block">{p.label}</span>
+                  <span className="block text-[10px] font-mono text-text-muted mt-0.5">{p.code}</span>
+                </button>
+              ))}
+            </div>
+            {resolving && (
+              <div className="flex items-center gap-2 mt-2 text-xs text-text-muted">
+                <Loader2 size={12} className="animate-spin" /> Looking up product...
+              </div>
+            )}
+            {resolvedProduct && !resolving && (
+              <p className="mt-2 text-[11px] text-text-muted font-mono">{resolvedProduct.sku}</p>
+            )}
           </div>
 
           {/* Quantity */}
@@ -209,7 +244,7 @@ export default function CreateEvaluationModal({
           </button>
           <button
             onClick={handleCreate}
-            disabled={creating || !selectedProduct}
+            disabled={creating || !resolvedProduct || resolving}
             className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-success border border-success/50 rounded-xl hover:bg-success/90 transition-colors cursor-pointer disabled:opacity-50"
           >
             {creating ? <Loader2 size={14} className="animate-spin" /> : <Beaker size={14} />}
