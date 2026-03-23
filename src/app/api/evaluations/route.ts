@@ -108,15 +108,19 @@ export async function POST(request: NextRequest) {
     const placeholderAssetId = (created.details as Record<string, unknown>)?.id as string;
     log('info', 'api', 'Placeholder evaluation asset created', { id: placeholderAssetId, by: user.email });
 
+    // Wait for Zoho to fully commit the record before calling the Deluge function
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     // Step 2: Call QLM function to generate the real licence
     const zapikey = process.env.ZOHO_API_KEY;
     if (!zapikey) {
       return NextResponse.json({ error: 'ZOHO_API_KEY not configured' }, { status: 500 });
     }
 
-    const qlmUrl = `https://www.zohoapis.com.au/crm/v7/functions/qlminterfacemasspushkeydetails/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${encodeURIComponent(
-      JSON.stringify({ assetID: placeholderAssetId })
-    )}`;
+    const qlmArgs = JSON.stringify({ assetID: placeholderAssetId });
+    const qlmUrl = `https://www.zohoapis.com.au/crm/v7/functions/qlminterfacemasspushkeydetails/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${encodeURIComponent(qlmArgs)}`;
+
+    log('info', 'api', 'Calling QLM function', { assetID: placeholderAssetId, args: qlmArgs });
 
     const qlmRes = await fetch(qlmUrl, { method: 'POST' });
     const qlmResult = await qlmRes.json();
