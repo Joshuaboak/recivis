@@ -54,7 +54,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function LeadDetailView() {
   const {
     user, selectedLeadId, selectedLeadSource,
-    setCurrentView, setSelectedAccountId, setSelectedInvoiceId, setInvoiceReturnView,
+    setCurrentView, setSelectedAccountId, setSelectedInvoiceId, setInvoiceReturnView, setNewInvoiceContext,
   } = useAppStore();
 
   const [loading, setLoading] = useState(true);
@@ -743,12 +743,32 @@ export default function LeadDetailView() {
 
         <EmailHistory module="Accounts" recordId={selectedLeadId!} />
 
-        {invoices.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
-            <h2 className="text-lg font-bold text-text-primary flex items-center gap-2 mb-3">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
               <FileText size={18} className="text-csa-purple" />
               Invoices ({invoices.length})
             </h2>
+            <button
+              onClick={() => {
+                setNewInvoiceContext({
+                  account: { name: account.Account_Name as string, id: selectedLeadId! },
+                  contact: primaryContact ? { name: primaryContact.name, id: primaryContact.id } : null,
+                  reseller: reseller ? { name: reseller.name, id: reseller.id } : null,
+                  region: (account.Reseller_Region as string) || '',
+                  currency: (account.Currency as string) || '',
+                  owner: owner ? { name: owner.name, id: (account.Owner as { id?: string })?.id } : null,
+                  billingCountry: account.Billing_Country as string || '',
+                });
+                setCurrentView('create-invoice');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
+            >
+              <Plus size={13} />
+              New Product Invoice
+            </button>
+          </div>
+          {invoices.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead><tr className="bg-surface-raised">
@@ -795,8 +815,10 @@ export default function LeadDetailView() {
                 </tbody>
               </table>
             </div>
-          </motion.div>
-        )}
+          ) : (
+            <p className="text-sm text-text-muted py-4">No invoices yet</p>
+          )}
+        </motion.div>
 
         {activeAssets.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-8">
