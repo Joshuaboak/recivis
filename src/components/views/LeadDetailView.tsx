@@ -656,7 +656,7 @@ export default function LeadDetailView() {
                 </span>
                 <div className="absolute left-0 top-full mt-1.5 z-20 bg-csa-dark border border-border rounded-xl px-3 py-2 shadow-lg opacity-0 pointer-events-none group-hover/badge:opacity-100 group-hover/badge:pointer-events-auto transition-opacity w-64">
                   <p className="text-[11px] text-text-secondary leading-relaxed">
-                    Prospects are potential customers who have active evaluations for our products. They have been set up with an account and may have contacts, assets, and invoices.
+                    Prospects are potential customers who have active evaluations for our products. They have been set up with an account and may have contacts, assets, and orders.
                   </p>
                 </div>
               </div>
@@ -794,7 +794,7 @@ export default function LeadDetailView() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
               <FileText size={18} className="text-csa-purple" />
-              Invoices ({invoices.length})
+              Orders ({invoices.length})
             </h2>
             <button
               onClick={() => {
@@ -812,14 +812,14 @@ export default function LeadDetailView() {
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
             >
               <Plus size={13} />
-              New Product Invoice
+              New Product Order
             </button>
           </div>
           {invoices.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead><tr className="bg-surface-raised">
-                  <th>Invoice #</th><th>Subject</th><th>Date</th><th>Type</th><th>Status</th><th>Total</th><th className="w-10"></th>
+                  <th>Order #</th><th>Subject</th><th>Date</th><th>Type</th><th>Status</th><th>Total</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
                   {invoices.map((inv, i) => {
@@ -836,7 +836,7 @@ export default function LeadDetailView() {
                         className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                       >
                         <td className="text-text-muted text-xs font-mono">{inv.Reference_Number as string || '\u2014'}</td>
-                        <td className="font-semibold text-csa-accent">{inv.Subject as string || `Invoice ${inv.id as string}`}</td>
+                        <td className="font-semibold text-csa-accent">{inv.Subject as string || `Order ${inv.id as string}`}</td>
                         <td className="text-text-secondary">{formatDate(inv.Invoice_Date)}</td>
                         <td>
                           <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${
@@ -863,7 +863,7 @@ export default function LeadDetailView() {
               </table>
             </div>
           ) : (
-            <p className="text-sm text-text-muted py-4">No invoices yet</p>
+            <p className="text-sm text-text-muted py-4">No orders yet</p>
           )}
         </motion.div>
 

@@ -168,7 +168,7 @@ export function exportInvoicesList(
 ) {
   const wb = XLSX.utils.book_new();
 
-  const headers = ['Invoice #', 'Subject', 'Account', 'Date', 'Type', 'Status', 'Currency', 'Total', 'Reseller'];
+  const headers = ['Order #', 'Subject', 'Account', 'Date', 'Type', 'Status', 'Currency', 'Total', 'Reseller'];
   const rows = invoices.map(inv => {
     const account = inv.Account_Name as { name?: string } | null;
     const reseller = inv.Reseller as { name?: string } | null;
@@ -218,7 +218,7 @@ export function exportInvoicesList(
     [],
     ...totalsRows,
     [],
-    ['Total Invoices', invoices.length],
+    ['Total Orders', invoices.length],
     ...Object.entries(countByType).map(([type, count]) => [`  ${type}`, count]),
   ];
 
@@ -238,10 +238,10 @@ export function exportInvoicesList(
     if (cell) cell.t = 'n';
   }
 
-  XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
+  XLSX.utils.book_append_sheet(wb, ws, 'Orders');
 
   const timestamp = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `Invoices Export - ${filters?.status || 'All'} - ${timestamp}.xlsx`);
+  XLSX.writeFile(wb, `Orders Export - ${filters?.status || 'All'} - ${timestamp}.xlsx`);
 }
 
 /**

@@ -76,7 +76,7 @@ export function exportFullAccount(
     [],
     ['Totals'],
     ['Contacts', contacts.length],
-    ['Invoices', invoices.length],
+    ['Orders', invoices.length],
     ['Active Assets', activeAssets.length],
     ['Archived Assets', archivedAssets.length],
   ];
@@ -117,7 +117,7 @@ export function exportContacts(contacts: R[], accountName: string, primaryContac
 export function exportInvoices(invoices: R[], accountName: string) {
   const wb = XLSX.utils.book_new();
   addInvoicesSheet(wb, invoices);
-  XLSX.writeFile(wb, `${accountName} - Invoices.xlsx`);
+  XLSX.writeFile(wb, `${accountName} - Orders.xlsx`);
 }
 
 /**
@@ -158,7 +158,7 @@ function addContactsSheet(wb: XLSX.WorkBook, contacts: R[], primaryId?: string, 
 }
 
 function addInvoicesSheet(wb: XLSX.WorkBook, invoices: R[]) {
-  const headers = ['Invoice #', 'Subject', 'Date', 'Type', 'Status', 'Currency', 'Total'];
+  const headers = ['Order #', 'Subject', 'Date', 'Type', 'Status', 'Currency', 'Total'];
   const rows = invoices.map(inv => [
     inv.Reference_Number as string || '',
     inv.Subject as string || '',
@@ -180,7 +180,7 @@ function addInvoicesSheet(wb: XLSX.WorkBook, invoices: R[]) {
     '', '', '', '', 'Total', curr, total,
   ]);
 
-  const data = [headers, ...rows, [], ...totalsRows, ['Total Invoices', invoices.length]];
+  const data = [headers, ...rows, [], ...totalsRows, ['Total Orders', invoices.length]];
   const ws = XLSX.utils.aoa_to_sheet(data);
   styleSheet(ws, 1, headers.length);
   ws['!cols'] = [{ wch: 12 }, { wch: 45 }, { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 14 }];
@@ -195,7 +195,7 @@ function addInvoicesSheet(wb: XLSX.WorkBook, invoices: R[]) {
     if (cell) cell.t = 'n';
   }
 
-  XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
+  XLSX.utils.book_append_sheet(wb, ws, 'Orders');
 }
 
 function addAssetsSheet(wb: XLSX.WorkBook, assets: R[], sheetName: string) {

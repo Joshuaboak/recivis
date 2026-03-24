@@ -34,6 +34,7 @@ import InvoicePurchaseOrder from '../invoice/InvoicePurchaseOrder';
 import InvoiceSendTo from '../invoice/InvoiceSendTo';
 import InvoiceCoupon from '../invoice/InvoiceCoupon';
 import InvoicePayment from '../invoice/InvoicePayment';
+import OrderActions from '../invoice/OrderActions';
 
 const CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'INR', 'NZD'];
 
@@ -66,6 +67,10 @@ export default function InvoiceDetailView() {
   // so we can toggle between reseller/customer pricing without losing the base price
   const [resellerPercentage, setResellerPercentage] = useState<number | null>(null);
   const [originalListPrices, setOriginalListPrices] = useState<Record<string, number>>({});
+
+  // Reseller payment method flags (from Zoho Resellers module)
+  const [canPurchaseOnAccount, setCanPurchaseOnAccount] = useState(false);
+  const [canPurchaseOnCredit, setCanPurchaseOnCredit] = useState(false);
 
   // PO
   const [editingPO, setEditingPO] = useState(false);
@@ -103,6 +108,10 @@ export default function InvoiceDetailView() {
               const pct = rData.reseller?.Reseller_Sale;
               const percentage = pct != null ? Number(pct) : null;
               setResellerPercentage(percentage);
+
+              // Reseller payment method flags
+              setCanPurchaseOnAccount(!!rData.reseller?.Purchase_on_Account);
+              setCanPurchaseOnCredit(!!rData.reseller?.Can_Purchase_on_Credit);
 
               // Calculate and store original (full) list prices
               // If invoice is currently in reseller mode, current prices ARE discounted
@@ -511,7 +520,7 @@ export default function InvoiceDetailView() {
   if (!invoice) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
-        <p className="text-text-muted">Invoice not found</p>
+        <p className="text-text-muted">Order not found</p>
         <button onClick={goBack} className="text-csa-accent text-sm cursor-pointer">Go back</button>
       </div>
     );
@@ -660,6 +669,28 @@ export default function InvoiceDetailView() {
           resellerPercentage={resellerPercentage}
           isResellerPricing={!!invoice.Reseller_Direct_Purchase && resellerPercentage != null}
         />
+
+        {/* Order Action Buttons (Pay Now / Pay Later / Place Order) */}
+        {!editing && (
+          <OrderActions
+            invoice={invoice}
+            status={status}
+            selectedInvoiceId={selectedInvoiceId}
+            canPurchaseOnAccount={canPurchaseOnAccount}
+            canPurchaseOnCredit={canPurchaseOnCredit}
+            canSend={!!(user?.permissions?.canSendInvoices)}
+            canApprove={!!(user?.permissions?.canApproveInvoices)}
+            hasPONumber={!!(invoice.Purchase_Order)}
+            hasPOFile={!!uploadResult || !!(invoice.Purchase_Order_Attachment)}
+            onRefresh={() => {
+              // Reload invoice data
+              fetch(`/api/invoices/${selectedInvoiceId}`)
+                .then(res => res.json())
+                .then(data => { setInvoice(data.invoice); setLineItems(data.lineItems || []); })
+                .catch(() => {});
+            }}
+          />
+        )}
 
         {/* Coupon */}
         <InvoiceCoupon

@@ -225,7 +225,7 @@ export default function Sidebar() {
             <AnimatePresence>
               {sidebarOpen && (
                 <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">
-                  Invoices
+                  Orders
                 </motion.span>
               )}
             </AnimatePresence>
@@ -245,8 +245,8 @@ export default function Sidebar() {
                 className="overflow-hidden"
               >
                 <div className="ml-8 mt-1 space-y-0.5">
-                  <SubNavItem label="Browse Invoices" active={currentView === 'draft-invoices'} onClick={() => handleNavClick('draft-invoices')} />
-                  <SubNavItem label="Invoicing Assistant" active={currentView === 'invoice'} onClick={() => handleNavClick('invoice')} />
+                  <SubNavItem label="Browse Orders" active={currentView === 'draft-invoices'} onClick={() => handleNavClick('draft-invoices')} />
+                  <SubNavItem label="Order Assistant" active={currentView === 'invoice'} onClick={() => handleNavClick('invoice')} />
                 </div>
               </motion.div>
             )}

@@ -59,7 +59,7 @@ export default function InvoicePayment({ invoice, status, isRefreshing }: Invoic
                   isApproved ? (
                     <div className="flex items-center gap-2 text-sm text-text-muted">
                       <Lock size={14} />
-                      <span className="truncate">Locked (Invoice {status})</span>
+                      <span className="truncate">Locked (Order {status})</span>
                     </div>
                   ) : (
                     <a
@@ -109,7 +109,7 @@ export default function InvoicePayment({ invoice, status, isRefreshing }: Invoic
             <div className="flex items-start gap-2 p-3 bg-csa-accent/5 border border-csa-accent/15 rounded-xl">
               <Info size={14} className="text-csa-accent mt-0.5 flex-shrink-0" />
               <p className="text-[11px] text-text-secondary leading-relaxed">
-                Once payment has been completed using this link, licence keys will be automatically generated and sent to the payee (reseller or customer, depending on the invoice routing above).
+                Once payment has been completed using this link, licence keys will be automatically generated and sent to the payee (reseller or customer, depending on the order routing above).
               </p>
             </div>
           </>

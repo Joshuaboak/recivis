@@ -18,7 +18,7 @@ const MODULE_CONFIG: Record<string, { icon: typeof Building2; color: string; lab
   Leads:     { icon: UserSearch, color: 'text-csa-accent',  label: 'Lead',      badgeColor: 'bg-csa-accent/15 text-csa-accent' },
   Prospects: { icon: Building2,  color: 'text-csa-purple',  label: 'Prospect',  badgeColor: 'bg-csa-purple/15 text-csa-purple' },
   Contacts:  { icon: User,      color: 'text-success',     label: 'Contact',   badgeColor: 'bg-success/15 text-success' },
-  Invoices:  { icon: FileText,   color: 'text-csa-purple',  label: 'Invoice',   badgeColor: 'bg-csa-purple/15 text-csa-purple' },
+  Invoices:  { icon: FileText,   color: 'text-csa-purple',  label: 'Order',     badgeColor: 'bg-csa-purple/15 text-csa-purple' },
   Resellers: { icon: Users,     color: 'text-warning',     label: 'Partner',   badgeColor: 'bg-warning/15 text-warning' },
 };
 

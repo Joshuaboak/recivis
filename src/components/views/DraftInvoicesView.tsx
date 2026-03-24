@@ -239,7 +239,7 @@ export default function DraftInvoicesView() {
         {/* Header + Filters */}
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-text-primary">Existing Invoices</h1>
+            <h1 className="text-2xl font-bold text-text-primary">Existing Orders</h1>
             {processedInvoices.length > 0 && user?.permissions?.canExportData ? (
               <button
                 onClick={() => exportInvoicesList(processedInvoices, {
@@ -265,7 +265,7 @@ export default function DraftInvoicesView() {
                 type="text"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
-                placeholder="Search by invoice #, subject, or account..."
+                placeholder="Search by order #, subject, or account..."
                 className="w-full bg-surface border-2 border-border-subtle pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
               />
             </div>
@@ -371,7 +371,7 @@ export default function DraftInvoicesView() {
             <table className="w-full">
               <thead>
                 <tr className="bg-surface-raised">
-                  <SortHeader label="Invoice #" field="Reference_Number" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Order #" field="Reference_Number" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <th>Account</th>
                   <th>Reseller</th>
                   <SortHeader label="Invoice Date" field="Invoice_Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
@@ -425,8 +425,8 @@ export default function DraftInvoicesView() {
             <FileText size={32} className="text-text-muted mx-auto mb-3" />
             <p className="text-sm text-text-muted">
               {searchText
-                ? `No invoices matching "${searchText}"`
-                : `No ${statusFilter.toLowerCase()} invoices found`}
+                ? `No orders matching "${searchText}"`
+                : `No ${statusFilter.toLowerCase()} orders found`}
             </p>
           </div>
         )}

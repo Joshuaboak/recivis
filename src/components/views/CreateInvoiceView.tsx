@@ -143,7 +143,7 @@ export default function CreateInvoiceView() {
 
     try {
       const invoiceDateFormatted = formatDateDisplay(invoiceDate);
-      const subject = `${account.name} - Invoice - ${invoiceDateFormatted}`;
+      const subject = `${account.name} - Order - ${invoiceDateFormatted}`;
 
       const invoicedItems = lineItems.map(li => {
         const item: Record<string, unknown> = {
@@ -235,7 +235,7 @@ export default function CreateInvoiceView() {
             </button>
 
             <div className="flex items-center gap-2 px-3 py-1.5 bg-csa-accent/10 border border-csa-accent/30 rounded-xl">
-              <span className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider">New Invoice</span>
+              <span className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider">New Order</span>
               <span className="text-sm font-bold text-csa-accent">New Product</span>
             </div>
 
@@ -251,12 +251,12 @@ export default function CreateInvoiceView() {
               className="flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {saving ? 'Creating...' : 'Create Invoice'}
+              {saving ? 'Creating...' : 'Create Order'}
             </button>
           </div>
 
           <h1 className="text-2xl font-bold text-text-primary ml-12">
-            {account.name} - Invoice - {formatDateDisplay(invoiceDate)}
+            {account.name} - Order - {formatDateDisplay(invoiceDate)}
           </h1>
         </div>
 

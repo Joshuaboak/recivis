@@ -33,7 +33,7 @@ export default function InvoiceSendTo({
       <div className="bg-surface border border-border-subtle rounded-xl px-5 py-4">
         <div className="flex items-center gap-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
           <Send size={14} />
-          Invoice and Licence Keys will be sent to
+          Order and Licence Keys will be sent to
         </div>
 
         {/* Reseller vs Customer toggle */}

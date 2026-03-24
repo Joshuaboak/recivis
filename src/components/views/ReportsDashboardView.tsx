@@ -192,14 +192,14 @@ export default function ReportsDashboardView() {
          ...aggregated.allProspects.map(p => [p.name, 'Prospect', p.reseller, p.country, fmtDate(p.date)])]);
     } else if (tab === 'revenue') {
       exportCsv(`revenue-${suffix}.csv`,
-        ['Invoice #', 'Account', 'Reseller', 'Date', 'Type', 'Currency', 'Revenue', 'CSA Profit', 'Distributor Owed', 'Reseller Owed', 'Status'],
+        ['Order #', 'Account', 'Reseller', 'Date', 'Type', 'Currency', 'Revenue', 'CSA Profit', 'Distributor Owed', 'Reseller Owed', 'Status'],
         aggregated.allInvoices.map(i => [i.ref, i.account, i.reseller, fmtDate(i.date),
           i.isResellerDirect ? 'Reseller Direct' : 'Customer Direct', i.currency,
           String(i.revenue), String(i.csaProfit), String(i.distributorOwed), String(i.resellerOwed),
           i.paymentStatus?.toLowerCase() === 'paid' ? 'Paid' : i.status]));
     } else {
       exportCsv(`overview-${suffix}.csv`,
-        ['Month', 'Accounts', 'Leads', 'Prospects', 'Invoices', 'Revenue (by currency)'],
+        ['Month', 'Accounts', 'Leads', 'Prospects', 'Orders', 'Revenue (by currency)'],
         (data?.months || []).map(m => {
           const rev = Object.entries(m.byCurrency || {}).map(([c, v]) => `${c}: ${v.revenue.toFixed(2)}`).join('; ') || '0';
           return [m.label, String(m.accounts), String(m.leads), String(m.prospects), String(m.invoiceCount), rev];
@@ -296,7 +296,7 @@ export default function ReportsDashboardView() {
                 prev={prev?.accounts} curr={curr?.accounts} onClick={() => setTab('accounts')} />
               <ClickCard label="New Leads" value={aggregated.leads + aggregated.prospects} icon={UserSearch} color="text-success"
                 prev={(prev?.leads||0)+(prev?.prospects||0)} curr={(curr?.leads||0)+(curr?.prospects||0)} onClick={() => setTab('leads')} />
-              <ClickCard label="Approved Invoices" value={aggregated.invoiceCount} icon={FileText} color="text-csa-purple"
+              <ClickCard label="Approved Orders" value={aggregated.invoiceCount} icon={FileText} color="text-csa-purple"
                 prev={prev?.invoiceCount} curr={curr?.invoiceCount} onClick={() => setTab('revenue')} />
               <ClickCard label="Revenue" value={fmtV(aggregated.revenue)} icon={DollarSign} color="text-warning" isText
                 onClick={() => setTab('revenue')} subtitle={viewCurrency === 'ALL' ? 'Converted to AUD' : viewCurrency} />
@@ -392,7 +392,7 @@ export default function ReportsDashboardView() {
         {tab === 'revenue' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <SummaryCard label="Approved Invoices" value={aggregated.invoiceCount} icon={FileText} color="text-csa-accent" />
+              <SummaryCard label="Approved Orders" value={aggregated.invoiceCount} icon={FileText} color="text-csa-accent" />
               <MetricCard label="Revenue" value={fmtV(aggregated.revenue)} color="text-text-primary" subtitle={viewCurrency === 'ALL' ? 'AUD equivalent' : viewCurrency} />
               {isAdminUser && <MetricCard label="CSA Profit" value={fmtV(aggregated.csaProfit)} color="text-success" subtitle={viewCurrency === 'ALL' ? 'AUD equivalent' : viewCurrency} />}
               <MetricCard label={isDistributor && !isAdminUser ? 'Your Earnings' : isAdminUser ? 'Partner Owed' : 'Your Commission'} color="text-csa-purple"
@@ -410,7 +410,7 @@ export default function ReportsDashboardView() {
                   return v ? fmtC(v.revenue, viewCurrency) : '$0.00';
                 }}
                 drillMonth={drillMonth} onDrill={setDrillMonth}
-                columns={['Invoice', 'Account', 'Reseller', 'Date', 'Type', 'Currency', 'Revenue', ...(isAdminUser ? ['CSA Profit', 'Distro Owed', 'Reseller Owed'] : isDistributor ? ['Your Earnings'] : ['Your Commission']), 'Status']}
+                columns={['Order', 'Account', 'Reseller', 'Date', 'Type', 'Currency', 'Revenue', ...(isAdminUser ? ['CSA Profit', 'Distro Owed', 'Reseller Owed'] : isDistributor ? ['Your Earnings'] : ['Your Commission']), 'Status']}
                 renderRows={m => {
                   const filtered = viewCurrency === 'ALL' ? m.invoices : m.invoices.filter(i => i.currency === viewCurrency);
                   return filtered.map(inv => (

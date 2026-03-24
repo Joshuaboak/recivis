@@ -663,11 +663,11 @@ export default function AccountDetailView() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
               <FileText size={18} className="text-csa-purple" />
-              Invoices ({invoices.length})
+              Orders ({invoices.length})
             </h2>
             <div className="flex items-center gap-2">
               {invoices.length > 0 && user?.permissions?.canExportData ? (
-                <button onClick={() => exportInvoices(invoices, account.Account_Name as string)} className="p-1.5 text-text-muted hover:text-success transition-colors cursor-pointer" title="Export Invoices">
+                <button onClick={() => exportInvoices(invoices, account.Account_Name as string)} className="p-1.5 text-text-muted hover:text-success transition-colors cursor-pointer" title="Export Orders">
                   <Download size={14} />
                 </button>
               ) : null}
@@ -687,7 +687,7 @@ export default function AccountDetailView() {
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
             >
               <Plus size={13} />
-              New Product Invoice
+              New Product Order
               </button>
             </div>
           </div>
@@ -695,7 +695,7 @@ export default function AccountDetailView() {
             <div className="border border-border-subtle rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead><tr className="bg-surface-raised">
-                  <th>Invoice #</th><th>Subject</th><th>Date</th><th>Type</th><th>Status</th><th>Total</th><th className="w-10"></th>
+                  <th>Order #</th><th>Subject</th><th>Date</th><th>Type</th><th>Status</th><th>Total</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
                   {invoices.map((inv, i) => {
@@ -712,7 +712,7 @@ export default function AccountDetailView() {
                         className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                       >
                         <td className="text-text-muted text-xs font-mono">{inv.Reference_Number as string || '\u2014'}</td>
-                        <td className="font-semibold text-csa-accent">{inv.Subject as string || `Invoice ${inv.id as string}`}</td>
+                        <td className="font-semibold text-csa-accent">{inv.Subject as string || `Order ${inv.id as string}`}</td>
                         <td className="text-text-secondary">{formatDate(inv.Invoice_Date)}</td>
                         <td>
                           <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${
@@ -743,7 +743,7 @@ export default function AccountDetailView() {
               </table>
             </div>
           ) : (
-            <p className="text-sm text-text-muted py-4">No invoices found</p>
+            <p className="text-sm text-text-muted py-4">No orders found</p>
           )}
         </motion.div>
 
