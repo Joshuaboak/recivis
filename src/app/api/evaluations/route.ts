@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       Name: 'placeholder',
       Account: { id: accountId },
       Product: { id: productId },
-      Serial_Key: 'create123982',
+      Serial_Key: String(Date.now()),
       Quantity: Number(quantity),
       Status: 'Active',
       Start_Date: todayStr,

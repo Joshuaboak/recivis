@@ -30,6 +30,7 @@ const EVAL_PRODUCTS = [
 ];
 
 function buildEvalSku(productCode: string): string {
+  if (productCode === 'CSP') return 'CSP-26-SU-CB-EVA-1YR-SUB-WW';
   return `${productCode}-SU-CB-EVA-1YR-SUB-WW`;
 }
 
