@@ -27,6 +27,14 @@ export async function GET(
 
   const { id } = await params;
 
+  // Non-admin users can only view their own reseller or child resellers
+  if (!isAdmin(user)) {
+    const checkId = id === CSA_ZOHO_ID ? CSA_INTERNAL_ID : id;
+    if (!user.allowedResellerIds.includes(checkId) && !user.allowedResellerIds.includes(id)) {
+      return NextResponse.json({ error: 'Not authorized to view this reseller' }, { status: 403 });
+    }
+  }
+
   try {
     // Fetch reseller from Zoho
     const zohoId = id === CSA_INTERNAL_ID ? CSA_ZOHO_ID : id;

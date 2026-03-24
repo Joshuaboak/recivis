@@ -165,10 +165,28 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // --- Contacts ---
+    // --- Contacts (filter by account's reseller for non-admin) ---
     if (dataMap.contacts) {
+      // Build a set of allowed account IDs from the already-fetched accounts data
+      const allowedAccountIds = new Set<string>();
+      if (!userIsAdmin && user.allowedResellerIds.length > 0 && dataMap.accounts) {
+        for (const acc of dataMap.accounts) {
+          const reseller = acc.Reseller as { id?: string } | null;
+          if (!reseller?.id || user.allowedResellerIds.includes(reseller.id)) {
+            allowedAccountIds.add(acc.id as string);
+          }
+        }
+      }
+
       for (const contact of dataMap.contacts) {
         if (contact.Record_Status__s === 'Trash') continue;
+
+        // Filter by account ownership for non-admin users
+        if (!userIsAdmin && user.allowedResellerIds.length > 0) {
+          const account = contact.Account_Name as { id?: string } | null;
+          if (account?.id && !allowedAccountIds.has(account.id)) continue;
+          if (!account?.id) continue; // Skip orphaned contacts
+        }
 
         results.push({
           id: contact.id as string,

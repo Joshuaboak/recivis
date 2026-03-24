@@ -17,6 +17,11 @@ export async function POST(request: NextRequest) {
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
 
+  // Viewer role cannot send keys
+  if (user.role === 'viewer') {
+    return NextResponse.json({ error: 'You do not have permission to send keys' }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
     const { assetIds, sendToCustomer } = body;

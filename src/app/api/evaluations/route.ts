@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/api-auth';
+import { requireAuth, isAdmin } from '@/lib/api-auth';
 import { executeZohoTool, parseMcpResult, callMcpTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 
@@ -42,6 +42,19 @@ export async function POST(request: NextRequest) {
 
     if (daysDiff < 1) {
       return NextResponse.json({ error: 'End date must be in the future' }, { status: 400 });
+    }
+
+    // Validate account ownership for non-admin users
+    if (!isAdmin(user) && user.allowedResellerIds.length > 0) {
+      const accResult = await callMcpTool('ZohoCRM_getRecord', {
+        path_variables: { module: 'Accounts', recordID: accountId },
+        query_params: { fields: 'Reseller' },
+      });
+      const accParsed = parseMcpResult(accResult);
+      const accReseller = (accParsed.data[0] as Record<string, unknown>)?.Reseller as { id?: string } | null;
+      if (accReseller?.id && !user.allowedResellerIds.includes(accReseller.id)) {
+        return NextResponse.json({ error: 'Cannot create evaluations for this account' }, { status: 403 });
+      }
     }
 
     // Check max evaluations per account (if not unlimited)

@@ -7,9 +7,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
+import { executeZohoTool, parseMcpResult, callMcpTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
-import { requireAuth } from '@/lib/api-auth';
+import { requireAuth, isAdmin } from '@/lib/api-auth';
 import { createContactSchema, validateBody } from '@/lib/validation';
 
 /**
@@ -29,6 +29,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
     const body = validation.data;
+
+    // Validate account ownership for non-admin users
+    if (body.Account_Name?.id && !isAdmin(user) && user.allowedResellerIds.length > 0) {
+      const accResult = await callMcpTool('ZohoCRM_getRecord', {
+        path_variables: { module: 'Accounts', recordID: body.Account_Name.id },
+        query_params: { fields: 'Reseller' },
+      });
+      const accParsed = parseMcpResult(accResult);
+      const accReseller = (accParsed.data[0] as Record<string, unknown>)?.Reseller as { id?: string } | null;
+      if (accReseller?.id && !user.allowedResellerIds.includes(accReseller.id)) {
+        return NextResponse.json({ error: 'Cannot create contacts for this account' }, { status: 403 });
+      }
+    }
 
     const contactData: Record<string, unknown> = {
       First_Name: body.First_Name,
