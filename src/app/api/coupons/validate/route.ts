@@ -15,7 +15,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { code, resellerRegion, resellerId, invoiceType, subtotal } = body;
+    const { code, invoiceType, subtotal } = body;
+    // Use server-side auth context for region and partner — never trust client-provided values
+    const resellerRegion = user.resellerRegion;
+    const resellerId = user.resellerId;
 
     if (!code) {
       return NextResponse.json({ valid: false, error: 'Coupon code is required' });

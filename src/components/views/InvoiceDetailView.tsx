@@ -336,17 +336,13 @@ export default function InvoiceDetailView() {
     setCouponError(null);
 
     try {
-      const reseller = invoice.Reseller as { id?: string } | null;
       const subtotal = invoice.Sub_Total as number || 0;
-      const resellerRegion = invoice.Reseller_Region as string || '';
 
       const res = await fetch('/api/coupons/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: couponCode.trim().toUpperCase(),
-          resellerRegion,
-          resellerId: reseller?.id,
           invoiceType: invoice.Invoice_Type as string,
           subtotal,
         }),

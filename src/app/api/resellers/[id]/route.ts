@@ -129,16 +129,32 @@ export async function PATCH(
     const body = await request.json();
     const zohoId = id === CSA_INTERNAL_ID ? CSA_ZOHO_ID : id;
 
-    // Sync distributor relationships from Zoho → PostgreSQL
+    // Sync reseller data from Zoho → PostgreSQL (distributor, region, currency, partner_category)
     if (body._syncDistributor) {
       const dbId = id === CSA_ZOHO_ID ? CSA_INTERNAL_ID : id;
 
-      // Check if this reseller's distributor is in Zoho but not set in PostgreSQL
+      // Fetch the full Zoho record
       const zohoResult = await executeZohoTool('get_record', { module: 'Resellers', record_id: id === CSA_INTERNAL_ID ? CSA_ZOHO_ID : id });
       const zohoParsed = parseMcpResult(zohoResult);
       const zohoRecord = zohoParsed.data[0] as Record<string, unknown> | undefined;
       const zohoDistId = (zohoRecord?.Distributor as { id?: string })?.id;
 
+      // Sync region, currency, partner_category from Zoho
+      if (zohoRecord) {
+        await query(
+          `UPDATE resellers SET region = $1, currency = $2, partner_category = $3, name = $4, email = $5, updated_at = NOW() WHERE id = $6`,
+          [
+            (zohoRecord.Region as string) || null,
+            (zohoRecord.Currency as string) || null,
+            (zohoRecord.Partner_Category as string) || null,
+            (zohoRecord.Name as string) || null,
+            (zohoRecord.Email as string) || null,
+            dbId,
+          ]
+        );
+      }
+
+      // Sync distributor relationship
       if (zohoDistId) {
         const distExists = await query('SELECT id FROM resellers WHERE id = $1', [zohoDistId]);
         if (distExists.rows.length > 0) {
@@ -162,7 +178,7 @@ export async function PATCH(
         }
       } catch { /* non-critical */ }
 
-      log('info', 'api', `Distributor relationships synced for ${id}`, { by: user.email });
+      log('info', 'api', `Reseller data synced from Zoho for ${id}`, { by: user.email });
       return NextResponse.json({ success: true });
     }
 

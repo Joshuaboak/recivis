@@ -9,8 +9,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
-import { requireAuth, isAdmin } from '@/lib/api-auth';
+import { requireAuth, isAdmin, type AuthUser } from '@/lib/api-auth';
 import { cacheInvalidatePattern } from '@/lib/cache';
+
+/** Check if a non-admin user is allowed to view this coupon based on restrictions. */
+function userCanAccessCoupon(coupon: Record<string, unknown>, user: AuthUser): boolean {
+  if (coupon.Region_Restrictions) {
+    const regions = Array.isArray(coupon.Regions) ? coupon.Regions as string[] : [];
+    if (regions.length > 0 && (!user.resellerRegion || !regions.includes(user.resellerRegion))) {
+      return false;
+    }
+  }
+  if (coupon.Partner_Restrictions) {
+    const partners = Array.isArray(coupon.Partners)
+      ? (coupon.Partners as { id?: string }[]).map(p => p.id)
+      : [];
+    if (partners.length > 0 && (!user.resellerId || !partners.includes(user.resellerId))) {
+      return false;
+    }
+  }
+  return true;
+}
 
 /** Build the URL for the Deluge function that returns a scoped OAuth token. */
 function getTokenUrl(): string {
@@ -42,12 +61,20 @@ export async function GET(
 ) {
   const authResult = await requireAuth(request);
   if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
 
   const { id } = await params;
   try {
     const result = await executeZohoTool('get_record', { module: 'Coupons', record_id: id });
     const parsed = parseMcpResult(result);
-    return NextResponse.json({ coupon: parsed.data[0] || null });
+    const coupon = parsed.data[0] as Record<string, unknown> | undefined;
+
+    // Non-admin users cannot view coupons restricted to other regions/partners
+    if (coupon && !isAdmin(user) && !userCanAccessCoupon(coupon, user)) {
+      return NextResponse.json({ error: 'You do not have access to this coupon' }, { status: 403 });
+    }
+
+    return NextResponse.json({ coupon: coupon || null });
   } catch (error) {
     log('error', 'api', `Coupon detail failed for ${id}`, {
       error: error instanceof Error ? error.message : String(error),

@@ -16,8 +16,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllRecordPages } from '@/lib/zoho';
 import { log } from '@/lib/logger';
-import { requireAuth, isAdmin } from '@/lib/api-auth';
+import { requireAuth, isAdmin, type AuthUser } from '@/lib/api-auth';
 import { cacheGet, cacheSet, cacheInvalidatePattern } from '@/lib/cache';
+
+/** Filter coupons by region and partner restrictions for non-admin users. */
+function filterCouponsForUser(coupons: Record<string, unknown>[], user: AuthUser): Record<string, unknown>[] {
+  return coupons.filter(c => {
+    // Region restriction check
+    if (c.Region_Restrictions) {
+      const regions = Array.isArray(c.Regions) ? c.Regions as string[] : [];
+      if (regions.length > 0 && (!user.resellerRegion || !regions.includes(user.resellerRegion))) {
+        return false;
+      }
+    }
+    // Partner restriction check
+    if (c.Partner_Restrictions) {
+      const partners = Array.isArray(c.Partners)
+        ? (c.Partners as { id?: string }[]).map(p => p.id)
+        : [];
+      if (partners.length > 0 && (!user.resellerId || !partners.includes(user.resellerId))) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
 
 const FIELDS = 'Name,Coupon_Name,Coupon_Description,Discount_Type,Discount_Percentage,Discount_Amount,Currency,Status,Coupon_Start_Date,Coupon_End_Date,Total_Usage_Allowance,Remaining_Uses,Region_Restrictions,Regions,Partner_Restrictions,Partners,Product_Restrictions,Allowed_Products,Order_Type_Restrictions,Order_Type,Usage_Restrictions,Minimum_Order_Value,Maximum_Order_Value,Discount_Product,Record_Status__s';
 
@@ -51,19 +74,22 @@ export async function GET(request: NextRequest) {
   const user = authResult;
 
   try {
-    // Check Redis cache before hitting Zoho API (2-minute TTL)
+    // Fetch all coupons (cached 2 min), then filter by user permissions
     const cacheKey = 'coupons:all';
-    const cached = await cacheGet<{ coupons: unknown[] }>(cacheKey);
-    if (cached) return NextResponse.json(cached);
+    let allCoupons: Record<string, unknown>[];
+    const cached = await cacheGet<{ coupons: Record<string, unknown>[] }>(cacheKey);
+    if (cached) {
+      allCoupons = cached.coupons;
+    } else {
+      const allRecords = await getAllRecordPages('Coupons', FIELDS, 'Created_Time', 'desc');
+      allCoupons = allRecords.filter(r => r.Record_Status__s !== 'Trash');
+      await cacheSet(cacheKey, { coupons: allCoupons }, 120);
+    }
 
-    const allRecords = await getAllRecordPages('Coupons', FIELDS, 'Created_Time', 'desc');
-    const coupons = allRecords.filter(r => r.Record_Status__s !== 'Trash');
+    // Admin/IBM see all coupons; others only see coupons valid for their region + partner
+    const coupons = isAdmin(user) ? allCoupons : filterCouponsForUser(allCoupons, user);
 
-    // Cache the response in Redis for 2 minutes (120s)
-    const response = { coupons };
-    await cacheSet(cacheKey, response, 120);
-
-    return NextResponse.json(response);
+    return NextResponse.json({ coupons });
   } catch (error) {
     log('error', 'api', 'Coupons fetch failed', {
       error: error instanceof Error ? error.message : String(error),

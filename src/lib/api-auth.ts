@@ -32,6 +32,7 @@ export interface AuthUser {
   name: string;
   role: string;
   resellerId: string | null;
+  resellerRegion: string | null;
   permissions: UserPermissions;
   allowedResellerIds: string[];
 }
@@ -78,7 +79,8 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
               r.perm_upload_po AS ro_po, r.perm_view_reports AS ro_reports,
               r.perm_export_data AS ro_export,
               r.perm_create_evaluations AS ro_eval, r.perm_max_evaluations_per_account AS ro_max_eval,
-              r.perm_extend_evaluations AS ro_extend_eval
+              r.perm_extend_evaluations AS ro_extend_eval,
+              r.region AS reseller_region
        FROM users u
        LEFT JOIN user_roles ur ON ur.id = u.user_role_id
        LEFT JOIN resellers r ON r.id = u.reseller_id
@@ -144,6 +146,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
       name: row.name,
       role: row.user_role_name || 'standard',
       resellerId: row.reseller_id,
+      resellerRegion: row.reseller_region || null,
       permissions,
       allowedResellerIds,
     };
