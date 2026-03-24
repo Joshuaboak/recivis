@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     const zapikey = process.env.ZOHO_API_KEY;
     if (!zapikey) throw new Error('ZOHO_API_KEY not set');
     const fnUrl = `https://www.zohoapis.com.au/crm/v7/functions/create_coupon_product/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${encodeURIComponent(
-      JSON.stringify({ couponID: couponId })
+      JSON.stringify({ couponId: couponId })
     )}`;
 
     const fnRes = await fetch(fnUrl, { method: 'POST' });
