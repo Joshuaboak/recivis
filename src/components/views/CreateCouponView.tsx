@@ -113,13 +113,13 @@ export default function CreateCouponView() {
       }
 
       data.Region_Restrictions = regionRestrictions;
-      if (regionRestrictions && selectedRegions.length > 0) data.Regions = selectedRegions.join(';');
+      if (regionRestrictions && selectedRegions.length > 0) data.Regions = selectedRegions;
       data.Product_Restrictions = productRestrictions;
-      if (productRestrictions && selectedProducts.length > 0) data.Allowed_Products = selectedProducts.join(';');
+      if (productRestrictions && selectedProducts.length > 0) data.Allowed_Products = selectedProducts;
       data.Partner_Restrictions = partnerRestrictions;
       if (partnerRestrictions && selectedPartners.length > 0) data.Partners = selectedPartners.map(p => ({ id: p.id }));
       data.Order_Type_Restrictions = orderTypeRestrictions;
-      if (orderTypeRestrictions && selectedOrderTypes.length > 0) data.Order_Type = selectedOrderTypes.join(';');
+      if (orderTypeRestrictions && selectedOrderTypes.length > 0) data.Order_Type = selectedOrderTypes;
       data.Usage_Restrictions = usageRestrictions;
       if (usageRestrictions) {
         if (minOrder) data.Minimum_Order_Value = parseFloat(minOrder);
