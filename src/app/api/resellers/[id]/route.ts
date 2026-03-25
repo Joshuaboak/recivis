@@ -48,7 +48,7 @@ export async function GET(
     const dbPlaceholders = dbLookupIds.map((_, i) => `$${i + 1}`).join(',');
 
     const dbResult = await query(
-      `SELECT r.id, r.reseller_role_id, rr.name AS reseller_role_name, rr.display_name AS reseller_role_display
+      `SELECT r.id, r.reseller_role_id, r.pay_on_card, rr.name AS reseller_role_name, rr.display_name AS reseller_role_display
        FROM resellers r
        LEFT JOIN reseller_roles rr ON rr.id = r.reseller_role_id
        WHERE r.id IN (${dbPlaceholders})
@@ -108,6 +108,7 @@ export async function GET(
       dbRole: dbRecord ? { name: dbRecord.reseller_role_name, display: dbRecord.reseller_role_display } : null,
       availableRoles: rolesResult.rows,
       permissionOverrides,
+      payOnCard: dbRecord?.pay_on_card ?? false,
     });
   } catch (error) {
     log('error', 'api', `Reseller detail failed for ${id}`, {
@@ -226,6 +227,12 @@ export async function PATCH(
       const maxEvalVal = permOverrides.max_evaluations_per_account;
       updates.push(`perm_max_evaluations_per_account = $${paramIdx++}`);
       values.push(maxEvalVal !== undefined && maxEvalVal !== null ? Number(maxEvalVal) : null);
+
+      // pay_on_card — portal-only flag (no Zoho equivalent)
+      if (permOverrides.pay_on_card !== undefined) {
+        updates.push(`pay_on_card = $${paramIdx++}`);
+        values.push(!!permOverrides.pay_on_card);
+      }
 
       updates.push(`updated_at = NOW()`);
 

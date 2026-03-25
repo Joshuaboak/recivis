@@ -499,6 +499,7 @@ function ResellerDetailView() {
 
   // Permission overrides for existing registered partners
   const [permissionOverrides, setPermissionOverrides] = useState<Record<string, boolean | null> | null>(null);
+  const [payOnCard, setPayOnCard] = useState(false);
   const [editingPermissions, setEditingPermissions] = useState(false);
   const [editPerms, setEditPerms] = useState<Record<string, boolean | null>>({});
   const [editMaxEvals, setEditMaxEvals] = useState<number | null>(null);
@@ -520,6 +521,7 @@ function ResellerDetailView() {
       setDbRole(resRes.dbRole || null);
       setAvailableResellerRoles(resRes.availableRoles || []);
       setPermissionOverrides(resRes.permissionOverrides || null);
+      setPayOnCard(resRes.payOnCard ?? false);
     } catch {}
     setLoading(false);
   };
@@ -866,8 +868,8 @@ function ResellerDetailView() {
                     PERMISSION_DEFS.forEach(p => { currentPerms[p.key] = null; });
                     setEditMaxEvals(null);
                   }
-                  // Pre-fill Zoho payment method flags
-                  currentPerms['_pay_on_card'] = !!reseller?.Purchase_on_Account;
+                  // Pre-fill payment method flags
+                  currentPerms['_pay_on_card'] = payOnCard;
                   currentPerms['_pay_on_account'] = !!reseller?.Can_Purchase_on_Credit;
                   setEditPerms(currentPerms);
                   setEditingPermissions(true);
@@ -946,23 +948,24 @@ function ResellerDetailView() {
                       setSavingPerms(true);
                       const permPayload: Record<string, unknown> = {};
                       for (const [k, v] of Object.entries(editPerms)) {
-                        if (k.startsWith('_')) continue; // Skip Zoho-only flags
+                        if (k.startsWith('_')) continue; // Skip non-DB flags
                         permPayload[k] = v ?? null;
                       }
                       permPayload.max_evaluations_per_account = editMaxEvals;
+                      // Include pay_on_card (portal-only, saved to PostgreSQL)
+                      permPayload.pay_on_card = !!editPerms['_pay_on_card'];
                       try {
-                        // Save PostgreSQL permissions
+                        // Save PostgreSQL permissions (includes pay_on_card)
                         await fetch(`/api/resellers/${selectedResellerId}`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ _updatePermissions: true, permissions: permPayload }),
                         });
-                        // Save Zoho payment method flags
+                        // Save Pay on Account to Zoho (Can_Purchase_on_Credit)
                         await fetch(`/api/resellers/${selectedResellerId}`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
-                            Purchase_on_Account: !!editPerms['_pay_on_card'],
                             Can_Purchase_on_Credit: !!editPerms['_pay_on_account'],
                           }),
                         });
@@ -1005,8 +1008,8 @@ function ResellerDetailView() {
                 {/* Payment method flags from Zoho */}
                 {reseller && (
                   <>
-                    <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] ${reseller.Purchase_on_Account ? 'text-success' : 'text-text-muted'}`}>
-                      <span>{reseller.Purchase_on_Account ? '✓' : '✕'}</span>
+                    <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] ${payOnCard ? 'text-success' : 'text-text-muted'}`}>
+                      <span>{payOnCard ? '✓' : '✕'}</span>
                       <span className="font-semibold">Pay on Card</span>
                     </div>
                     <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] ${reseller.Can_Purchase_on_Credit ? 'text-success' : 'text-text-muted'}`}>

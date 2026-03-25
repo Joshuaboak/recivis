@@ -202,6 +202,7 @@ export async function initDB() {
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_create_evaluations BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_max_evaluations_per_account INTEGER;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_extend_evaluations BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS pay_on_card BOOLEAN DEFAULT false;
 
       -- Add evaluation columns to role tables (idempotent)
       ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_create_evaluations BOOLEAN DEFAULT false;
