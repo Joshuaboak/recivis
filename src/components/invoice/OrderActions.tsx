@@ -2,18 +2,22 @@
  * OrderActions — Pay Now / Pay Later / Place Order buttons for invoice detail.
  *
  * Visibility is controlled by reseller payment method flags:
- * - Purchase on Credit Card → Pay Now + Pay Later
- * - Purchase on Account → Place Order
+ * - Pay on Card → Pay Now + Pay Later
+ * - Pay on Account → Place Order
  *
  * Each action has a double confirmation dialog explaining what will happen.
  * Button visibility also gated by user permissions (canSendInvoices, canApproveInvoices).
+ *
+ * Pay Now fetches the latest Stripe link before opening to ensure it's current.
+ * After returning from the payment tab, polls for payment completion and shows
+ * a success popup with recipient info.
  */
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CreditCard, Clock, ShoppingCart, Loader2, AlertTriangle, X } from 'lucide-react';
+import { CreditCard, Clock, ShoppingCart, Loader2, AlertTriangle, X, CheckCircle2 } from 'lucide-react';
 
 interface OrderActionsProps {
   invoice: Record<string, unknown>;
@@ -52,6 +56,63 @@ export default function OrderActions({
   const [dialog, setDialog] = useState<ConfirmDialogState>(initialDialog);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successPopup, setSuccessPopup] = useState<string | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const paymentWindowRef = useRef(false);
+
+  // Determine recipient label from the SendTo toggle
+  const getRecipientLabel = useCallback(() => {
+    const isReseller = !!invoice.Reseller_Direct_Purchase;
+    const reseller = invoice.Reseller as { name?: string } | null;
+    const contact = invoice.Contact_Name as { name?: string } | null;
+    if (isReseller) {
+      return reseller?.name || 'the reseller';
+    }
+    return contact?.name || 'the customer';
+  }, [invoice]);
+
+  // Poll for payment completion after Pay Now
+  const startPaymentPolling = useCallback(() => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    paymentWindowRef.current = true;
+
+    const checkPayment = async () => {
+      try {
+        const res = await fetch(`/api/invoices/${selectedInvoiceId}`);
+        const data = await res.json();
+        const paymentStatus = (data.invoice?.Payment_Status as string || '').toLowerCase();
+        if (paymentStatus === 'paid' || paymentStatus === 'succeeded') {
+          // Payment complete!
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          pollingRef.current = null;
+          paymentWindowRef.current = false;
+          const recipient = getRecipientLabel();
+          setSuccessPopup(`The licence keys and a copy of the order have been sent to ${recipient}.`);
+          onRefresh();
+        }
+      } catch { /* continue polling */ }
+    };
+
+    // Poll every 5 seconds
+    pollingRef.current = setInterval(checkPayment, 5000);
+  }, [selectedInvoiceId, getRecipientLabel, onRefresh]);
+
+  // Listen for window focus to start polling when user returns from payment tab
+  useEffect(() => {
+    const handleFocus = () => {
+      if (paymentWindowRef.current && !pollingRef.current) {
+        startPaymentPolling();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [startPaymentPolling]);
 
   // Only show on Draft or Sent invoices
   if (status !== 'Draft' && status !== 'Sent') return null;
@@ -60,24 +121,9 @@ export default function OrderActions({
 
   const closeDialog = () => setDialog(initialDialog);
 
-  const advanceToStep2 = (onConfirm: () => void) => {
-    setDialog(prev => ({
-      ...prev,
-      step: 2,
-      title: 'Are you sure?',
-      message: 'This action cannot be undone.',
-      confirmLabel: 'Yes, proceed',
-    }));
-  };
-
   // ── Pay Now ──────────────────────────────────────────────────────────
 
   const handlePayNow = () => {
-    const stripeLink = invoice.Stripe_Payment_Link as string;
-    if (!stripeLink) {
-      setError('Payment link not yet generated. Please save the order first.');
-      return;
-    }
     setError('');
     setDialog({
       open: true,
@@ -86,9 +132,27 @@ export default function OrderActions({
       message: 'This will open the Stripe payment page in a new tab. The customer will receive licence keys automatically after payment is confirmed.',
       confirmLabel: 'Open Payment Page',
       confirmColor: 'bg-success',
-      onConfirm: () => {
-        window.open(stripeLink, '_blank');
+      onConfirm: async () => {
         closeDialog();
+        setLoading(true);
+        try {
+          // Fetch the latest invoice to get the most up-to-date Stripe link
+          const res = await fetch(`/api/invoices/${selectedInvoiceId}`);
+          const data = await res.json();
+          const freshLink = data.invoice?.Stripe_Payment_Link as string;
+          if (!freshLink) {
+            setError('Payment link not yet generated. Please save the order first.');
+            setLoading(false);
+            return;
+          }
+          window.open(freshLink, '_blank');
+          // Start polling for payment completion
+          paymentWindowRef.current = true;
+          startPaymentPolling();
+        } catch {
+          setError('Failed to fetch payment link.');
+        }
+        setLoading(false);
       },
     });
   };
@@ -97,11 +161,12 @@ export default function OrderActions({
 
   const handlePayLater = () => {
     setError('');
+    const recipient = getRecipientLabel();
     setDialog({
       open: true,
       step: 1,
       title: 'Send Order for Payment',
-      message: 'This will send the order to the customer for payment. Licence keys will be sent automatically after payment is received.',
+      message: `This will send the order to ${recipient} for payment. Licence keys will be sent automatically after payment is received.`,
       confirmLabel: 'Send for Payment',
       confirmColor: 'bg-warning',
       onConfirm: async () => {
@@ -139,11 +204,12 @@ export default function OrderActions({
       setError('Please attach a Purchase Order document before placing the order.');
       return;
     }
+    const recipient = getRecipientLabel();
     setDialog({
       open: true,
       step: 1,
       title: 'Place Order on Account',
-      message: 'This will approve the order and generate licence keys. A copy of the order will be sent to the reseller.',
+      message: `This will approve the order and generate licence keys. A copy of the order will be sent to ${recipient}.`,
       confirmLabel: 'Place Order',
       confirmColor: 'bg-csa-accent',
       onConfirm: async () => {
@@ -180,9 +246,8 @@ export default function OrderActions({
         title: 'Are you sure?',
         message: 'This action cannot be undone.',
         confirmLabel: 'Yes, proceed',
+        onConfirm,
       }));
-      // Store the original onConfirm for step 2
-      setDialog(prev => ({ ...prev, onConfirm }));
     } else {
       dialog.onConfirm();
     }
@@ -283,6 +348,41 @@ export default function OrderActions({
                   className={`px-5 py-2 text-xs font-semibold text-white ${dialog.confirmColor} rounded-xl cursor-pointer hover:opacity-90 transition-opacity`}
                 >
                   {dialog.confirmLabel}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Payment Success Popup */}
+      <AnimatePresence>
+        {successPopup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSuccessPopup(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-csa-dark border border-success/30 rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+            >
+              <div className="flex flex-col items-center text-center px-6 py-8">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.1 }}
+                >
+                  <CheckCircle2 size={56} className="text-success mb-4" />
+                </motion.div>
+                <h2 className="text-xl font-bold text-text-primary mb-2">Payment Complete!</h2>
+                <p className="text-sm text-text-secondary leading-relaxed">{successPopup}</p>
+              </div>
+              <div className="flex items-center justify-center px-6 pb-6">
+                <button
+                  onClick={() => setSuccessPopup(null)}
+                  className="px-6 py-2.5 text-xs font-semibold text-white bg-success rounded-xl cursor-pointer hover:bg-success/90 transition-colors"
+                >
+                  Done
                 </button>
               </div>
             </motion.div>
