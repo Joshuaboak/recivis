@@ -110,8 +110,10 @@ export default function InvoiceDetailView() {
               setResellerPercentage(percentage);
 
               // Reseller payment method flags
-              setCanPurchaseOnAccount(!!rData.reseller?.Purchase_on_Account);
-              setCanPurchaseOnCredit(!!rData.reseller?.Can_Purchase_on_Credit);
+              // Zoho Can_Purchase_on_Credit = "Pay on Account" → Place Order
+              // Zoho Purchase_on_Account = "Pay on Card" → Pay Now / Pay Later
+              setCanPurchaseOnAccount(!!rData.reseller?.Can_Purchase_on_Credit);
+              setCanPurchaseOnCredit(!!rData.reseller?.Purchase_on_Account);
 
               // Calculate and store original (full) list prices
               // If invoice is currently in reseller mode, current prices ARE discounted

@@ -437,7 +437,7 @@ function PartnerFormFields({ values, onChange, allResellers }: { values: Record<
             <input type="checkbox" checked={!!values.Can_Purchase_on_Credit} onChange={e => set('Can_Purchase_on_Credit', e.target.checked)}
               className="w-4 h-4 rounded accent-csa-accent cursor-pointer" />
             <div>
-              <p className="text-sm font-semibold text-text-primary">Can Purchase on Credit</p>
+              <p className="text-sm font-semibold text-text-primary">Pay on Account</p>
               <p className="text-xs text-text-muted">Allow this partner to purchase on credit terms</p>
             </div>
           </label>
@@ -953,6 +953,19 @@ function ResellerDetailView() {
                     </div>
                   );
                 })}
+                {/* Payment method flags from Zoho */}
+                {reseller && (
+                  <>
+                    <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] ${reseller.Purchase_on_Account ? 'text-success' : 'text-text-muted'}`}>
+                      <span>{reseller.Purchase_on_Account ? '✓' : '✕'}</span>
+                      <span className="font-semibold">Pay on Card</span>
+                    </div>
+                    <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] ${reseller.Can_Purchase_on_Credit ? 'text-success' : 'text-text-muted'}`}>
+                      <span>{reseller.Can_Purchase_on_Credit ? '✓' : '✕'}</span>
+                      <span className="font-semibold">Pay on Account</span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -987,7 +1000,6 @@ function ResellerDetailView() {
                 Controls if orders and keys are sent directly to the customer or not
               </div>
             </div>
-            <InfoCard label="Can Purchase on Credit" value={reseller.Can_Purchase_on_Credit ? 'Yes' : 'No'} icon={<DollarSign size={14} />} />
             {reseller.Street_Address || reseller.City ? (
               <InfoCard label="Address" value={[reseller.Street_Address, reseller.City, reseller.State, reseller.Post_Code, reseller.Country].filter(Boolean).join(', ')} icon={<Globe size={14} />} />
             ) : null}
