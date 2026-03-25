@@ -866,6 +866,9 @@ function ResellerDetailView() {
                     PERMISSION_DEFS.forEach(p => { currentPerms[p.key] = null; });
                     setEditMaxEvals(null);
                   }
+                  // Pre-fill Zoho payment method flags
+                  currentPerms['_pay_on_card'] = !!reseller?.Purchase_on_Account;
+                  currentPerms['_pay_on_account'] = !!reseller?.Can_Purchase_on_Credit;
                   setEditPerms(currentPerms);
                   setEditingPermissions(true);
                 }}
@@ -899,6 +902,41 @@ function ResellerDetailView() {
                   })()}
                   onMaxEvalsChange={setEditMaxEvals}
                 />
+                {/* Payment Method Toggles (saved to Zoho) */}
+                <div className="mt-3 pt-3 border-t border-border-subtle">
+                  <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">Payment Methods</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[
+                      { key: '_pay_on_card', label: 'Pay on Card', desc: 'Allow payment via credit card (Pay Now / Pay Later)' },
+                      { key: '_pay_on_account', label: 'Pay on Account', desc: 'Allow placing orders on account terms (requires PO)' },
+                    ].map(({ key, label, desc }) => {
+                      const value = !!editPerms[key];
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setEditPerms(prev => ({ ...prev, [key]: !value }))}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                            value
+                              ? 'bg-success/12 border-success/40 ring-1 ring-success/20'
+                              : 'bg-surface border-border-subtle'
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded-md flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${
+                            value ? 'bg-success/25 text-success' : 'bg-surface-raised text-text-muted'
+                          }`}>
+                            {value ? '✓' : '✕'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className={`text-xs font-semibold truncate ${value ? 'text-text-primary' : 'text-text-muted'}`}>{label}</p>
+                            <p className="text-[10px] text-text-muted truncate">{desc}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="flex gap-2 mt-3 pt-3 border-t border-border-subtle">
                   <button onClick={() => setEditingPermissions(false)}
                     className="px-3 py-1.5 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-lg cursor-pointer">Cancel</button>
@@ -908,14 +946,25 @@ function ResellerDetailView() {
                       setSavingPerms(true);
                       const permPayload: Record<string, unknown> = {};
                       for (const [k, v] of Object.entries(editPerms)) {
+                        if (k.startsWith('_')) continue; // Skip Zoho-only flags
                         permPayload[k] = v ?? null;
                       }
                       permPayload.max_evaluations_per_account = editMaxEvals;
                       try {
+                        // Save PostgreSQL permissions
                         await fetch(`/api/resellers/${selectedResellerId}`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ _updatePermissions: true, permissions: permPayload }),
+                        });
+                        // Save Zoho payment method flags
+                        await fetch(`/api/resellers/${selectedResellerId}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            Purchase_on_Account: !!editPerms['_pay_on_card'],
+                            Can_Purchase_on_Credit: !!editPerms['_pay_on_account'],
+                          }),
                         });
                         setEditingPermissions(false);
                         loadData();
