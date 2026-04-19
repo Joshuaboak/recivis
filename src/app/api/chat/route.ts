@@ -66,10 +66,10 @@ function filterResultsForRBAC(
   args: Record<string, unknown>,
   result: unknown
 ): unknown {
-  const module = String(args.module || '');
+  const moduleName = String(args.module || '');
 
   // Only filter Account operations (search_records, get_record)
-  if (module !== 'Accounts') return result;
+  if (moduleName !== 'Accounts') return result;
   if (toolName !== 'search_records' && toolName !== 'get_record') return result;
 
   try {
