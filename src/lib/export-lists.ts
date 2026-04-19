@@ -30,8 +30,8 @@ const formatDate = (d: unknown) => {
  * Fetches related data for each account via API.
  * onProgress called with (current, total) for UI feedback.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function exportAccountsList(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   accounts: any[],
   filters?: { search?: string; region?: string; reseller?: string },
   onProgress?: (current: number, total: number) => void
@@ -161,8 +161,8 @@ export async function exportAccountsList(
 /**
  * Export invoices list to XLSX
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function exportInvoicesList(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   invoices: any[],
   filters?: { status?: string; type?: string; region?: string; reseller?: string; search?: string }
 ) {
