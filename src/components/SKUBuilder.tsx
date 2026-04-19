@@ -20,7 +20,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Loader2, Check, Package } from 'lucide-react';
 
 interface SKUBuilderProps {
@@ -73,12 +73,11 @@ export default function SKUBuilder({ region, onSelect, onCancel }: SKUBuilderPro
   const [version, setVersion] = useState('');
 
   /** Close the SKU builder when the Escape key is pressed. */
-  const stableCancel = useCallback(onCancel, [onCancel]);
   useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') stableCancel(); };
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [stableCancel]);
+  }, [onCancel]);
 
   // Fetch latest product version for CSP
   useEffect(() => {
