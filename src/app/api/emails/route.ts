@@ -31,11 +31,11 @@ function parseMcpContent(result: unknown): Record<string, unknown> | null {
 }
 
 /** Fetch emails for a single record ID. Returns the Emails array. */
-async function fetchEmailsForRecord(module: string, recordId: string): Promise<Record<string, unknown>[]> {
+async function fetchEmailsForRecord(moduleName: string, recordId: string): Promise<Record<string, unknown>[]> {
   try {
     const result = await callMcpTool('ZohoCRM_getEmails', {
       path_variables: {
-        moduleApiName: module,
+        moduleApiName: moduleName,
         id: recordId,
       },
     });
@@ -57,13 +57,13 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const module = searchParams.get('module');
+  const moduleName = searchParams.get('module');
   const recordId = searchParams.get('recordId');
   const recordIds = searchParams.get('recordIds');
   const messageId = searchParams.get('messageId');
   const attachmentId = searchParams.get('attachmentId');
 
-  if (!module || (!recordId && !recordIds)) {
+  if (!moduleName || (!recordId && !recordIds)) {
     return NextResponse.json({ error: 'module and recordId/recordIds are required' }, { status: 400 });
   }
 
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     if (attachmentId && recordId) {
       const result = await callMcpTool('ZohoCRM_getAttachmentById', {
         path_variables: {
-          moduleApiName: module,
+          moduleApiName: moduleName,
           recordId,
           id: attachmentId,
         },
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
       try {
         const result = await callMcpTool('ZohoCRM_getSpecificEmail', {
           path_variables: {
-            moduleApiName: module,
+            moduleApiName: moduleName,
             id: recordId,
             messageId,
           },
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
     if (recordIds) {
       const ids = recordIds.split(',').filter(Boolean);
       const allEmails = await Promise.all(
-        ids.map(id => fetchEmailsForRecord(module, id))
+        ids.map(id => fetchEmailsForRecord(moduleName, id))
       );
 
       // Merge, deduplicate by message_id, and sort by time descending
@@ -141,10 +141,10 @@ export async function GET(request: NextRequest) {
     }
 
     // --- Email list (single record) ---
-    const emails = await fetchEmailsForRecord(module, recordId!);
+    const emails = await fetchEmailsForRecord(moduleName, recordId!);
     return NextResponse.json({ emails, info: { count: emails.length } });
   } catch (error) {
-    log('error', 'api', `Email fetch failed for ${module}/${recordId || recordIds}`, {
+    log('error', 'api', `Email fetch failed for ${moduleName}/${recordId || recordIds}`, {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json({ error: 'Failed to load emails' }, { status: 500 });
