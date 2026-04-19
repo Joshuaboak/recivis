@@ -17,10 +17,11 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Ticket, Loader2, ExternalLink, Percent, DollarSign, Calendar, Hash, Globe, Package, ShoppingCart, Pencil, Save, X, Search, ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 
 const CURRENCIES = ['AUD', 'USD', 'EUR', 'INR'];
 const REGIONS = ['AU', 'EU', 'NA', 'AS', 'NZ', 'WW'];
@@ -215,6 +216,31 @@ export default function CouponDetailView() {
     } catch { /* handled */ }
     setSaving(false);
   };
+
+  /** Optimistic per-field save used by InlineEditField. Updates local
+   *  coupon state immediately, PATCHes the record, and rolls back on error
+   *  by throwing — InlineEditField then triggers its red flash + revert.
+   *  `localChanges` (optional) is the shape applied to local state when it
+   *  differs from the API payload (e.g. lookups). */
+  const saveFields = useCallback(async (
+    apiChanges: Record<string, unknown>,
+    localChanges?: Record<string, unknown>,
+  ) => {
+    if (!selectedCouponId) throw new Error('No coupon selected');
+    const previous = coupon;
+    setCoupon(prev => prev ? { ...prev, ...(localChanges ?? apiChanges) } : prev);
+    try {
+      const res = await fetch(`/api/coupons/${selectedCouponId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apiChanges),
+      });
+      if (!res.ok) throw new Error('Save failed');
+    } catch (err) {
+      setCoupon(previous);
+      throw err;
+    }
+  }, [selectedCouponId, coupon]);
 
   const formatDate = (d: unknown) => {
     if (!d || typeof d !== 'string') return '\u2014';
@@ -473,6 +499,7 @@ export default function CouponDetailView() {
   // ─── READ-ONLY MODE ──────────────────────────────────────────────────
 
   return (
+    <InlineEditFieldProvider>
     <div className="h-full overflow-y-auto">
       <div className="max-w-4xl mx-auto px-6 py-6">
         {/* Header */}
@@ -516,43 +543,97 @@ export default function CouponDetailView() {
           ) : null}
         </div>
 
-        {/* Info Cards */}
+        {/* Info Cards — click any card to edit it inline */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-          <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
-              {couponDiscountType === 'Percentage Based' ? <Percent size={14} /> : <DollarSign size={14} />}
-              Discount
-            </div>
-            <p className="text-lg font-bold text-csa-accent">
-              {couponDiscountType === 'Percentage Based'
-                ? `${coupon.Discount_Percentage}%`
-                : `$${(coupon.Discount_Amount as number)?.toFixed(2)} ${coupon.Currency}`}
-            </p>
-          </div>
+          <InlineEditField
+            fieldId="discount_type"
+            label="Discount Type"
+            icon={couponDiscountType === 'Percentage Based' ? <Percent size={14} /> : <DollarSign size={14} />}
+            value={couponDiscountType || 'Percentage Based'}
+            type="select"
+            options={[
+              { value: 'Percentage Based', label: 'Percentage Based' },
+              { value: 'Fixed Amount', label: 'Fixed Amount' },
+            ]}
+            canEdit={isAdminUser}
+            onSave={v => saveFields({ Discount_Type: v })}
+          />
 
-          <InfoCard label="Currency" value={coupon.Currency as string || '\u2014'} icon={<DollarSign size={14} />} />
+          <InlineEditField
+            fieldId="discount_value"
+            label={couponDiscountType === 'Percentage Based' ? 'Percentage' : 'Amount'}
+            icon={couponDiscountType === 'Percentage Based' ? <Percent size={14} /> : <DollarSign size={14} />}
+            value={couponDiscountType === 'Percentage Based'
+              ? (coupon.Discount_Percentage != null ? String(coupon.Discount_Percentage) : '')
+              : (coupon.Discount_Amount != null ? String(coupon.Discount_Amount) : '')}
+            displayValue={couponDiscountType === 'Percentage Based'
+              ? (coupon.Discount_Percentage != null ? `${coupon.Discount_Percentage}%` : '\u2014')
+              : (coupon.Discount_Amount != null ? `$${(coupon.Discount_Amount as number).toFixed(2)} ${coupon.Currency || ''}` : '\u2014')}
+            type="number"
+            placeholder={couponDiscountType === 'Percentage Based' ? 'e.g. 20' : 'e.g. 500'}
+            canEdit={isAdminUser}
+            onSave={async v => {
+              const n = parseFloat(v);
+              if (isNaN(n)) throw new Error('Invalid number');
+              if (couponDiscountType === 'Percentage Based') {
+                await saveFields({ Discount_Percentage: n });
+              } else {
+                await saveFields({ Discount_Amount: n });
+              }
+            }}
+          />
 
-          <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
-              <Calendar size={14} />
-              Validity Period
-            </div>
-            <p className="text-sm text-text-primary">
-              {formatDate(coupon.Coupon_Start_Date)} &ndash; {formatDate(coupon.Coupon_End_Date)}
-            </p>
-          </div>
+          <InlineEditField
+            fieldId="currency"
+            label="Currency"
+            icon={<DollarSign size={14} />}
+            value={(coupon.Currency as string) || 'AUD'}
+            type="select"
+            options={CURRENCIES.map(c => ({ value: c, label: c }))}
+            canEdit={isAdminUser}
+            onSave={v => saveFields({ Currency: v })}
+          />
 
-          <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
-              <Hash size={14} />
-              Usage
-            </div>
-            <p className="text-sm text-text-primary">
-              {coupon.Remaining_Uses != null
-                ? `${coupon.Remaining_Uses} remaining of ${coupon.Total_Usage_Allowance}`
-                : 'Unlimited'}
-            </p>
-          </div>
+          <InlineEditField
+            fieldId="start_date"
+            label="Start Date"
+            icon={<Calendar size={14} />}
+            value={(coupon.Coupon_Start_Date as string)?.slice(0, 10) || ''}
+            displayValue={formatDate(coupon.Coupon_Start_Date)}
+            type="date"
+            canEdit={isAdminUser}
+            onSave={v => saveFields({ Coupon_Start_Date: v || null })}
+          />
+
+          <InlineEditField
+            fieldId="end_date"
+            label="End Date"
+            icon={<Calendar size={14} />}
+            value={(coupon.Coupon_End_Date as string)?.slice(0, 10) || ''}
+            displayValue={formatDate(coupon.Coupon_End_Date)}
+            type="date"
+            canEdit={isAdminUser}
+            onSave={v => saveFields({ Coupon_End_Date: v || null })}
+          />
+
+          <InlineEditField
+            fieldId="total_uses"
+            label="Total Uses"
+            icon={<Hash size={14} />}
+            value={coupon.Total_Usage_Allowance != null ? String(coupon.Total_Usage_Allowance) : ''}
+            displayValue={coupon.Total_Usage_Allowance != null
+              ? `${coupon.Remaining_Uses ?? coupon.Total_Usage_Allowance} remaining of ${coupon.Total_Usage_Allowance}`
+              : 'Unlimited'}
+            type="number"
+            placeholder="Unlimited"
+            canEdit={isAdminUser}
+            onSave={async v => {
+              const n = parseInt(v);
+              if (isNaN(n)) throw new Error('Invalid number');
+              // Reset Remaining_Uses when total changes — matches page-edit save behaviour
+              await saveFields({ Total_Usage_Allowance: n, Remaining_Uses: n });
+            }}
+          />
 
           {discountProduct ? (
             <InfoCard label="Discount Product" value={discountProduct.name || '\u2014'} icon={<Package size={14} />} />
@@ -561,7 +642,15 @@ export default function CouponDetailView() {
 
         {/* Restrictions */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
-          <h2 className="text-base font-bold text-text-primary mb-4">Restrictions</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-bold text-text-primary">Restrictions</h2>
+            {isAdminUser && (
+              <button onClick={handleEdit} className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-lg hover:bg-csa-accent/20 transition-colors cursor-pointer">
+                <Pencil size={12} />
+                Edit Restrictions
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Regions */}
             <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
@@ -651,6 +740,7 @@ export default function CouponDetailView() {
         </motion.div>
       </div>
     </div>
+    </InlineEditFieldProvider>
   );
 }
 

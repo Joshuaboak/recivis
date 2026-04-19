@@ -26,7 +26,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users, UserPlus, Search, Loader2, Shield, ShieldOff, KeyRound,
@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Pagination from '../Pagination';
+import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 
 interface UserRecord {
   id: number; email: string; name: string; is_active: boolean;
@@ -578,6 +579,31 @@ function ResellerDetailView() {
     setSavingReseller(false);
   };
 
+  /** Optimistic per-field save used by InlineEditField. Updates local
+   *  reseller state immediately, PATCHes the record, and rolls back on
+   *  error by throwing. `localChanges` is the shape applied locally for
+   *  display (e.g. lookup objects with name); `apiChanges` is the body
+   *  sent to the API (often a different shape). */
+  const saveFields = useCallback(async (
+    apiChanges: Record<string, unknown>,
+    localChanges?: Record<string, unknown>,
+  ) => {
+    if (!selectedResellerId) throw new Error('No reseller selected');
+    const previous = reseller;
+    setReseller(prev => prev ? { ...prev, ...(localChanges ?? apiChanges) } : prev);
+    try {
+      const res = await fetch(`/api/resellers/${selectedResellerId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apiChanges),
+      });
+      if (!res.ok) throw new Error('Save failed');
+    } catch (err) {
+      setReseller(previous);
+      throw err;
+    }
+  }, [selectedResellerId, reseller]);
+
   // User actions
   const addUser = async () => {
     if (!addName || !addEmail || !addPassword) return;
@@ -1035,29 +1061,113 @@ function ResellerDetailView() {
             </div>
           </motion.div>
         ) : (
+          <InlineEditFieldProvider>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-            <InfoCard label="Primary Contact" value={[reseller.Reseller_First_Name, reseller.Reseller_Last_Name].filter(Boolean).join(' ') || '\u2014'} icon={<Users size={14} />} />
-            <InfoCard label="Email" value={reseller.Email || '\u2014'} icon={<Mail size={14} />} />
-            <InfoCard label="Region" value={REGION_LABELS[reseller.Region] || reseller.Region || '\u2014'} icon={<Globe size={14} />} />
-            <InfoCard label="Currency" value={reseller.Currency || '\u2014'} icon={<DollarSign size={14} />} />
-            <InfoCard label="Partner Category" value={reseller.Partner_Category || '\u2014'} icon={<Building2 size={14} />} />
-            {distributor ? <InfoCard label="Distributor" value={distributor.name || '\u2014'} icon={<Building2 size={14} />} /> : null}
-            <InfoCard label="Reseller Percentage" value={reseller.Reseller_Sale != null ? `${reseller.Reseller_Sale}%` : '\u2014'} icon={<DollarSign size={14} />} />
-            {reseller.Distributor_Percentage_Rate != null ? <InfoCard label="Distributor Percentage" value={`${reseller.Distributor_Percentage_Rate}%`} icon={<DollarSign size={14} />} /> : null}
-            {reseller.Additional_Tax_Infromation ? <InfoCard label="Tax Information" value={reseller.Additional_Tax_Infromation} icon={<DollarSign size={14} />} /> : null}
-            <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group relative">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1"><Mail size={14} />Customer Communication</div>
-              <p className="text-sm text-text-primary">{reseller.Direct_Customer_Contact ? 'Direct to Customer' : 'Via Reseller'}</p>
-              <div className="absolute left-0 bottom-full mb-1 z-10 bg-csa-dark border border-border rounded-lg px-3 py-2 text-[10px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-lg">
-                Controls if orders and keys are sent directly to the customer or not
-              </div>
+
+            {/* Primary Contact — composite (First+Last). Click opens existing edit form. */}
+            <div
+              onClick={isAdmin ? startEditReseller : undefined}
+              className={`bg-surface border border-border-subtle rounded-xl px-4 py-3 transition-colors ${isAdmin ? 'cursor-pointer hover:border-csa-accent/40' : ''}`}
+            >
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1"><Users size={14} />Primary Contact</div>
+              <p className="text-sm text-text-primary truncate">{[reseller.Reseller_First_Name, reseller.Reseller_Last_Name].filter(Boolean).join(' ') || '\u2014'}</p>
             </div>
+
+            <InlineEditField fieldId="email" label="Email" icon={<Mail size={14} />}
+              value={reseller.Email || ''} type="email" canEdit={isAdmin}
+              onSave={v => saveFields({ Email: v || null })} />
+
+            <InlineEditField fieldId="region" label="Region" icon={<Globe size={14} />}
+              value={reseller.Region || 'AU'}
+              displayValue={REGION_LABELS[reseller.Region] || reseller.Region || '\u2014'}
+              type="select"
+              options={REGIONS.map(([k, v]) => ({ value: k, label: v }))}
+              canEdit={isAdmin}
+              onSave={v => saveFields({ Region: v })} />
+
+            <InlineEditField fieldId="currency" label="Currency" icon={<DollarSign size={14} />}
+              value={reseller.Currency || 'AUD'} type="select"
+              options={CURRENCIES.map(c => ({ value: c, label: c }))}
+              canEdit={isAdmin}
+              onSave={v => saveFields({ Currency: v })} />
+
+            <InlineEditField fieldId="partner_category" label="Partner Category" icon={<Building2 size={14} />}
+              value={reseller.Partner_Category || 'Reseller'} type="select"
+              options={PARTNER_CATEGORIES.map(c => ({ value: c, label: c }))}
+              canEdit={isAdmin}
+              onSave={v => saveFields({ Partner_Category: v })} />
+
+            <InlineEditField fieldId="distributor" label="Distributor" icon={<Building2 size={14} />}
+              value={(reseller.Distributor as { id?: string })?.id || ''}
+              displayValue={distributor?.name || '\u2014'}
+              type="lookup"
+              options={[
+                { value: '', label: '— None —' },
+                ...allResellers.filter(r => r.partner_category?.includes('Distributor')).map(r => ({ value: r.id, label: r.name })),
+              ]}
+              placeholder="Search distributors..."
+              canEdit={isAdmin}
+              onOpenEdit={loadData}
+              onSave={async v => {
+                const found = allResellers.find(r => r.id === v);
+                // API expects {id} (Zoho lookup format); local state needs {id, name} for display
+                await saveFields(
+                  { Distributor: v ? { id: v } : null },
+                  { Distributor: v ? { id: v, name: found?.name || '' } : null },
+                );
+              }} />
+
+            <InlineEditField fieldId="reseller_sale" label="Reseller Percentage" icon={<DollarSign size={14} />}
+              value={reseller.Reseller_Sale != null ? String(reseller.Reseller_Sale) : ''}
+              displayValue={reseller.Reseller_Sale != null ? `${reseller.Reseller_Sale}%` : '\u2014'}
+              type="number" placeholder="e.g. 10" canEdit={isAdmin}
+              onSave={async v => {
+                const n = parseFloat(v);
+                if (isNaN(n)) throw new Error('Invalid number');
+                await saveFields({ Reseller_Sale: n });
+              }} />
+
+            <InlineEditField fieldId="distributor_percentage" label="Distributor Percentage" icon={<DollarSign size={14} />}
+              value={reseller.Distributor_Percentage_Rate != null ? String(reseller.Distributor_Percentage_Rate) : ''}
+              displayValue={reseller.Distributor_Percentage_Rate != null ? `${reseller.Distributor_Percentage_Rate}%` : '\u2014'}
+              type="number" placeholder="e.g. 5" canEdit={isAdmin}
+              onSave={async v => {
+                const n = parseFloat(v);
+                if (isNaN(n)) throw new Error('Invalid number');
+                await saveFields({ Distributor_Percentage_Rate: n });
+              }} />
+
+            <InlineEditField fieldId="tax_info" label="Tax Information" icon={<DollarSign size={14} />}
+              value={reseller.Additional_Tax_Infromation || ''} type="text"
+              placeholder="Tax ID or registration number" canEdit={isAdmin}
+              onSave={v => saveFields({ Additional_Tax_Infromation: v || null })} />
+
+            <InlineEditField fieldId="customer_comm" label="Customer Communication" icon={<Mail size={14} />}
+              value={reseller.Direct_Customer_Contact ? 'true' : 'false'}
+              displayValue={reseller.Direct_Customer_Contact ? 'Direct to Customer' : 'Via Reseller'}
+              type="select"
+              options={[
+                { value: 'true', label: 'Direct to Customer' },
+                { value: 'false', label: 'Via Reseller' },
+              ]}
+              canEdit={isAdmin}
+              onSave={v => saveFields({ Direct_Customer_Contact: v === 'true' })} />
+
+            {/* Address — composite. Click opens existing edit form. */}
             {reseller.Street_Address || reseller.City ? (
-              <InfoCard label="Address" value={[reseller.Street_Address, reseller.City, reseller.State, reseller.Post_Code, reseller.Country].filter(Boolean).join(', ')} icon={<Globe size={14} />} />
+              <div
+                onClick={isAdmin ? startEditReseller : undefined}
+                className={`bg-surface border border-border-subtle rounded-xl px-4 py-3 transition-colors ${isAdmin ? 'cursor-pointer hover:border-csa-accent/40' : ''}`}
+              >
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1"><Globe size={14} />Address</div>
+                <p className="text-sm text-text-primary truncate">{[reseller.Street_Address, reseller.City, reseller.State, reseller.Post_Code, reseller.Country].filter(Boolean).join(', ')}</p>
+              </div>
             ) : null}
+
             {reseller.Owner ? <InfoCard label="CSA Account Manager" value={reseller.Owner?.name || '\u2014'} icon={<Users size={14} />} /> : null}
             <InfoCard label="Portal Users" value={String(users.length)} icon={<Users size={14} />} />
           </motion.div>
+          </InlineEditFieldProvider>
         )}
 
         {/* Users Section */}

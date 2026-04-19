@@ -11,11 +11,12 @@
  *   - InvoiceSendTo:       Reseller vs Customer toggle
  *   - InvoiceCoupon:       Coupon code entry and validation
  *
- * The small InfoCard, EditDateCard, and TotalRow helpers remain here
- * since they're lightweight and only used in this component.
+ * The small InfoCard and TotalRow helpers remain here since they're
+ * lightweight and only used in this component. Editable fields use the
+ * shared InlineEditField component.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Building2,
@@ -35,8 +36,7 @@ import InvoiceSendTo from '../invoice/InvoiceSendTo';
 import InvoiceCoupon from '../invoice/InvoiceCoupon';
 import InvoicePayment from '../invoice/InvoicePayment';
 import OrderActions from '../invoice/OrderActions';
-
-const CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'INR', 'NZD'];
+import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 
 export default function InvoiceDetailView() {
   const { user, selectedInvoiceId, invoiceReturnView, setCurrentView, setSelectedAccountId } = useAppStore();
@@ -44,12 +44,10 @@ export default function InvoiceDetailView() {
   const [lineItems, setLineItems] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Edit mode
+  // Edit mode — only line items are edited via this mode now. Dates and
+  // currency use the inline-edit fields and save independently.
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [editInvoiceDate, setEditInvoiceDate] = useState('');
-  const [editDueDate, setEditDueDate] = useState('');
-  const [editCurrency, setEditCurrency] = useState('');
   const [editLineItems, setEditLineItems] = useState<Record<string, unknown>[]>([]);
   const [skuBuilderIndex, setSkuBuilderIndex] = useState<number | null>(null);
   const [updatingDirectPurchase, setUpdatingDirectPurchase] = useState(false);
@@ -149,9 +147,6 @@ export default function InvoiceDetailView() {
 
   const enterEditMode = () => {
     if (!invoice) return;
-    setEditInvoiceDate(invoice.Invoice_Date as string || '');
-    setEditDueDate(invoice.Due_Date as string || '');
-    setEditCurrency(invoice.Currency as string || 'AUD');
     setEditLineItems(lineItems.map(li => ({
       ...li,
       _originalPrice: li.List_Price, // Track original price for Contract_Term_Years logic
@@ -170,9 +165,6 @@ export default function InvoiceDetailView() {
 
     try {
       const body: Record<string, unknown> = {};
-      if (editInvoiceDate !== (invoice?.Invoice_Date as string || '')) body.Invoice_Date = editInvoiceDate;
-      if (editDueDate !== (invoice?.Due_Date as string || '')) body.Due_Date = editDueDate;
-      if (editCurrency !== (invoice?.Currency as string || '')) body.Currency = editCurrency;
 
       // Build line items for Zoho — only send fields Zoho accepts
       const updatedItems = editLineItems.map(li => {
@@ -234,6 +226,26 @@ export default function InvoiceDetailView() {
     } catch { /* handled by UI */ }
     setSaving(false);
   };
+
+  /** Optimistic per-field save used by InlineEditField. Updates local
+   *  invoice state immediately, PATCHes the record, and rolls back on error
+   *  by throwing — InlineEditField then triggers its red flash + revert. */
+  const saveFields = useCallback(async (changes: Record<string, unknown>) => {
+    if (!selectedInvoiceId) throw new Error('No invoice selected');
+    const previous = invoice;
+    setInvoice(prev => prev ? { ...prev, ...changes } : prev);
+    try {
+      const res = await fetch(`/api/invoices/${selectedInvoiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changes),
+      });
+      if (!res.ok) throw new Error('Save failed');
+    } catch (err) {
+      setInvoice(previous);
+      throw err;
+    }
+  }, [selectedInvoiceId, invoice]);
 
   // -------------------------------------------------------------------
   // Line item handlers
@@ -537,7 +549,7 @@ export default function InvoiceDetailView() {
   const reseller = invoice.Reseller as { name?: string; id?: string } | null;
   const owner = invoice.Owner as { name?: string } | null;
   const status = invoice.Status as string;
-  const activeCurrency = editing ? editCurrency : (invoice.Currency as string || 'AUD');
+  const activeCurrency = (invoice.Currency as string) || 'AUD';
   const symbol = getCurrencySymbol(activeCurrency);
   const resellerRegion = (invoice.Reseller_Region as string) || 'AU';
 
@@ -571,6 +583,7 @@ export default function InvoiceDetailView() {
         />
 
         {/* Invoice Info Cards */}
+        <InlineEditFieldProvider>
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           {account?.id ? (
             <button
@@ -589,42 +602,45 @@ export default function InvoiceDetailView() {
           <InfoCard label="Contact" value={contact?.name || '\u2014'} icon={<User size={14} />} />
           <InfoCard label="Reseller" value={reseller?.name || '\u2014'} icon={<Globe size={14} />} />
 
-          {editing ? (
-            <EditDateCard label="Invoice Date" value={editInvoiceDate} onChange={setEditInvoiceDate} icon={<Calendar size={14} />} />
-          ) : (
-            <InfoCard label="Invoice Date" value={formatDate(invoice.Invoice_Date)} icon={<Calendar size={14} />} />
-          )}
+          <InlineEditField
+            fieldId="invoice_date"
+            label="Order Date"
+            icon={<Calendar size={14} />}
+            value={(invoice.Invoice_Date as string)?.slice(0, 10) || ''}
+            displayValue={formatDate(invoice.Invoice_Date)}
+            type="date"
+            canEdit={!!canEdit && !editing}
+            onSave={v => saveFields({ Invoice_Date: v || null })}
+          />
 
-          {editing ? (
-            <EditDateCard label="Due Date" value={editDueDate} onChange={setEditDueDate} icon={<Calendar size={14} />} />
-          ) : (
-            <InfoCard label="Due Date" value={formatDate(invoice.Due_Date)} icon={<Calendar size={14} />} />
-          )}
+          <InlineEditField
+            fieldId="due_date"
+            label="Due Date"
+            icon={<Calendar size={14} />}
+            value={(invoice.Due_Date as string)?.slice(0, 10) || ''}
+            displayValue={formatDate(invoice.Due_Date)}
+            type="date"
+            canEdit={!!canEdit && !editing}
+            onSave={v => saveFields({ Due_Date: v || null })}
+          />
 
-          {/* Currency — editable */}
-          {editing ? (
-            <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-csa-accent uppercase tracking-wider mb-1">
-                <DollarSign size={14} />
-                Currency
-              </div>
-              <select
-                value={editCurrency}
-                onChange={(e) => setEditCurrency(e.target.value)}
-                className="bg-transparent border-none text-sm text-text-primary outline-none w-full cursor-pointer"
-              >
-                {CURRENCIES.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+          {/* Currency is sourced from the Reseller record and is not directly
+              editable here — render as a read-only card with a hover tooltip. */}
+          <div
+            className="bg-surface border border-border-subtle rounded-xl px-4 py-3"
+            title="Currency is set from the Reseller and cannot be edited here"
+          >
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+              <DollarSign size={14} />
+              Currency
             </div>
-          ) : (
-            <InfoCard label="Currency" value={activeCurrency} icon={<DollarSign size={14} />} />
-          )}
+            <p className="text-sm text-text-primary truncate">{activeCurrency}</p>
+          </div>
 
           {owner ? <InfoCard label="Owner" value={owner.name || '\u2014'} icon={<User size={14} />} /> : null}
           {invoice.Billing_Country ? <InfoCard label="Billing Country" value={invoice.Billing_Country as string} icon={<MapPin size={14} />} /> : null}
         </motion.div>
+        </InlineEditFieldProvider>
 
         {/* Purchase Order */}
         <InvoicePurchaseOrder
@@ -658,6 +674,16 @@ export default function InvoiceDetailView() {
         />
 
         {/* Line Items table */}
+        {canEdit && !editing && (
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={enterEditMode}
+              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-lg hover:bg-csa-accent/20 transition-colors cursor-pointer"
+            >
+              Edit Line Items
+            </button>
+          </div>
+        )}
         <InvoiceLineItems
           displayLineItems={displayLineItems}
           editing={editing}
@@ -771,24 +797,6 @@ function InfoCard({ label, value, icon }: { label: string; value: string; icon: 
         {label}
       </div>
       <p className="text-sm text-text-primary truncate">{value || '\u2014'}</p>
-    </div>
-  );
-}
-
-/** Editable date card for Invoice Date / Due Date in edit mode. */
-function EditDateCard({ label, value, onChange, icon }: { label: string; value: string; onChange: (v: string) => void; icon: React.ReactNode }) {
-  return (
-    <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3">
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-csa-accent uppercase tracking-wider mb-1">
-        {icon}
-        {label}
-      </div>
-      <input
-        type="date"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="bg-transparent border-none text-sm text-text-primary outline-none w-full"
-      />
     </div>
   );
 }

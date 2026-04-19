@@ -18,9 +18,9 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Pencil, Save, Download, Beaker, Send } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Save, Download, Beaker, Send } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { exportFullAccount, exportContacts, exportInvoices, exportAssets } from '@/lib/export-account';
 import { useAppStore } from '@/lib/store';
@@ -28,6 +28,7 @@ import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
 import CreateEvaluationModal from '../CreateEvaluationModal';
 import EmailHistory from '../EmailHistory';
+import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 
 interface ResellerOption {
   id: string;
@@ -74,15 +75,37 @@ export default function AccountDetailView() {
   const [editAddress, setEditAddress] = useState({ street: '', city: '', state: '', code: '', country: '' });
   const [savingAddress, setSavingAddress] = useState(false);
 
-  // Reseller editing
-  const [editingReseller, setEditingReseller] = useState(false);
+  // Reseller options for inline lookup field — loaded eagerly so the field
+  // is responsive on first click.
   const [resellerOptions, setResellerOptions] = useState<ResellerOption[]>([]);
-  const [resellerSearch, setResellerSearch] = useState('');
-  const [savingReseller, setSavingReseller] = useState(false);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
-  const hasChildResellers = user?.permissions?.canViewChildRecords;
+  const hasChildResellers = !!user?.permissions?.canViewChildRecords;
   const canEditReseller = isAdmin || hasChildResellers;
+
+  /** Optimistic per-field save: update local state immediately, PATCH the
+   *  record, and roll back by throwing on error. `localChanges` is the shape
+   *  applied to local state for display (e.g. lookup objects with name);
+   *  `apiChanges` is the body sent to the API (often just a string id). */
+  const saveFields = useCallback(async (
+    apiChanges: Record<string, unknown>,
+    localChanges?: Record<string, unknown>,
+  ) => {
+    if (!selectedAccountId) throw new Error('No account selected');
+    const previous = account;
+    setAccount(prev => prev ? { ...prev, ...(localChanges ?? apiChanges) } : prev);
+    try {
+      const res = await fetch(`/api/accounts/${selectedAccountId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apiChanges),
+      });
+      if (!res.ok) throw new Error('Save failed');
+    } catch (err) {
+      setAccount(previous);
+      throw err;
+    }
+  }, [selectedAccountId, account]);
 
   useEffect(() => {
     if (!selectedAccountId) return;
@@ -256,9 +279,11 @@ export default function AccountDetailView() {
     setUpdatingRole(null);
   };
 
-  // Load resellers for dropdown when editing starts
-  useEffect(() => {
-    if (!editingReseller || resellerOptions.length > 0) return;
+  /** Fetch the reseller list. Called eagerly on mount and again when the
+   *  reseller lookup field is opened, so a freshly-created reseller appears
+   *  immediately. */
+  const fetchResellerOptions = useCallback(() => {
+    if (!canEditReseller) return;
     let url = '/api/resellers';
     if (!isAdmin && user?.resellerId) {
       url = `/api/resellers?resellerId=${user.resellerId}&includeChildren=true`;
@@ -267,26 +292,12 @@ export default function AccountDetailView() {
       .then(res => res.json())
       .then(data => setResellerOptions(data.resellers || []))
       .catch(() => {});
-  }, [editingReseller, isAdmin, user?.resellerId, resellerOptions.length]);
+  }, [canEditReseller, isAdmin, user?.resellerId]);
 
-  const saveReseller = async (resellerId: string) => {
-    setSavingReseller(true);
-    try {
-      const res = await fetch(`/api/accounts/${selectedAccountId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ Reseller: resellerId }),
-      });
-      if (res.ok) {
-        const reload = await fetch(`/api/accounts/${selectedAccountId}`);
-        const data = await reload.json();
-        setAccount(data.account);
-        setEditingReseller(false);
-        setResellerSearch('');
-      }
-    } catch { /* handled */ }
-    setSavingReseller(false);
-  };
+  // Eagerly load on mount so the field shows the cached list immediately.
+  useEffect(() => {
+    if (resellerOptions.length === 0) fetchResellerOptions();
+  }, [fetchResellerOptions, resellerOptions.length]);
 
   const startEditAddress = () => {
     if (!account) return;
@@ -343,7 +354,7 @@ export default function AccountDetailView() {
     );
   }
 
-  const reseller = account.Reseller as { name?: string } | null;
+  const reseller = account.Reseller as { id?: string; name?: string } | null;
   const owner = account.Owner as { name?: string } | null;
   const primaryContact = account.Primary_Contact as { name?: string; id?: string } | null;
   const secondaryContact = account.Secondary_Contact as { name?: string; id?: string } | null;
@@ -402,71 +413,41 @@ export default function AccountDetailView() {
         </div>
 
         {/* Account Info */}
+        <InlineEditFieldProvider>
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           <InfoCard label="Country" value={account.Billing_Country as string} icon={<MapPin size={14} />} />
-          {editingReseller ? (
-            <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3 relative">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-csa-accent uppercase tracking-wider">
-                  <Building2 size={14} />
-                  Reseller
-                </div>
-                <button onClick={() => { setEditingReseller(false); setResellerSearch(''); }} className="p-0.5 text-text-muted hover:text-text-primary transition-colors cursor-pointer"><X size={14} /></button>
-              </div>
-              <input
-                type="text"
-                value={resellerSearch}
-                onChange={e => setResellerSearch(e.target.value)}
-                placeholder="Search resellers..."
-                autoFocus
-                className="w-full bg-csa-dark border border-border-subtle px-3 py-1.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg mb-1"
-              />
-              {savingReseller ? (
-                <div className="flex items-center justify-center py-3">
-                  <Loader2 size={16} className="text-csa-accent animate-spin" />
-                </div>
-              ) : (
-                <div className="max-h-[160px] overflow-y-auto space-y-0.5">
-                  {resellerOptions
-                    .filter(r => !resellerSearch || r.name.toLowerCase().includes(resellerSearch.toLowerCase()))
-                    .map(r => (
-                      <button
-                        key={r.id}
-                        onClick={() => saveReseller(r.id)}
-                        className={`w-full text-left px-2 py-1.5 text-xs rounded-lg transition-colors cursor-pointer ${
-                          (account.Reseller as { id?: string })?.id === r.id
-                            ? 'text-csa-accent bg-csa-accent/10'
-                            : 'text-text-secondary hover:text-text-primary hover:bg-surface-raised'
-                        }`}
-                      >
-                        {r.name}
-                      </button>
-                    ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
-                <Building2 size={14} />
-                Reseller
-                {canEditReseller ? (
-                  <button onClick={() => setEditingReseller(true)} className="ml-1 text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer opacity-0 group-hover:opacity-100">
-                    <Pencil size={10} />
-                  </button>
-                ) : null}
-              </div>
-              <p className="text-sm text-text-primary truncate">{reseller?.name || '\u2014'}</p>
-            </div>
-          )}
+
+          <InlineEditField
+            fieldId="reseller"
+            label="Reseller"
+            icon={<Building2 size={14} />}
+            value={reseller?.id || ''}
+            displayValue={reseller?.name || '\u2014'}
+            type="lookup"
+            options={[{ value: '', label: '— None —' }, ...resellerOptions.map(r => ({ value: r.id, label: r.name }))]}
+            placeholder="Search resellers..."
+            canEdit={canEditReseller}
+            onOpenEdit={fetchResellerOptions}
+            onSave={async v => {
+              const found = resellerOptions.find(r => r.id === v);
+              // API expects string id; local state needs {id, name} for display
+              await saveFields(
+                { Reseller: v || null },
+                { Reseller: v ? { id: v, name: found?.name || '' } : null },
+              );
+            }}
+          />
+
           <InfoCard label="CSA Sales Rep" value={owner?.name || '—'} icon={<User size={14} />} />
           <InfoCard label="Primary Contact" value={primaryContact?.name || '—'} icon={<User size={14} />} />
           <InfoCard label="Secondary Contact" value={secondaryContact?.name || '—'} icon={<User size={14} />} />
           <InfoCard label="Email Domain" value={account.Email_Domain as string || '—'} icon={<Mail size={14} />} />
+
+          {/* Address — composite field, opens existing inline form on click */}
           {editingAddress ? (
-            <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3 col-span-1 md:col-span-2 lg:col-span-3">
+            <div className="bg-success/10 border border-success/40 rounded-xl px-4 py-3 col-span-1 md:col-span-2 lg:col-span-3">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-csa-accent uppercase tracking-wider">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-success uppercase tracking-wider">
                   <MapPin size={14} />
                   Edit Address
                 </div>
@@ -489,13 +470,13 @@ export default function AccountDetailView() {
               </div>
             </div>
           ) : (
-            <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3 group relative">
+            <div
+              onClick={isAdmin ? startEditAddress : undefined}
+              className={`bg-surface border border-border-subtle rounded-xl px-4 py-3 group relative transition-colors ${isAdmin ? 'cursor-pointer hover:border-csa-accent/40' : ''}`}
+            >
               <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                 <MapPin size={14} />
                 Address
-                <button onClick={startEditAddress} className="ml-1 text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer opacity-0 group-hover:opacity-100">
-                  <Pencil size={10} />
-                </button>
               </div>
               <p className="text-sm text-text-primary truncate">
                 {[account.Billing_Street, account.Billing_City, account.Billing_State, account.Billing_Code].filter(Boolean).join(', ') || '\u2014'}
@@ -511,6 +492,7 @@ export default function AccountDetailView() {
             </div>
           )}
         </motion.div>
+        </InlineEditFieldProvider>
 
         {/* Contacts */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
