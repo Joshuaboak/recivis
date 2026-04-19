@@ -10,7 +10,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Calendar, Hash, Beaker } from 'lucide-react';
 
@@ -66,12 +66,11 @@ export default function CreateEvaluationModal({
   const endDateObj = new Date(endDate);
   const daysDiff = Math.ceil((endDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-  const stableClose = useCallback(onClose, [onClose]);
   useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') stableClose(); };
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [stableClose]);
+  }, [onClose]);
 
   // Resolve SKU to Zoho product when product code changes
   useEffect(() => {
