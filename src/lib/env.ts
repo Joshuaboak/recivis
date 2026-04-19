@@ -13,6 +13,15 @@ export function getZohoTokenUrl(): string {
   return `https://www.zohoapis.com.au/crm/v7/functions/getresellerzohotoken/actions/execute?auth_type=apikey&zapikey=${key}&arguments=%7B%22resellerName%22%3A%22Civil%20Survey%20Applications%22%7D`;
 }
 
+const DEV_JWT_SECRET_FALLBACK = 'recivis-dev-secret-change-in-production';
+
 export function getJwtSecret(): string {
-  return process.env.JWT_SECRET || 'recivis-dev-secret-change-in-production';
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET environment variable is not set — refusing to start in production with the dev fallback key');
+    }
+    return DEV_JWT_SECRET_FALLBACK;
+  }
+  return secret;
 }
