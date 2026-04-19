@@ -103,7 +103,7 @@ export async function PATCH(
     // Only allow specific fields
     if (body.Invoice_Date) updateData.Invoice_Date = body.Invoice_Date;
     if (body.Due_Date) updateData.Due_Date = body.Due_Date;
-    if (body.Currency) updateData.Currency = body.Currency;
+    // Currency is sourced from the Reseller record — not user-editable here.
     if (body.Invoiced_Items) updateData.Invoiced_Items = body.Invoiced_Items;
     if (body.Reseller_Direct_Purchase !== undefined) updateData.Reseller_Direct_Purchase = body.Reseller_Direct_Purchase;
     if (body.Purchase_Order !== undefined) updateData.Purchase_Order = body.Purchase_Order;

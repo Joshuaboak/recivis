@@ -145,7 +145,7 @@ function getPromptButtons(type: PromptType): { primary: { label: string; message
   switch (type) {
     case 'confirm_create':
       return {
-        primary: { label: 'Create Invoice', message: 'Yes, create the invoice', icon: 'check' },
+        primary: { label: 'Create Order', message: 'Yes, create the invoice', icon: 'check' },
         secondary: { label: 'Add Line Item', message: 'Add another line item', icon: 'plus' },
       };
     case 'yes_no_proceed':

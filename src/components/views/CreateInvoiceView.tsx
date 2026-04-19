@@ -266,7 +266,7 @@ export default function CreateInvoiceView() {
           <InfoCard label="Contact" value={contact?.name || '\u2014'} icon={<User size={14} />} />
           <InfoCard label="Reseller" value={resellerData?.name || '\u2014'} icon={<Globe size={14} />} />
 
-          <EditDateCard label="Invoice Date" value={invoiceDate} onChange={setInvoiceDate} icon={<Calendar size={14} />} />
+          <EditDateCard label="Order Date" value={invoiceDate} onChange={setInvoiceDate} icon={<Calendar size={14} />} />
           <EditDateCard label="Due Date" value={dueDate} onChange={setDueDate} icon={<Calendar size={14} />} />
 
           <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3">

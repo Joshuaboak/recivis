@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Partner Portal — Civil Survey Applications",
-  description: "Partner portal for Civil Survey Applications — invoices, licences, and account management",
+  description: "Partner portal for Civil Survey Applications — orders, licences, and account management",
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },

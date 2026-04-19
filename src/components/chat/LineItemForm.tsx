@@ -48,7 +48,7 @@ export default function LineItemForm({ defaults, onSubmit, disabled }: LineItemF
           className="flex items-center gap-2 px-5 py-2.5 bg-success/15 border-2 border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/25 hover:border-success/50 transition-all cursor-pointer"
         >
           <FileCheck size={16} />
-          Create Invoice
+          Create Order
         </button>
         <button
           onClick={() => onSubmit('Add another line item')}

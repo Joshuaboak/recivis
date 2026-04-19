@@ -374,7 +374,7 @@ export default function DraftInvoicesView() {
                   <SortHeader label="Order #" field="Reference_Number" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <th>Account</th>
                   <th>Reseller</th>
-                  <SortHeader label="Invoice Date" field="Invoice_Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Order Date" field="Invoice_Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortHeader label="Due Date" field="Due_Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortHeader label="Total" field="Grand_Total" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <th className="w-10"></th>
