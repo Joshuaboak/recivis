@@ -119,42 +119,49 @@ export default function AccountsView() {
     [resellers, user?.resellerId]
   );
 
-  // Fetch accounts
-  const fetchAccounts = useCallback(async () => {
+  // Fetch accounts — aborts any in-flight request when deps change so
+  // stale responses can't clobber fresher ones (paste / fast typing race).
+  const fetchAccounts = useCallback((signal: AbortSignal) => {
     setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (searchDebounced) params.set('search', searchDebounced);
+    const params = new URLSearchParams();
+    if (searchDebounced) params.set('search', searchDebounced);
 
-      if (selectedReseller) {
-        params.set('resellerId', selectedReseller);
-      } else if (isAdmin && selectedRegion) {
-        // Region selected — get all reseller IDs in that region
-        const regionResellerIds = resellers
-          .filter(r => r.region === selectedRegion)
-          .map(r => r.id);
-        if (regionResellerIds.length > 0) {
-          params.set('resellerIds', regionResellerIds.join(','));
-        }
-      } else if (!isAdmin && user?.resellerId) {
-        if (hasChildResellers && resellers.length > 1) {
-          params.set('resellerIds', resellers.map(r => r.id).join(','));
-        } else {
-          params.set('resellerId', user.resellerId);
-        }
+    if (selectedReseller) {
+      params.set('resellerId', selectedReseller);
+    } else if (isAdmin && selectedRegion) {
+      // Region selected — get all reseller IDs in that region
+      const regionResellerIds = resellers
+        .filter(r => r.region === selectedRegion)
+        .map(r => r.id);
+      if (regionResellerIds.length > 0) {
+        params.set('resellerIds', regionResellerIds.join(','));
       }
-
-      const res = await fetch(`/api/accounts?${params}`);
-      const data = await res.json();
-      setAccounts(data.accounts || []);
-    } catch {
-      setAccounts([]);
+    } else if (!isAdmin && user?.resellerId) {
+      if (hasChildResellers && resellers.length > 1) {
+        params.set('resellerIds', resellers.map(r => r.id).join(','));
+      } else {
+        params.set('resellerId', user.resellerId);
+      }
     }
-    setLoading(false);
+
+    fetch(`/api/accounts?${params}`, { signal })
+      .then(res => res.json())
+      .then(data => {
+        if (signal.aborted) return;
+        setAccounts(data.accounts || []);
+        setLoading(false);
+      })
+      .catch(err => {
+        if (err.name === 'AbortError') return;
+        setAccounts([]);
+        setLoading(false);
+      });
   }, [searchDebounced, selectedReseller, selectedRegion, isAdmin, hasChildResellers, user?.resellerId, resellers]);
 
   useEffect(() => {
-    fetchAccounts();
+    const controller = new AbortController();
+    fetchAccounts(controller.signal);
+    return () => controller.abort();
   }, [fetchAccounts]);
 
   // Sort by created date

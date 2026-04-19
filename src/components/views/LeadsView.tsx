@@ -128,43 +128,50 @@ export default function LeadsView() {
     [resellers, user?.resellerId]
   );
 
-  // Fetch leads
-  const fetchLeads = useCallback(async () => {
+  // Fetch leads — aborts any in-flight request when deps change so
+  // stale responses can't clobber fresher ones (paste / fast typing race).
+  const fetchLeads = useCallback((signal: AbortSignal) => {
     setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (searchDebounced) params.set('search', searchDebounced);
-      if (selectedStatus) params.set('status', selectedStatus);
-      if (selectedEval) params.set('evaluation', selectedEval);
+    const params = new URLSearchParams();
+    if (searchDebounced) params.set('search', searchDebounced);
+    if (selectedStatus) params.set('status', selectedStatus);
+    if (selectedEval) params.set('evaluation', selectedEval);
 
-      if (selectedReseller) {
-        params.set('resellerId', selectedReseller);
-      } else if (isAdmin && selectedRegion) {
-        const regionResellerIds = resellers
-          .filter(r => r.region === selectedRegion)
-          .map(r => r.id);
-        if (regionResellerIds.length > 0) {
-          params.set('resellerIds', regionResellerIds.join(','));
-        }
-      } else if (!isAdmin && user?.resellerId) {
-        if (hasChildResellers && resellers.length > 1) {
-          params.set('resellerIds', resellers.map(r => r.id).join(','));
-        } else {
-          params.set('resellerId', user.resellerId);
-        }
+    if (selectedReseller) {
+      params.set('resellerId', selectedReseller);
+    } else if (isAdmin && selectedRegion) {
+      const regionResellerIds = resellers
+        .filter(r => r.region === selectedRegion)
+        .map(r => r.id);
+      if (regionResellerIds.length > 0) {
+        params.set('resellerIds', regionResellerIds.join(','));
       }
-
-      const res = await fetch(`/api/leads?${params}`);
-      const data = await res.json();
-      setLeads(data.leads || []);
-    } catch {
-      setLeads([]);
+    } else if (!isAdmin && user?.resellerId) {
+      if (hasChildResellers && resellers.length > 1) {
+        params.set('resellerIds', resellers.map(r => r.id).join(','));
+      } else {
+        params.set('resellerId', user.resellerId);
+      }
     }
-    setLoading(false);
+
+    fetch(`/api/leads?${params}`, { signal })
+      .then(res => res.json())
+      .then(data => {
+        if (signal.aborted) return;
+        setLeads(data.leads || []);
+        setLoading(false);
+      })
+      .catch(err => {
+        if (err.name === 'AbortError') return;
+        setLeads([]);
+        setLoading(false);
+      });
   }, [searchDebounced, selectedReseller, selectedRegion, selectedStatus, selectedEval, isAdmin, hasChildResellers, user?.resellerId, resellers]);
 
   useEffect(() => {
-    fetchLeads();
+    const controller = new AbortController();
+    fetchLeads(controller.signal);
+    return () => controller.abort();
   }, [fetchLeads]);
 
   // Sort by created date

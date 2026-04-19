@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Search, X, Loader2, Building2, UserSearch, User, FileText, ExternalLink, Users } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
@@ -51,29 +51,47 @@ export default function SearchModal({ onClose }: SearchModalProps) {
     return () => document.removeEventListener('keydown', handleEsc);
   }, [onClose]);
 
-  const handleSearch = async () => {
+  // Track the current in-flight request so a stale one can't clobber a fresh one.
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleSearch = useCallback(() => {
     const q = query.trim();
     if (q.length < 2) return;
+
+    // Abort any previous in-flight search
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setSearched(true);
 
-    try {
-      const params = new URLSearchParams({ q });
-      if (selectedModule) params.set('modules', selectedModule);
-      const res = await fetch(`/api/search?${params}`);
-      const data = await res.json();
-      setResults(data.results || []);
-    } catch {
-      setResults([]);
-    }
-    setLoading(false);
-  };
+    const params = new URLSearchParams({ q });
+    if (selectedModule) params.set('modules', selectedModule);
+
+    fetch(`/api/search?${params}`, { signal: controller.signal })
+      .then(res => res.json())
+      .then(data => {
+        if (controller.signal.aborted) return;
+        setResults(data.results || []);
+        setLoading(false);
+      })
+      .catch(err => {
+        if (err.name === 'AbortError') return;
+        setResults([]);
+        setLoading(false);
+      });
+  }, [query, selectedModule]);
+
+  // Cancel any in-flight request on unmount
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   // Re-search when module filter changes (if already searched)
   useEffect(() => {
     if (searched && query.trim().length >= 2) {
       handleSearch();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModule]);
 
   const handleNavigate = (result: SearchResult) => {
