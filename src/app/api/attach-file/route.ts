@@ -54,10 +54,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing recordID, fileName, or base64' }, { status: 400 });
     }
 
-    const module = moduleName || 'Invoices';
+    const moduleApi = moduleName || 'Invoices';
     const sizeKB = Math.round(base64.length / 1024);
 
-    log('info', 'file', `Attaching ${fileName} to ${module}/${recordID} (${sizeKB}KB base64)`);
+    log('info', 'file', `Attaching ${fileName} to ${moduleApi}/${recordID} (${sizeKB}KB base64)`);
 
     // Step 1: Get access token
     const accessToken = await getAccessToken();
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     const formData = new FormData();
     formData.append('file', blob, fileName);
 
-    const apiUrl = `https://www.zohoapis.com.au/crm/v7/${module}/${recordID}/Attachments`;
+    const apiUrl = `https://www.zohoapis.com.au/crm/v7/${moduleApi}/${recordID}/Attachments`;
     const res = await fetch(apiUrl, {
       method: 'POST',
       headers: {
