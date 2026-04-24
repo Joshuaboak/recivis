@@ -51,3 +51,22 @@ next-env.d.ts
 .claude/settings.local.json
 .claude/*.local.json
 .claude/scheduled_tasks.lock
+
+# --- Agent scratch markers (Phase 2 sweep 2026-04-25) ---
+# Transient files agents drop during long-running work -- phase-ready markers,
+# propose/implementation/review sentinels, runtime-launch helpers. Not part of
+# any build, test, or release artefact; safe to ignore at repo level.
+.PHASE-*
+.PROPOSAL-*
+.IMPLEMENTATION-*
+.DESIGN-*
+.REVIEW-*
+.RUNTIME-*
+.SESSION-*
+.SCOPE-*
+.ALL-*
+.REVISED
+.ZITADEL-*
+.tmp-*.ps1
+.tmp-*.txt
+# --- end agent scratch markers ---
