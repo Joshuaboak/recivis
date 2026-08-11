@@ -41,6 +41,7 @@ export const ROUTES = [
   { path: '/coupons', legacyViewId: 'coupons', title: 'Coupons', needsId: false },
   { path: '/coupons/new', legacyViewId: 'create-coupon', title: 'Create Coupon', needsId: false },
   { path: '/coupons/[id]', legacyViewId: 'coupon-detail', title: 'Coupon', needsId: true },
+  { path: '/coupons/[id]/edit', legacyViewId: 'coupon-edit', title: 'Edit Coupon', needsId: true },
   { path: '/reports', legacyViewId: 'reports', title: 'AI Reports', needsId: false },
   { path: '/reports/dashboard', legacyViewId: 'reports-dashboard', title: 'Reports Dashboard', needsId: false },
   { path: '/partners', legacyViewId: 'resellers', title: 'Partners', needsId: false },

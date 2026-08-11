@@ -17,7 +17,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Ticket, Loader2, ExternalLink, Percent, DollarSign, Calendar, Hash, Globe, Package, ShoppingCart, Pencil, Save, X, Search, ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
@@ -41,7 +41,15 @@ function toArray(v: unknown): string[] {
 /** Scope id for the full-page edit form registered with the dirty registry. */
 const SCOPE_EDIT = 'coupon-detail:edit';
 
-export default function CouponDetailView({ couponId }: { couponId: string }) {
+export default function CouponDetailView({
+  couponId,
+  mode = 'view',
+}: {
+  couponId: string;
+  /** `edit` renders the full form. Driven by the route, not local state, so the
+   *  form is linkable, survives a refresh, and is exited with the Back button. */
+  mode?: 'view' | 'edit';
+}) {
   const { user } = useAppStore();
   const router = useGuardedRouter();
   const { registerDirty } = useUnsavedChanges();
@@ -50,7 +58,10 @@ export default function CouponDetailView({ couponId }: { couponId: string }) {
   const [loading, setLoading] = useState(true);
 
   // Edit mode state
-  const [editing, setEditing] = useState(false);
+  const editing = mode === 'edit';
+  /** Serialised form state as it was when the record finished loading, so "dirty"
+   *  means the user changed something rather than merely opening the edit URL. */
+  const pristine = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [attempted, setAttempted] = useState(false);
 
@@ -99,13 +110,28 @@ export default function CouponDetailView({ couponId }: { couponId: string }) {
       .catch(() => {});
   }, [partnerRestrictions, allResellers.length]);
 
-  // The full-page edit form mirrors ~20 coupon fields into local state with no
-  // persistence, so the whole mode counts as unsaved work while it is open.
-  // The inline-edit fields in view mode register themselves.
+  /** Every form field, in a stable order, for the pristine comparison. */
+  const formState = useMemo(() => JSON.stringify([
+    couponCode, couponName, description, discountType, discountPercentage,
+    discountAmount, currency, status, startDate, endDate, totalUses,
+    regionRestrictions, selectedRegions, productRestrictions, selectedProducts,
+    partnerRestrictions, selectedPartners.map(p => p.id), orderTypeRestrictions,
+    selectedOrderTypes, usageRestrictions, minOrder, maxOrder,
+  ]), [
+    couponCode, couponName, description, discountType, discountPercentage,
+    discountAmount, currency, status, startDate, endDate, totalUses,
+    regionRestrictions, selectedRegions, productRestrictions, selectedProducts,
+    partnerRestrictions, selectedPartners, orderTypeRestrictions,
+    selectedOrderTypes, usageRestrictions, minOrder, maxOrder,
+  ]);
+
+  // Only a changed form counts as unsaved work. Opening /edit and pressing Cancel
+  // must not prompt. The inline-edit fields in view mode register themselves.
   useEffect(() => {
-    registerDirty(SCOPE_EDIT, editing, 'this coupon');
+    const dirty = editing && pristine.current !== null && formState !== pristine.current;
+    registerDirty(SCOPE_EDIT, dirty, 'this coupon');
     return () => registerDirty(SCOPE_EDIT, false);
-  }, [registerDirty, editing]);
+  }, [registerDirty, editing, formState]);
 
   const filteredPartners = useMemo(() => {
     if (!partnerSearch) return allResellers;
@@ -154,16 +180,36 @@ export default function CouponDetailView({ couponId }: { couponId: string }) {
     setMaxOrder(c.Maximum_Order_Value != null ? String(c.Maximum_Order_Value) : '');
   };
 
+  /** Which coupon the form currently mirrors, so a direct hit on /edit populates once. */
+  const populatedFor = useRef<string | null>(null);
+
+  // Arriving straight at /coupons/[id]/edit means the record is still loading, so
+  // the form is filled here rather than in a click handler.
+  useEffect(() => {
+    if (editing && coupon && populatedFor.current !== couponId) {
+      populateForm(coupon);
+      populatedFor.current = couponId;
+      pristine.current = null;
+      setAttempted(false);
+    }
+    if (!editing) populatedFor.current = null;
+  }, [editing, coupon, couponId]);
+
+  // Runs on the render after populateForm's batched updates land.
+  useEffect(() => {
+    if (editing && populatedFor.current === couponId && pristine.current === null) {
+      pristine.current = formState;
+    }
+  }, [editing, couponId, formState]);
+
   const handleEdit = () => {
     if (!coupon) return;
-    populateForm(coupon);
-    setAttempted(false);
-    setEditing(true);
+    router.push(buildPath('coupon-edit', couponId));
   };
 
   const handleCancel = () => {
-    setEditing(false);
     setAttempted(false);
+    router.push(buildPath('coupon-detail', couponId));
   };
 
   const isValid = couponCode.trim() && couponName.trim() && discountType &&
@@ -189,8 +235,15 @@ export default function CouponDetailView({ couponId }: { couponId: string }) {
       data.Coupon_Start_Date = startDate || null;
       data.Coupon_End_Date = endDate || null;
       if (totalUses) {
-        data.Total_Usage_Allowance = parseInt(totalUses);
-        data.Remaining_Uses = parseInt(totalUses);
+        const allowance = parseInt(totalUses);
+        data.Total_Usage_Allowance = allowance;
+        // Remaining_Uses is deliberately NOT written here. Editing an unrelated
+        // field (a description, a date) must not reset the consumption counter.
+        // It is seeded on create and only re-seeded when the allowance itself
+        // changes, below.
+        if (coupon && coupon.Total_Usage_Allowance !== allowance) {
+          data.Remaining_Uses = allowance;
+        }
       }
 
       data.Region_Restrictions = regionRestrictions;
@@ -227,8 +280,11 @@ export default function CouponDetailView({ couponId }: { couponId: string }) {
         const refreshRes = await fetch(`/api/coupons/${couponId}`);
         const refreshData = await refreshRes.json();
         setCoupon(refreshData.coupon);
-        setEditing(false);
+        // Clear the scope before navigating, or the guard would prompt about work
+        // that has just been saved.
+        pristine.current = null;
         registerDirty(SCOPE_EDIT, false);
+        router.push(buildPath('coupon-detail', couponId));
       }
     } catch { /* handled */ }
     setSaving(false);
