@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type MouseEvent } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone,
@@ -9,6 +11,7 @@ import {
   Smartphone, Factory, Send,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
 import CreateEvaluationModal from '../CreateEvaluationModal';
@@ -53,11 +56,21 @@ const STATUS_COLORS: Record<string, string> = {
   'Prospect': 'bg-csa-highlight/20 text-csa-accent',
 };
 
-export default function LeadDetailView() {
-  const {
-    user, selectedLeadId, selectedLeadSource,
-    setCurrentView, setSelectedAccountId, setSelectedInvoiceId, setInvoiceReturnView, setNewInvoiceContext,
-  } = useAppStore();
+/**
+ * `source` comes from the route's `?source=` param. It is optional: a link
+ * that knows which module the record lives in passes it, and anything else
+ * (a bookmark, a pasted URL) leaves it off, in which case the source is
+ * inferred from the record that comes back.
+ */
+export default function LeadDetailView({
+  leadId,
+  source: initialSource,
+}: {
+  leadId: string;
+  source?: 'lead' | 'prospect';
+}) {
+  const router = useRouter();
+  const { user, setNewInvoiceContext } = useAppStore();
 
   const [loading, setLoading] = useState(true);
   const [lead, setLead] = useState<Record<string, unknown> | null>(null);
@@ -67,7 +80,7 @@ export default function LeadDetailView() {
   const [activeAssets, setActiveAssets] = useState<Record<string, unknown>[]>([]);
   const [archivedAssets, setArchivedAssets] = useState<Record<string, unknown>[]>([]);
   const [invoices, setInvoices] = useState<Record<string, unknown>[]>([]);
-  const [source, setSource] = useState<'lead' | 'prospect'>(selectedLeadSource || 'lead');
+  const [source, setSource] = useState<'lead' | 'prospect'>(initialSource || 'lead');
 
   // Convert state
   const [converting, setConverting] = useState(false);
@@ -124,11 +137,11 @@ export default function LeadDetailView() {
     apiChanges: Record<string, unknown>,
     localChanges?: Record<string, unknown>,
   ) => {
-    if (!selectedLeadId) throw new Error('No lead selected');
+    if (!leadId) throw new Error('No lead selected');
     const previous = lead;
     setLead(prev => prev ? { ...prev, ...(localChanges ?? apiChanges) } : prev);
     try {
-      const res = await fetch(`/api/leads/${selectedLeadId}`, {
+      const res = await fetch(`/api/leads/${leadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(apiChanges),
@@ -138,16 +151,24 @@ export default function LeadDetailView() {
       setLead(previous);
       throw err;
     }
-  }, [selectedLeadId, lead]);
+  }, [leadId, lead]);
 
   useEffect(() => {
-    if (!selectedLeadId || !selectedLeadSource) return;
+    if (!leadId) return;
     setLoading(true);
 
-    fetch(`/api/leads/${selectedLeadId}?source=${selectedLeadSource}`)
-      .then(res => res.json())
-      .then(data => {
-        setSource(data.source || selectedLeadSource);
+    const fetchAs = (s: 'lead' | 'prospect') =>
+      fetch(`/api/leads/${leadId}?source=${s}`).then(res => res.json());
+
+    // Without a `?source=` param the module is unknown. Ask the Leads
+    // module first; a prospect id has no lead record, so an empty answer
+    // means the record lives in Accounts.
+    (async () => {
+      try {
+        let data = await fetchAs(initialSource || 'lead');
+        if (!initialSource && !data?.lead) data = await fetchAs('prospect');
+
+        setSource(data.source || initialSource || 'lead');
         if (data.source === 'prospect') {
           setAccount(data.account);
           setContacts(data.contacts || []);
@@ -158,20 +179,28 @@ export default function LeadDetailView() {
         } else {
           setLead(data.lead);
         }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [selectedLeadId, selectedLeadSource]);
+      } catch { /* handled by the not-found states below */ }
+      setLoading(false);
+    })();
+  }, [leadId, initialSource]);
 
-  const goBack = () => setCurrentView('leads');
+  const goBack = () => router.push(buildPath('leads'));
+
+  /** Clicking anywhere in a row opens the record. Clicks that land on the
+   *  row's own link or any other control belong to that element, so the row
+   *  stays out of the way and the browser handles them normally. */
+  const openRow = (e: MouseEvent<HTMLTableRowElement>, href: string) => {
+    if (e.target instanceof Element && e.target.closest('a,button,input,select,[role="button"]')) return;
+    router.push(href);
+  };
 
   const handleConvert = async () => {
-    if (!selectedLeadId) return;
+    if (!leadId) return;
     setConverting(true);
     setConvertResult(null);
 
     try {
-      const res = await fetch(`/api/leads/${selectedLeadId}`, {
+      const res = await fetch(`/api/leads/${leadId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -190,14 +219,9 @@ export default function LeadDetailView() {
     setShowConvertConfirm(false);
   };
 
-  const navigateToAccount = (accountId: string) => {
-    setSelectedAccountId(accountId);
-    setCurrentView('account-detail');
-  };
-
   const crmLink = source === 'lead'
-    ? `https://crm.zoho.com.au/crm/org7002802215/tab/Leads/${selectedLeadId}`
-    : `https://crm.zoho.com.au/crm/org7002802215/tab/Accounts/${selectedLeadId}`;
+    ? `https://crm.zoho.com.au/crm/org7002802215/tab/Leads/${leadId}`
+    : `https://crm.zoho.com.au/crm/org7002802215/tab/Accounts/${leadId}`;
 
   const formatDate = (d: unknown) => {
     if (!d || typeof d !== 'string') return '\u2014';
@@ -406,13 +430,13 @@ export default function LeadDetailView() {
                         <p className="text-xs text-text-muted">Prospect account and contact created. Workflows have been triggered.</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => navigateToAccount(convertResult.accountId!)}
+                    <Link
+                      href={buildPath('account-detail', convertResult.accountId!)}
                       className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
                     >
                       <ExternalLink size={14} />
                       View Account
-                    </button>
+                    </Link>
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
@@ -520,7 +544,7 @@ export default function LeadDetailView() {
             </motion.div>
           ) : null}
 
-          <EmailHistory module="Leads" recordId={selectedLeadId!} />
+          <EmailHistory module="Leads" recordId={leadId} />
         </div>
       </div>
     );
@@ -702,7 +726,7 @@ export default function LeadDetailView() {
           )}
         </motion.div>
 
-        <EmailHistory module="Accounts" recordId={selectedLeadId!} />
+        <EmailHistory module="Accounts" recordId={leadId} />
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
           <div className="flex items-center justify-between mb-3">
@@ -713,7 +737,7 @@ export default function LeadDetailView() {
             <button
               onClick={() => {
                 setNewInvoiceContext({
-                  account: { name: account.Account_Name as string, id: selectedLeadId! },
+                  account: { name: account.Account_Name as string, id: leadId },
                   contact: primaryContact ? { name: primaryContact.name, id: primaryContact.id } : null,
                   reseller: reseller ? { name: reseller.name, id: reseller.id } : null,
                   region: (account.Reseller_Region as string) || '',
@@ -721,7 +745,7 @@ export default function LeadDetailView() {
                   owner: owner ? { name: owner.name, id: (account.Owner as { id?: string })?.id } : null,
                   billingCountry: account.Billing_Country as string || '',
                 });
-                setCurrentView('create-invoice');
+                router.push(buildPath('create-invoice'));
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
             >
@@ -742,15 +766,15 @@ export default function LeadDetailView() {
                     return (
                       <tr
                         key={i}
-                        onClick={() => {
-                          setSelectedInvoiceId(inv.id as string);
-                          setInvoiceReturnView('account-detail');
-                          setCurrentView('invoice-detail');
-                        }}
+                        onClick={(e) => openRow(e, buildPath('invoice-detail', inv.id as string))}
                         className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                       >
                         <td className="text-text-muted text-xs font-mono">{inv.Reference_Number as string || '\u2014'}</td>
-                        <td className="font-semibold text-csa-accent">{inv.Subject as string || `Order ${inv.id as string}`}</td>
+                        <td className="font-semibold text-csa-accent">
+                          <Link href={buildPath('invoice-detail', inv.id as string)}>
+                            {inv.Subject as string || `Order ${inv.id as string}`}
+                          </Link>
+                        </td>
                         <td className="text-text-secondary">{formatDate(inv.Invoice_Date)}</td>
                         <td>
                           <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${
@@ -881,8 +905,8 @@ export default function LeadDetailView() {
           assetData={viewingAsset}
           onClose={() => setViewingAsset(null)}
           onAssetUpdated={() => {
-            if (selectedLeadId && selectedLeadSource) {
-              fetch(`/api/leads/${selectedLeadId}?source=${selectedLeadSource}`)
+            if (leadId) {
+              fetch(`/api/leads/${leadId}?source=${source}`)
                 .then(res => res.json())
                 .then(data => {
                   if (data.source === 'prospect') {
@@ -900,14 +924,14 @@ export default function LeadDetailView() {
       {/* Create Evaluation Modal */}
       {showEvalModal && account && (
         <CreateEvaluationModal
-          accountId={selectedLeadId!}
+          accountId={leadId}
           accountName={account.Account_Name as string}
           canExtend={user?.permissions?.canExtendEvaluations ?? false}
           onSuccess={() => {
             setShowEvalModal(false);
             // Reload to show new evaluation
-            if (selectedLeadId && selectedLeadSource) {
-              fetch(`/api/leads/${selectedLeadId}?source=${selectedLeadSource}`)
+            if (leadId) {
+              fetch(`/api/leads/${leadId}?source=${source}`)
                 .then(res => res.json())
                 .then(data => {
                   if (data.source === 'prospect') {

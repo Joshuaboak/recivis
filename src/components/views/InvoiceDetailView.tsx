@@ -17,6 +17,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Building2,
@@ -28,6 +30,7 @@ import {
   MapPin,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 import SKUBuilder from '../SKUBuilder';
 import InvoiceHeader from '../invoice/InvoiceHeader';
 import InvoiceLineItems from '../invoice/InvoiceLineItems';
@@ -38,8 +41,9 @@ import InvoicePayment from '../invoice/InvoicePayment';
 import OrderActions from '../invoice/OrderActions';
 import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 
-export default function InvoiceDetailView() {
-  const { user, selectedInvoiceId, invoiceReturnView, setCurrentView, setSelectedAccountId } = useAppStore();
+export default function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
+  const { user } = useAppStore();
+  const router = useRouter();
   const [invoice, setInvoice] = useState<Record<string, unknown> | null>(null);
   const [lineItems, setLineItems] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,11 +91,11 @@ export default function InvoiceDetailView() {
   // -------------------------------------------------------------------
 
   useEffect(() => {
-    if (!selectedInvoiceId) return;
+    if (!invoiceId) return;
     setLoading(true);
     setEditing(false);
 
-    fetch(`/api/invoices/${selectedInvoiceId}`)
+    fetch(`/api/invoices/${invoiceId}`)
       .then(res => res.json())
       .then(data => {
         setInvoice(data.invoice);
@@ -139,7 +143,7 @@ export default function InvoiceDetailView() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [selectedInvoiceId]);
+  }, [invoiceId]);
 
   // -------------------------------------------------------------------
   // Edit mode handlers
@@ -160,7 +164,7 @@ export default function InvoiceDetailView() {
   };
 
   const saveEdits = async () => {
-    if (!selectedInvoiceId) return;
+    if (!invoiceId) return;
     setSaving(true);
 
     try {
@@ -198,14 +202,14 @@ export default function InvoiceDetailView() {
       }).filter(Boolean);
       body.Invoiced_Items = updatedItems;
 
-      const res = await fetch(`/api/invoices/${selectedInvoiceId}`, {
+      const res = await fetch(`/api/invoices/${invoiceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
       if (res.ok) {
-        const reload = await fetch(`/api/invoices/${selectedInvoiceId}`);
+        const reload = await fetch(`/api/invoices/${invoiceId}`);
         const data = await reload.json();
         setInvoice(data.invoice);
         setLineItems(data.lineItems || []);
@@ -215,7 +219,7 @@ export default function InvoiceDetailView() {
         setPaymentRefreshing(true);
         setTimeout(async () => {
           try {
-            const refreshed = await fetch(`/api/invoices/${selectedInvoiceId}`);
+            const refreshed = await fetch(`/api/invoices/${invoiceId}`);
             const refreshedData = await refreshed.json();
             setInvoice(refreshedData.invoice);
             setLineItems(refreshedData.lineItems || []);
@@ -231,11 +235,11 @@ export default function InvoiceDetailView() {
    *  invoice state immediately, PATCHes the record, and rolls back on error
    *  by throwing — InlineEditField then triggers its red flash + revert. */
   const saveFields = useCallback(async (changes: Record<string, unknown>) => {
-    if (!selectedInvoiceId) throw new Error('No invoice selected');
+    if (!invoiceId) throw new Error('No invoice selected');
     const previous = invoice;
     setInvoice(prev => prev ? { ...prev, ...changes } : prev);
     try {
-      const res = await fetch(`/api/invoices/${selectedInvoiceId}`, {
+      const res = await fetch(`/api/invoices/${invoiceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(changes),
@@ -245,7 +249,7 @@ export default function InvoiceDetailView() {
       setInvoice(previous);
       throw err;
     }
-  }, [selectedInvoiceId, invoice]);
+  }, [invoiceId, invoice]);
 
   // -------------------------------------------------------------------
   // Line item handlers
@@ -301,15 +305,15 @@ export default function InvoiceDetailView() {
   // -------------------------------------------------------------------
 
   const savePO = async () => {
-    if (!selectedInvoiceId) return;
+    if (!invoiceId) return;
     setSavingPO(true);
     try {
-      await fetch(`/api/invoices/${selectedInvoiceId}`, {
+      await fetch(`/api/invoices/${invoiceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ Purchase_Order: editPONumber }),
       });
-      const res = await fetch(`/api/invoices/${selectedInvoiceId}`);
+      const res = await fetch(`/api/invoices/${invoiceId}`);
       const data = await res.json();
       setInvoice(data.invoice);
       setEditingPO(false);
@@ -318,7 +322,7 @@ export default function InvoiceDetailView() {
   };
 
   const handleFileUpload = async (file: File) => {
-    if (!selectedInvoiceId) return;
+    if (!invoiceId) return;
     setUploadingFile(true);
     setUploadResult(null);
     try {
@@ -329,7 +333,7 @@ export default function InvoiceDetailView() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            recordID: selectedInvoiceId,
+            recordID: invoiceId,
             fileName: file.name,
             base64,
             moduleName: 'Invoices',
@@ -354,7 +358,7 @@ export default function InvoiceDetailView() {
   // -------------------------------------------------------------------
 
   const applyCoupon = async () => {
-    if (!couponCode.trim() || !selectedInvoiceId || !invoice) return;
+    if (!couponCode.trim() || !invoiceId || !invoice) return;
     setCouponValidating(true);
     setCouponError(null);
 
@@ -395,7 +399,7 @@ export default function InvoiceDetailView() {
 
       const updatedItems = [...currentItems, discountItem];
 
-      const patchRes = await fetch(`/api/invoices/${selectedInvoiceId}`, {
+      const patchRes = await fetch(`/api/invoices/${invoiceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ Invoiced_Items: updatedItems }),
@@ -403,7 +407,7 @@ export default function InvoiceDetailView() {
 
       if (patchRes.ok) {
         // Reload invoice
-        const reload = await fetch(`/api/invoices/${selectedInvoiceId}`);
+        const reload = await fetch(`/api/invoices/${invoiceId}`);
         const reloadData = await reload.json();
         setInvoice(reloadData.invoice);
         setLineItems(reloadData.lineItems || []);
@@ -423,7 +427,7 @@ export default function InvoiceDetailView() {
   // -------------------------------------------------------------------
 
   const toggleDirectPurchase = async (value: boolean) => {
-    if (!selectedInvoiceId) return;
+    if (!invoiceId) return;
     setUpdatingDirectPurchase(true);
     try {
       // Reseller_Direct_Purchase:
@@ -463,14 +467,14 @@ export default function InvoiceDetailView() {
         patchBody.Invoiced_Items = updatedItems;
       }
 
-      await fetch(`/api/invoices/${selectedInvoiceId}`, {
+      await fetch(`/api/invoices/${invoiceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patchBody),
       });
 
       // Reload invoice
-      const res = await fetch(`/api/invoices/${selectedInvoiceId}`);
+      const res = await fetch(`/api/invoices/${invoiceId}`);
       const data = await res.json();
       setInvoice(data.invoice);
       setLineItems(data.lineItems || []);
@@ -479,7 +483,7 @@ export default function InvoiceDetailView() {
       setPaymentRefreshing(true);
       setTimeout(async () => {
         try {
-          const refreshed = await fetch(`/api/invoices/${selectedInvoiceId}`);
+          const refreshed = await fetch(`/api/invoices/${invoiceId}`);
           const refreshedData = await refreshed.json();
           setInvoice(refreshedData.invoice);
           setLineItems(refreshedData.lineItems || []);
@@ -495,11 +499,7 @@ export default function InvoiceDetailView() {
   // -------------------------------------------------------------------
 
   const goBack = () => {
-    if (invoiceReturnView === 'account-detail') {
-      setCurrentView('account-detail');
-    } else {
-      setCurrentView('draft-invoices');
-    }
+    router.push(buildPath('draft-invoices'));
   };
 
   // -------------------------------------------------------------------
@@ -575,7 +575,7 @@ export default function InvoiceDetailView() {
           saving={saving}
           canEdit={!!canEdit}
           user={user}
-          selectedInvoiceId={selectedInvoiceId}
+          selectedInvoiceId={invoiceId}
           onGoBack={goBack}
           onEdit={enterEditMode}
           onCancelEdit={cancelEdit}
@@ -586,16 +586,16 @@ export default function InvoiceDetailView() {
         <InlineEditFieldProvider>
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           {account?.id ? (
-            <button
-              onClick={() => { setSelectedAccountId(account.id as string); setCurrentView('account-detail'); }}
-              className="bg-surface border border-border-subtle rounded-xl px-4 py-3 text-left hover:border-csa-accent/50 transition-colors group cursor-pointer"
+            <Link
+              href={buildPath('account-detail', account.id)}
+              className="block bg-surface border border-border-subtle rounded-xl px-4 py-3 text-left hover:border-csa-accent/50 transition-colors group cursor-pointer"
             >
               <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                 <Building2 size={14} />
                 Account
               </div>
               <p className="text-sm text-csa-accent group-hover:text-csa-highlight truncate transition-colors">{account.name || '\u2014'}</p>
-            </button>
+            </Link>
           ) : (
             <InfoCard label="Account" value={account?.name || '\u2014'} icon={<Building2 size={14} />} />
           )}
@@ -703,7 +703,7 @@ export default function InvoiceDetailView() {
           <OrderActions
             invoice={invoice}
             status={status}
-            selectedInvoiceId={selectedInvoiceId}
+            selectedInvoiceId={invoiceId}
             canPurchaseOnAccount={canPurchaseOnAccount}
             canPurchaseOnCredit={canPurchaseOnCredit}
             canSend={!!(user?.permissions?.canSendInvoices)}
@@ -712,7 +712,7 @@ export default function InvoiceDetailView() {
             hasPOFile={!!uploadResult || !!(invoice.Purchase_Order_Attachment)}
             onRefresh={() => {
               // Reload invoice data
-              fetch(`/api/invoices/${selectedInvoiceId}`)
+              fetch(`/api/invoices/${invoiceId}`)
                 .then(res => res.json())
                 .then(data => { setInvoice(data.invoice); setLineItems(data.lineItems || []); })
                 .catch(() => {});

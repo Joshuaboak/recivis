@@ -1,7 +1,7 @@
 /**
  * ResellerManagementView — Manage partner organizations and their users.
  *
- * Two display modes controlled by selectedResellerId in the store:
+ * Two display modes controlled by the optional resellerId prop:
  *
  * 1. Grid mode (no reseller selected):
  *    - Shows reseller cards with name, region, category, user count
@@ -27,6 +27,8 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Users, UserPlus, Search, Loader2, Shield, ShieldOff, KeyRound,
@@ -34,6 +36,7 @@ import {
   ArrowLeft, Globe, DollarSign, Mail, ExternalLink, RefreshCw,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 import Pagination from '../Pagination';
 import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 
@@ -87,27 +90,34 @@ interface RoleWithPerms {
 const inputCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg";
 const selectCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg appearance-none cursor-pointer pr-8";
 
+/** Partner cards are links, so they keep their entry animation while staying real anchors. */
+const MotionLink = motion.create(Link);
+
 // ============================================================
 // MAIN COMPONENT — routes between list and detail
 // ============================================================
-export default function ResellerManagementView() {
-  const { user, currentView, selectedResellerId, setCurrentView, setSelectedResellerId } = useAppStore();
+export default function ResellerManagementView({ resellerId }: { resellerId?: string }) {
+  const { user } = useAppStore();
+  const router = useRouter();
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
   const isManager = user?.permissions?.canManageUsers;
   const hasChildResellers = user?.permissions?.canViewChildRecords;
+  const ownResellerId = user?.resellerId;
 
+  // A partner who can only see their own record never gets a list — send them
+  // straight to their own detail page. `replace`, not `push`: this must not
+  // leave a /partners entry in history for Back to land on and bounce again.
   useEffect(() => {
-    if (currentView === 'resellers' && !isAdmin && !hasChildResellers && user?.resellerId) {
-      setSelectedResellerId(user.resellerId);
-      setCurrentView('reseller-detail');
+    if (!resellerId && !isAdmin && !hasChildResellers && ownResellerId) {
+      router.replace(buildPath('reseller-detail', ownResellerId));
     }
-  }, [currentView, isAdmin, hasChildResellers, user?.resellerId, setSelectedResellerId, setCurrentView]);
+  }, [resellerId, isAdmin, hasChildResellers, ownResellerId, router]);
 
   if (!isManager && !isAdmin) {
     return <div className="flex items-center justify-center h-full"><p className="text-text-muted">You do not have permission to manage partners.</p></div>;
   }
 
-  if (currentView === 'reseller-detail' && selectedResellerId) return <ResellerDetailView />;
+  if (resellerId) return <ResellerDetailView resellerId={resellerId} />;
   return <ResellerListView />;
 }
 
@@ -115,7 +125,8 @@ export default function ResellerManagementView() {
 // RESELLER LIST
 // ============================================================
 function ResellerListView() {
-  const { user, setCurrentView, setSelectedResellerId } = useAppStore();
+  const { user } = useAppStore();
+  const router = useRouter();
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
 
   const [resellers, setResellers] = useState<ResellerItem[]>([]);
@@ -160,8 +171,6 @@ function ResellerListView() {
   const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
   useEffect(() => { setCurrentPage(1); }, [search, regionFilter]);
 
-  const openReseller = (id: string) => { setSelectedResellerId(id); setCurrentView('reseller-detail'); };
-
   const createReseller = async () => {
     if (!String(newP.Name).trim()) return;
     setCreating(true); setCreateError('');
@@ -174,7 +183,7 @@ function ResellerListView() {
 
       const res = await fetch('/api/resellers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       const result = await res.json();
-      if (result.id) { setShowCreate(false); openReseller(result.id); }
+      if (result.id) { setShowCreate(false); router.push(buildPath('reseller-detail', result.id)); }
       else setCreateError(result.error || 'Failed to create partner');
     } catch { setCreateError('Failed to create partner'); }
     setCreating(false);
@@ -220,8 +229,8 @@ function ResellerListView() {
             <div className="mb-3"><Pagination currentPage={safePage} totalItems={filtered.length} pageSize={pageSize} onPageChange={setCurrentPage} /></div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {paginated.map(r => (
-                <motion.button key={r.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={() => openReseller(r.id)}
-                  className="bg-surface border border-border-subtle rounded-xl px-5 py-4 text-left hover:border-csa-accent/50 transition-colors cursor-pointer group">
+                <MotionLink key={r.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} href={buildPath('reseller-detail', r.id)}
+                  className="block bg-surface border border-border-subtle rounded-xl px-5 py-4 text-left hover:border-csa-accent/50 transition-colors cursor-pointer group">
                   <div className="flex items-center gap-3 mb-2">
                     <Building2 size={18} className="text-csa-accent flex-shrink-0" />
                     <span className="text-sm font-bold text-text-primary group-hover:text-csa-accent transition-colors truncate">{r.name}</span>
@@ -231,7 +240,7 @@ function ResellerListView() {
                     <span className="font-semibold text-text-secondary">{r.user_count || 0} users</span>
                   </div>
                   <div className="text-[10px] text-text-muted mt-1">{r.partner_category} &bull; {r.currency}</div>
-                </motion.button>
+                </MotionLink>
               ))}
             </div>
           </>
@@ -451,8 +460,9 @@ function PartnerFormFields({ values, onChange, allResellers }: { values: Record<
 // ============================================================
 // RESELLER DETAIL
 // ============================================================
-function ResellerDetailView() {
-  const { user, selectedResellerId, setCurrentView } = useAppStore();
+function ResellerDetailView({ resellerId }: { resellerId: string }) {
+  const { user } = useAppStore();
+  const router = useRouter();
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
   const hasChildResellers = user?.permissions?.canViewChildRecords;
   const availableRoles = isAdmin ? ALL_ROLES : ALL_ROLES.filter(r => MANAGER_ROLES.includes(r.value));
@@ -506,13 +516,13 @@ function ResellerDetailView() {
   const [editMaxEvals, setEditMaxEvals] = useState<number | null>(null);
   const [savingPerms, setSavingPerms] = useState(false);
 
-  useEffect(() => { if (selectedResellerId) loadData(); }, [selectedResellerId]);
+  useEffect(() => { if (resellerId) loadData(); }, [resellerId]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const [resRes, resellerListRes] = await Promise.all([
-        fetch(`/api/resellers/${selectedResellerId}`).then(r => r.json()),
+        fetch(`/api/resellers/${resellerId}`).then(r => r.json()),
         fetch('/api/resellers').then(r => r.json()),
       ]);
       setReseller(resRes.reseller);
@@ -528,11 +538,11 @@ function ResellerDetailView() {
   };
 
   const goBack = () => {
-    if (!isAdmin && !hasChildResellers) setCurrentView('dashboard');
-    else setCurrentView('resellers');
+    if (!isAdmin && !hasChildResellers) router.push(buildPath('dashboard'));
+    else router.push(buildPath('resellers'));
   };
 
-  const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Resellers/${selectedResellerId}`;
+  const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Resellers/${resellerId}`;
 
   const formatDate = (d: string | null) => {
     if (!d) return 'Never';
@@ -570,7 +580,7 @@ function ResellerDetailView() {
       if (data.Distributor) data.Distributor = { id: data.Distributor };
       else data.Distributor = null;
 
-      await fetch(`/api/resellers/${selectedResellerId}`, {
+      await fetch(`/api/resellers/${resellerId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
       });
       setEditingReseller(false);
@@ -588,11 +598,11 @@ function ResellerDetailView() {
     apiChanges: Record<string, unknown>,
     localChanges?: Record<string, unknown>,
   ) => {
-    if (!selectedResellerId) throw new Error('No reseller selected');
+    if (!resellerId) throw new Error('No reseller selected');
     const previous = reseller;
     setReseller(prev => prev ? { ...prev, ...(localChanges ?? apiChanges) } : prev);
     try {
-      const res = await fetch(`/api/resellers/${selectedResellerId}`, {
+      const res = await fetch(`/api/resellers/${resellerId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(apiChanges),
@@ -602,7 +612,7 @@ function ResellerDetailView() {
       setReseller(previous);
       throw err;
     }
-  }, [selectedResellerId, reseller]);
+  }, [resellerId, reseller]);
 
   // User actions
   const addUser = async () => {
@@ -610,7 +620,7 @@ function ResellerDetailView() {
     setAddingUser(true); setAddError('');
     try {
       const res = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: addName, email: addEmail, password: addPassword, userRoleName: addRole, resellerId: selectedResellerId }) });
+        body: JSON.stringify({ name: addName, email: addEmail, password: addPassword, userRoleName: addRole, resellerId: resellerId }) });
       const data = await res.json();
       if (!res.ok) { setAddError(data.error); setAddingUser(false); return; }
       setShowAddUser(false); setAddName(''); setAddEmail(''); setAddPassword(''); setAddRole('standard');
@@ -671,7 +681,7 @@ function ResellerDetailView() {
             {isAdmin && dbRegistered && (
               <button onClick={async () => {
                 try {
-                  await fetch(`/api/resellers/${selectedResellerId}`, {
+                  await fetch(`/api/resellers/${resellerId}`, {
                     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ _syncDistributor: true }),
                   });
@@ -846,7 +856,7 @@ function ResellerDetailView() {
                   }
                   if (registerMaxEvals !== null) permPayload.max_evaluations_per_account = registerMaxEvals;
                   try {
-                    const res = await fetch(`/api/resellers/${selectedResellerId}`, {
+                    const res = await fetch(`/api/resellers/${resellerId}`, {
                       method: 'POST', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
                         ...registerFields,
@@ -982,13 +992,13 @@ function ResellerDetailView() {
                       permPayload.pay_on_card = !!editPerms['_pay_on_card'];
                       try {
                         // Save PostgreSQL permissions (includes pay_on_card)
-                        await fetch(`/api/resellers/${selectedResellerId}`, {
+                        await fetch(`/api/resellers/${resellerId}`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ _updatePermissions: true, permissions: permPayload }),
                         });
                         // Save Pay on Account to Zoho (Can_Purchase_on_Credit)
-                        await fetch(`/api/resellers/${selectedResellerId}`, {
+                        await fetch(`/api/resellers/${resellerId}`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({

@@ -7,7 +7,8 @@
  * - Region filter (admin/ibm only) — filters the reseller dropdown too
  * - Reseller filter (admin sees all; distributors see own + children)
  * - XLSX export with contacts and assets for all visible accounts
- * - Click any row to navigate to AccountDetailView
+ * - Account name links through to AccountDetailView; the rest of the row
+ *   navigates to the same place on click
  *
  * Data: Fetches from /api/accounts with search/reseller query params.
  * The API auto-paginates across Zoho pages; client-side pagination
@@ -16,10 +17,13 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, type MouseEvent } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Search, Building2, Loader2, MapPin, ExternalLink, ChevronDown, Download, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 import Pagination from '../Pagination';
 import { exportAccountsList } from '@/lib/export-lists';
 
@@ -43,8 +47,10 @@ const REGION_LABELS: Record<string, string> = {
   AF: 'Africa', AS: 'Asia', AU: 'Australia', EU: 'Europe', NA: 'North America', NZ: 'New Zealand', WW: 'Worldwide',
 };
 
-export default function AccountsView() {
-  const { user, setCurrentView, setSelectedAccountId } = useAppStore();
+export default function AccountsView({ notice }: { notice?: string }) {
+  const router = useRouter();
+  const { user } = useAppStore();
+  const [dismissedNotice, setDismissedNotice] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -185,14 +191,36 @@ export default function AccountsView() {
   // Reset to page 1 when filters change
   useEffect(() => { setCurrentPage(1); }, [searchDebounced, selectedReseller, selectedRegion, sortDir]);
 
-  const openAccount = (id: string) => {
-    setSelectedAccountId(id);
-    setCurrentView('account-detail');
+  /** Clicking anywhere in a row opens the account. Clicks that land on the
+   *  row's own link or any other control belong to that element, so the row
+   *  stays out of the way and the browser handles them normally. */
+  const openRow = (e: MouseEvent<HTMLTableRowElement>, href: string) => {
+    if (e.target instanceof Element && e.target.closest('a,button,input,select,[role="button"]')) return;
+    router.push(href);
   };
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-6">
+        {/* Notice — e.g. arriving here because an order was started without an account */}
+        {notice && !dismissedNotice && (
+          <div
+            role="status"
+            className="flex items-center justify-between gap-3 mb-4 px-4 py-3 rounded-lg bg-amber-600/10 border border-amber-600/30"
+          >
+            <span className="text-sm text-text-primary">{notice}</span>
+            <button
+              onClick={() => {
+                setDismissedNotice(true);
+                router.replace(buildPath('accounts'));
+              }}
+              className="text-xs font-semibold text-text-muted hover:text-text-primary transition-colors flex-shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {/* Header + Filters */}
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center justify-between">
@@ -326,14 +354,14 @@ export default function AccountsView() {
                     key={acc.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    onClick={() => openAccount(acc.id)}
+                    onClick={(e) => openRow(e, buildPath('account-detail', acc.id))}
                     className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                   >
                     <td>
-                      <div className="flex items-center gap-2">
+                      <Link href={buildPath('account-detail', acc.id)} className="flex items-center gap-2">
                         <Building2 size={14} className="text-csa-accent flex-shrink-0" />
                         <span className="font-semibold text-text-primary">{acc.Account_Name}</span>
-                      </div>
+                      </Link>
                       {acc.Email_Domain && (
                         <span className="text-xs text-text-muted ml-6">{acc.Email_Domain}</span>
                       )}

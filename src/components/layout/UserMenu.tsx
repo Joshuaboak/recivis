@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut,
@@ -14,6 +15,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { LOGIN_PATH } from '@/lib/routes';
 
 interface RoleOption {
   value: string;
@@ -34,6 +36,7 @@ const MANAGER_ROLES = ['standard', 'manager', 'viewer'];
 
 export default function UserMenu({ collapsed }: { collapsed: boolean }) {
   const { user, setUser } = useAppStore();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -83,9 +86,10 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
               </div>
             )}
 
+            {/* Sign out redirects with `replace` — Back must not land on an authenticated screen. */}
             <div className="py-1">
               <button
-                onClick={async () => { setMenuOpen(false); await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {}); setUser(null); }}
+                onClick={async () => { setMenuOpen(false); await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {}); setUser(null); router.replace(LOGIN_PATH); }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-raised hover:text-error transition-colors cursor-pointer"
               >
                 <LogOut size={16} />

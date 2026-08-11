@@ -18,12 +18,15 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type MouseEvent } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Save, Download, Beaker, Send } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { exportFullAccount, exportContacts, exportInvoices, exportAssets } from '@/lib/export-account';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
 import CreateEvaluationModal from '../CreateEvaluationModal';
@@ -36,8 +39,9 @@ interface ResellerOption {
   region: string;
 }
 
-export default function AccountDetailView() {
-  const { user, selectedAccountId, setCurrentView, setSelectedInvoiceId, setInvoiceReturnView, setNewInvoiceContext } = useAppStore();
+export default function AccountDetailView({ accountId }: { accountId: string }) {
+  const router = useRouter();
+  const { user, setNewInvoiceContext } = useAppStore();
   const [account, setAccount] = useState<Record<string, unknown> | null>(null);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
   const [evaluationAssets, setEvaluationAssets] = useState<Record<string, unknown>[]>([]);
@@ -91,11 +95,11 @@ export default function AccountDetailView() {
     apiChanges: Record<string, unknown>,
     localChanges?: Record<string, unknown>,
   ) => {
-    if (!selectedAccountId) throw new Error('No account selected');
+    if (!accountId) throw new Error('No account selected');
     const previous = account;
     setAccount(prev => prev ? { ...prev, ...(localChanges ?? apiChanges) } : prev);
     try {
-      const res = await fetch(`/api/accounts/${selectedAccountId}`, {
+      const res = await fetch(`/api/accounts/${accountId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(apiChanges),
@@ -105,13 +109,13 @@ export default function AccountDetailView() {
       setAccount(previous);
       throw err;
     }
-  }, [selectedAccountId, account]);
+  }, [accountId, account]);
 
   useEffect(() => {
-    if (!selectedAccountId) return;
+    if (!accountId) return;
     setLoading(true);
 
-    fetch(`/api/accounts/${selectedAccountId}`)
+    fetch(`/api/accounts/${accountId}`)
       .then(res => res.json())
       .then(data => {
         setAccount(data.account);
@@ -123,9 +127,17 @@ export default function AccountDetailView() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [selectedAccountId]);
+  }, [accountId]);
 
-  const goBack = () => setCurrentView('accounts');
+  const goBack = () => router.push(buildPath('accounts'));
+
+  /** Clicking anywhere in a row opens the record. Clicks that land on the
+   *  row's own link or any other control belong to that element, so the row
+   *  stays out of the way and the browser handles them normally. */
+  const openRow = (e: MouseEvent<HTMLTableRowElement>, href: string) => {
+    if (e.target instanceof Element && e.target.closest('a,button,input,select,[role="button"]')) return;
+    router.push(href);
+  };
 
   const handleAddContact = async () => {
     if (!newContact.First_Name || !newContact.Last_Name) return;
@@ -136,12 +148,12 @@ export default function AccountDetailView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newContact,
-          Account_Name: { id: selectedAccountId },
+          Account_Name: { id: accountId },
         }),
       });
       if (res.ok) {
         // Reload account data to get fresh contacts
-        const reload = await fetch(`/api/accounts/${selectedAccountId}`);
+        const reload = await fetch(`/api/accounts/${accountId}`);
         const data = await reload.json();
         setContacts(data.contacts || []);
         setNewContact({ First_Name: '', Last_Name: '', Email: '', Phone: '' });
@@ -211,12 +223,10 @@ export default function AccountDetailView() {
       });
       const data = await res.json();
       if (data.invoiceId) {
-        setSelectedInvoiceId(data.invoiceId);
-        setInvoiceReturnView('account-detail');
-        setCurrentView('invoice-detail');
+        router.push(buildPath('invoice-detail', data.invoiceId));
       } else {
         // Reload account to see the new invoice in the list
-        const reload = await fetch(`/api/accounts/${selectedAccountId}`);
+        const reload = await fetch(`/api/accounts/${accountId}`);
         const reloadData = await reload.json();
         setAccount(reloadData.account);
         setInvoices(reloadData.invoices || []);
@@ -263,14 +273,14 @@ export default function AccountDetailView() {
       if (role === 'primary') body.Primary_Contact = contactId;
       else body.Secondary_Contact = contactId;
 
-      const res = await fetch(`/api/accounts/${selectedAccountId}`, {
+      const res = await fetch(`/api/accounts/${accountId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (res.ok) {
         // Reload account to get updated primary/secondary
-        const reload = await fetch(`/api/accounts/${selectedAccountId}`);
+        const reload = await fetch(`/api/accounts/${accountId}`);
         const data = await reload.json();
         setAccount(data.account);
         setContacts(data.contacts || []);
@@ -314,7 +324,7 @@ export default function AccountDetailView() {
   const saveAddress = async () => {
     setSavingAddress(true);
     try {
-      const res = await fetch(`/api/accounts/${selectedAccountId}`, {
+      const res = await fetch(`/api/accounts/${accountId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -326,7 +336,7 @@ export default function AccountDetailView() {
         }),
       });
       if (res.ok) {
-        const reload = await fetch(`/api/accounts/${selectedAccountId}`);
+        const reload = await fetch(`/api/accounts/${accountId}`);
         const data = await reload.json();
         setAccount(data.account);
         setEditingAddress(false);
@@ -335,7 +345,7 @@ export default function AccountDetailView() {
     setSavingAddress(false);
   };
 
-  const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Accounts/${selectedAccountId}`;
+  const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Accounts/${accountId}`;
 
   if (loading) {
     return (
@@ -656,7 +666,7 @@ export default function AccountDetailView() {
               <button
                 onClick={() => {
                   setNewInvoiceContext({
-                    account: { name: account.Account_Name as string, id: selectedAccountId },
+                    account: { name: account.Account_Name as string, id: accountId },
                   contact: primaryContact ? { name: primaryContact.name, id: primaryContact.id } : null,
                   reseller: reseller ? { name: reseller.name, id: (account.Reseller as { id?: string })?.id } : null,
                   region: (account.Reseller_Region as string) || '',
@@ -664,7 +674,7 @@ export default function AccountDetailView() {
                   owner: owner ? { name: owner.name, id: (account.Owner as { id?: string })?.id } : null,
                   billingCountry: account.Billing_Country as string || '',
                 });
-                setCurrentView('create-invoice');
+                router.push(buildPath('create-invoice'));
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
             >
@@ -686,15 +696,15 @@ export default function AccountDetailView() {
                     return (
                       <tr
                         key={i}
-                        onClick={() => {
-                          setSelectedInvoiceId(inv.id as string);
-                          setInvoiceReturnView('account-detail');
-                          setCurrentView('invoice-detail');
-                        }}
+                        onClick={(e) => openRow(e, buildPath('invoice-detail', inv.id as string))}
                         className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                       >
                         <td className="text-text-muted text-xs font-mono">{inv.Reference_Number as string || '\u2014'}</td>
-                        <td className="font-semibold text-csa-accent">{inv.Subject as string || `Order ${inv.id as string}`}</td>
+                        <td className="font-semibold text-csa-accent">
+                          <Link href={buildPath('invoice-detail', inv.id as string)}>
+                            {inv.Subject as string || `Order ${inv.id as string}`}
+                          </Link>
+                        </td>
                         <td className="text-text-secondary">{formatDate(inv.Invoice_Date)}</td>
                         <td>
                           <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${
@@ -988,7 +998,7 @@ export default function AccountDetailView() {
           onClose={() => setViewingAsset(null)}
           onAssetUpdated={() => {
             // Reload account data to refresh assets
-            fetch(`/api/accounts/${selectedAccountId}`)
+            fetch(`/api/accounts/${accountId}`)
               .then(res => res.json())
               .then(data => {
                 setAccount(data.account);
@@ -1004,13 +1014,13 @@ export default function AccountDetailView() {
       {/* Create Evaluation Modal */}
       {showEvalModal && account && (
         <CreateEvaluationModal
-          accountId={selectedAccountId!}
+          accountId={accountId}
           accountName={account.Account_Name as string}
           canExtend={user?.permissions?.canExtendEvaluations ?? false}
           onSuccess={() => {
             setShowEvalModal(false);
             // Reload to show new asset
-            fetch(`/api/accounts/${selectedAccountId}`)
+            fetch(`/api/accounts/${accountId}`)
               .then(res => res.json())
               .then(data => {
                 setActiveAssets(data.activeAssets || []);

@@ -19,6 +19,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Building2,
@@ -34,6 +36,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 
 const COUNTRIES = [
   'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia','Austria',
@@ -72,7 +75,8 @@ interface DuplicateMatch {
 }
 
 export default function CreateAccountView() {
-  const { user, setCurrentView, setSelectedAccountId } = useAppStore();
+  const router = useRouter();
+  const { user } = useAppStore();
 
   // Form state
   const [accountName, setAccountName] = useState('');
@@ -257,15 +261,9 @@ export default function CreateAccountView() {
       }
 
       // Navigate to the new account
-      setSelectedAccountId(accountId);
-      setCurrentView('account-detail');
+      router.push(buildPath('account-detail', accountId));
     } catch { /* handled */ }
     setSaving(false);
-  };
-
-  const openDuplicate = (id: string) => {
-    setSelectedAccountId(id);
-    setCurrentView('account-detail');
   };
 
   if (isViewer) {
@@ -321,9 +319,9 @@ export default function CreateAccountView() {
             </div>
             <div className="space-y-2 mb-3">
               {duplicates.map(d => (
-                <button
+                <Link
                   key={d.id}
-                  onClick={() => openDuplicate(d.id)}
+                  href={buildPath('account-detail', d.id)}
                   className="w-full flex items-center justify-between bg-surface border border-border-subtle rounded-lg px-3 py-2 hover:border-csa-accent/50 transition-colors cursor-pointer group"
                 >
                   <div className="text-left">
@@ -333,7 +331,7 @@ export default function CreateAccountView() {
                     </div>
                   </div>
                   <ExternalLink size={12} className="text-text-muted" />
-                </button>
+                </Link>
               ))}
             </div>
             <div className="flex items-center gap-2">

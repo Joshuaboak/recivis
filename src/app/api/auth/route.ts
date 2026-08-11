@@ -14,23 +14,30 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateUser, seedAdminUsers, auditLog } from '@/lib/auth';
+import { authenticateUser, getUserById, seedAdminUsers, auditLog } from '@/lib/auth';
 import { requireAuth } from '@/lib/api-auth';
 import { log } from '@/lib/logger';
 
 /**
- * GET /api/auth — Refresh the current user session.
+ * GET /api/auth — Resolve the current user session.
  *
  * Reads the JWT from the cookie, recomputes permissions from the database,
- * and returns the updated user object. Called on app mount to keep the
- * localStorage-persisted user in sync with server-side permission changes.
+ * and returns the user in the same `User` shape POST returns at login. The
+ * portal layout calls this on mount to rehydrate the client store — the
+ * `recivis-token` cookie is the only session, nothing is persisted locally.
  */
 export async function GET(request: NextRequest) {
   const authResult = await requireAuth(request);
   if (authResult instanceof NextResponse) {
     return NextResponse.json({ user: null }, { status: 401 });
   }
-  return NextResponse.json({ user: authResult });
+
+  const user = await getUserById(authResult.userId);
+  if (!user) {
+    return NextResponse.json({ user: null }, { status: 401 });
+  }
+
+  return NextResponse.json({ user });
 }
 
 export async function POST(request: NextRequest) {

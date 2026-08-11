@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Search, X, Loader2, Building2, UserSearch, User, FileText, ExternalLink, Users } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 
 interface SearchResult {
   id: string;
@@ -24,12 +26,33 @@ const MODULE_CONFIG: Record<string, { icon: typeof Building2; color: string; lab
 
 const MODULE_FILTER_ORDER = ['Accounts', 'Prospects', 'Leads', 'Contacts', 'Invoices', 'Resellers'];
 
+/**
+ * The record's detail route, or null for modules the portal has no page for
+ * (Contacts) — those results stay unlinked and only close the modal.
+ */
+function resultHref(result: SearchResult): string | null {
+  switch (result.module) {
+    case 'Accounts':
+      return buildPath('account-detail', result.id);
+    case 'Leads':
+      return `${buildPath('lead-detail', result.id)}?source=lead`;
+    case 'Prospects':
+      return `${buildPath('lead-detail', result.id)}?source=prospect`;
+    case 'Invoices':
+      return buildPath('invoice-detail', result.id);
+    case 'Resellers':
+      return buildPath('reseller-detail', result.id);
+    default:
+      return null;
+  }
+}
+
 interface SearchModalProps {
   onClose: () => void;
 }
 
 export default function SearchModal({ onClose }: SearchModalProps) {
-  const { user, setCurrentView, setSelectedAccountId, setSelectedLeadId, setSelectedLeadSource, setSelectedInvoiceId, setInvoiceReturnView, setSelectedResellerId } = useAppStore();
+  const { user } = useAppStore();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -93,37 +116,6 @@ export default function SearchModal({ onClose }: SearchModalProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModule]);
-
-  const handleNavigate = (result: SearchResult) => {
-    switch (result.module) {
-      case 'Accounts':
-        setSelectedAccountId(result.id);
-        setCurrentView('account-detail');
-        break;
-      case 'Leads':
-        setSelectedLeadId(result.id);
-        setSelectedLeadSource('lead');
-        setCurrentView('lead-detail');
-        break;
-      case 'Prospects':
-        setSelectedLeadId(result.id);
-        setSelectedLeadSource('prospect');
-        setCurrentView('lead-detail');
-        break;
-      case 'Contacts':
-        break;
-      case 'Invoices':
-        setSelectedInvoiceId(result.id);
-        setInvoiceReturnView('draft-invoices');
-        setCurrentView('invoice-detail');
-        break;
-      case 'Resellers':
-        setSelectedResellerId(result.id);
-        setCurrentView('reseller-detail');
-        break;
-    }
-    onClose();
-  };
 
   // Group results by module
   const grouped = results.reduce<Record<string, SearchResult[]>>((acc, r) => {
@@ -241,27 +233,46 @@ export default function SearchModal({ onClose }: SearchModalProps) {
                       <span className="text-[10px] text-text-muted">{items.length} result{items.length !== 1 ? 's' : ''}</span>
                     </div>
 
-                    {items.slice(0, 10).map(result => (
-                      <button
-                        key={`${result.module}-${result.id}`}
-                        onClick={() => handleNavigate(result)}
-                        className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-csa-accent/5 transition-colors cursor-pointer text-left group"
-                      >
-                        <Icon size={16} className={`${config?.color || 'text-text-muted'} flex-shrink-0`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-text-primary truncate group-hover:text-csa-accent transition-colors">
-                            {result.title}
-                          </p>
-                          {result.subtitle && (
-                            <p className="text-xs text-text-muted truncate">{result.subtitle}</p>
+                    {items.slice(0, 10).map(result => {
+                      const href = resultHref(result);
+                      const rowClass = 'w-full flex items-center gap-3 px-5 py-2.5 hover:bg-csa-accent/5 transition-colors cursor-pointer text-left group';
+                      const row = (
+                        <>
+                          <Icon size={16} className={`${config?.color || 'text-text-muted'} flex-shrink-0`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-text-primary truncate group-hover:text-csa-accent transition-colors">
+                              {result.title}
+                            </p>
+                            {result.subtitle && (
+                              <p className="text-xs text-text-muted truncate">{result.subtitle}</p>
+                            )}
+                          </div>
+                          {result.meta && (
+                            <span className="text-xs text-text-muted flex-shrink-0">{result.meta}</span>
                           )}
-                        </div>
-                        {result.meta && (
-                          <span className="text-xs text-text-muted flex-shrink-0">{result.meta}</span>
-                        )}
-                        <ExternalLink size={12} className="text-text-muted/0 group-hover:text-text-muted/50 transition-colors flex-shrink-0" />
-                      </button>
-                    ))}
+                          <ExternalLink size={12} className="text-text-muted/0 group-hover:text-text-muted/50 transition-colors flex-shrink-0" />
+                        </>
+                      );
+
+                      return href ? (
+                        <Link
+                          key={`${result.module}-${result.id}`}
+                          href={href}
+                          onClick={onClose}
+                          className={rowClass}
+                        >
+                          {row}
+                        </Link>
+                      ) : (
+                        <button
+                          key={`${result.module}-${result.id}`}
+                          onClick={onClose}
+                          className={rowClass}
+                        >
+                          {row}
+                        </button>
+                      );
+                    })}
                     {items.length > 10 && (
                       <p className="px-5 py-1.5 text-[10px] text-text-muted">+{items.length - 10} more</p>
                     )}

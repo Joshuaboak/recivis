@@ -20,6 +20,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Shield, AlertCircle, Loader2, ArrowLeft, Check, KeyRound } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { LOGIN_PATH } from '@/lib/routes';
 
 type View = 'login' | 'forgot' | 'reset';
 
@@ -42,7 +43,7 @@ export default function LoginView() {
     if (token) {
       setResetToken(token);
       setView('reset');
-      window.history.replaceState({}, '', '/');
+      window.history.replaceState({}, '', LOGIN_PATH);
     }
   }, []);
 

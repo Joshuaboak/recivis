@@ -1,12 +1,17 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   BarChart3, Building2, UserSearch, FileText, Loader2, TrendingUp, TrendingDown,
   DollarSign, ChevronDown, Download,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
+
+/** Drill-down rows link from their identifying cell, so the record name is a real anchor. */
+const drillLinkCls = 'block hover:text-csa-accent transition-colors';
 
 interface RecordRow { id: string; name: string; reseller: string; country: string; date: string }
 interface InvoiceRow {
@@ -31,7 +36,7 @@ const REGION_LABELS: Record<string, string> = {
 type Tab = 'overview' | 'accounts' | 'leads' | 'revenue';
 
 export default function ReportsDashboardView() {
-  const { user, setCurrentView, setSelectedAccountId, setSelectedLeadId, setSelectedLeadSource, setSelectedInvoiceId, setInvoiceReturnView } = useAppStore();
+  const { user } = useAppStore();
   const [data, setData] = useState<{ months: MonthReport[]; totals: Record<string, unknown> } | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('overview');
@@ -346,8 +351,8 @@ export default function ReportsDashboardView() {
               <DrillTable months={aggregated.months} field="accounts" drillMonth={drillMonth} onDrill={setDrillMonth}
                 columns={['Name', 'Reseller', 'Country', 'Created']}
                 renderRows={m => m.accountItems.map(a => (
-                  <tr key={a.id} onClick={() => { setSelectedAccountId(a.id); setCurrentView('account-detail'); }} className="cursor-pointer hover:bg-csa-accent/5 transition-colors">
-                    <td className="font-semibold text-text-primary">{a.name}</td><td className="text-text-secondary text-sm">{a.reseller||'\u2014'}</td>
+                  <tr key={a.id} className="hover:bg-csa-accent/5 transition-colors">
+                    <td className="font-semibold text-text-primary"><Link href={buildPath('account-detail', a.id)} className={drillLinkCls}>{a.name}</Link></td><td className="text-text-secondary text-sm">{a.reseller||'\u2014'}</td>
                     <td className="text-text-secondary text-sm">{a.country||'\u2014'}</td><td className="text-text-muted text-xs">{fmtDate(a.date)}</td>
                   </tr>
                 ))} />
@@ -368,16 +373,16 @@ export default function ReportsDashboardView() {
                 columns={['Name', 'Type', 'Reseller', 'Country', 'Created']}
                 renderRows={m => [
                   ...m.leadItems.map(l => (
-                    <tr key={`l-${l.id}`} onClick={() => { setSelectedLeadId(l.id); setSelectedLeadSource('lead'); setCurrentView('lead-detail'); }} className="cursor-pointer hover:bg-csa-accent/5 transition-colors">
-                      <td className="font-semibold text-text-primary">{l.name}</td>
+                    <tr key={`l-${l.id}`} className="hover:bg-csa-accent/5 transition-colors">
+                      <td className="font-semibold text-text-primary"><Link href={`${buildPath('lead-detail', l.id)}?source=lead`} className={drillLinkCls}>{l.name}</Link></td>
                       <td><span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-csa-accent/15 text-csa-accent">Lead</span></td>
                       <td className="text-text-secondary text-sm">{l.reseller||'\u2014'}</td><td className="text-text-secondary text-sm">{l.country||'\u2014'}</td>
                       <td className="text-text-muted text-xs">{fmtDate(l.date)}</td>
                     </tr>
                   )),
                   ...m.prospectItems.map(p => (
-                    <tr key={`p-${p.id}`} onClick={() => { setSelectedLeadId(p.id); setSelectedLeadSource('prospect'); setCurrentView('lead-detail'); }} className="cursor-pointer hover:bg-csa-accent/5 transition-colors">
-                      <td className="font-semibold text-text-primary">{p.name}</td>
+                    <tr key={`p-${p.id}`} className="hover:bg-csa-accent/5 transition-colors">
+                      <td className="font-semibold text-text-primary"><Link href={`${buildPath('lead-detail', p.id)}?source=prospect`} className={drillLinkCls}>{p.name}</Link></td>
                       <td><span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-csa-purple/15 text-csa-purple">Prospect</span></td>
                       <td className="text-text-secondary text-sm">{p.reseller||'\u2014'}</td><td className="text-text-secondary text-sm">{p.country||'\u2014'}</td>
                       <td className="text-text-muted text-xs">{fmtDate(p.date)}</td>
@@ -414,8 +419,8 @@ export default function ReportsDashboardView() {
                 renderRows={m => {
                   const filtered = viewCurrency === 'ALL' ? m.invoices : m.invoices.filter(i => i.currency === viewCurrency);
                   return filtered.map(inv => (
-                    <tr key={inv.id} onClick={() => { setSelectedInvoiceId(inv.id); setInvoiceReturnView('draft-invoices'); setCurrentView('invoice-detail'); }} className="cursor-pointer hover:bg-csa-accent/5 transition-colors">
-                      <td className="text-text-muted text-xs font-mono">{inv.ref||'\u2014'}</td>
+                    <tr key={inv.id} className="hover:bg-csa-accent/5 transition-colors">
+                      <td className="text-text-muted text-xs font-mono"><Link href={buildPath('invoice-detail', inv.id)} className={drillLinkCls}>{inv.ref||'\u2014'}</Link></td>
                       <td className="text-text-secondary text-sm">{inv.account||'\u2014'}</td>
                       <td className="text-text-secondary text-sm">{inv.reseller||'\u2014'}</td>
                       <td className="text-text-muted text-xs">{fmtDate(inv.date)}</td>

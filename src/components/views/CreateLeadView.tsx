@@ -11,6 +11,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   User,
@@ -28,6 +29,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 
 const COUNTRIES = [
   'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia','Austria',
@@ -87,7 +89,8 @@ const selectCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2.5 te
 const labelCls = "text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block";
 
 export default function CreateLeadView() {
-  const { user, setCurrentView, setSelectedLeadId, setSelectedLeadSource } = useAppStore();
+  const router = useRouter();
+  const { user } = useAppStore();
 
   // Form fields
   const [firstName, setFirstName] = useState('');
@@ -178,9 +181,7 @@ export default function CreateLeadView() {
       const data = await res.json();
 
       if (data.id) {
-        setSelectedLeadId(data.id);
-        setSelectedLeadSource('lead');
-        setCurrentView('lead-detail');
+        router.push(`${buildPath('lead-detail', data.id)}?source=lead`);
       } else if (data.error) {
         setError(data.error);
       } else {
@@ -373,7 +374,7 @@ export default function CreateLeadView() {
 
           {/* Actions */}
           <div className="flex items-center justify-between">
-            <button onClick={() => setCurrentView('leads')}
+            <button onClick={() => router.push(buildPath('leads'))}
               className="px-4 py-2.5 text-sm font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl hover:text-text-primary transition-colors cursor-pointer">
               Cancel
             </button>

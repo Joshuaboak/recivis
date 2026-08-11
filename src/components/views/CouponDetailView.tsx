@@ -18,9 +18,11 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Ticket, Loader2, ExternalLink, Percent, DollarSign, Calendar, Hash, Globe, Package, ShoppingCart, Pencil, Save, X, Search, ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 
 const CURRENCIES = ['AUD', 'USD', 'EUR', 'INR'];
@@ -35,8 +37,9 @@ function toArray(v: unknown): string[] {
   return [];
 }
 
-export default function CouponDetailView() {
-  const { selectedCouponId, setCurrentView, user } = useAppStore();
+export default function CouponDetailView({ couponId }: { couponId: string }) {
+  const { user } = useAppStore();
+  const router = useRouter();
   const isAdminUser = user?.role === 'admin' || user?.role === 'ibm';
   const [coupon, setCoupon] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,14 +76,14 @@ export default function CouponDetailView() {
   const [maxOrder, setMaxOrder] = useState('');
 
   useEffect(() => {
-    if (!selectedCouponId) return;
+    if (!couponId) return;
     setLoading(true);
-    fetch(`/api/coupons/${selectedCouponId}`)
+    fetch(`/api/coupons/${couponId}`)
       .then(res => res.json())
       .then(data => setCoupon(data.coupon))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [selectedCouponId]);
+  }, [couponId]);
 
   // Load resellers when partner restrictions toggled on
   useEffect(() => {
@@ -155,7 +158,7 @@ export default function CouponDetailView() {
 
   const handleSave = async () => {
     setAttempted(true);
-    if (!isValid || !selectedCouponId) return;
+    if (!isValid || !couponId) return;
     setSaving(true);
 
     try {
@@ -200,7 +203,7 @@ export default function CouponDetailView() {
         data.Maximum_Order_Value = null;
       }
 
-      const res = await fetch(`/api/coupons/${selectedCouponId}`, {
+      const res = await fetch(`/api/coupons/${couponId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -208,7 +211,7 @@ export default function CouponDetailView() {
 
       if (res.ok) {
         // Reload coupon data
-        const refreshRes = await fetch(`/api/coupons/${selectedCouponId}`);
+        const refreshRes = await fetch(`/api/coupons/${couponId}`);
         const refreshData = await refreshRes.json();
         setCoupon(refreshData.coupon);
         setEditing(false);
@@ -226,11 +229,11 @@ export default function CouponDetailView() {
     apiChanges: Record<string, unknown>,
     localChanges?: Record<string, unknown>,
   ) => {
-    if (!selectedCouponId) throw new Error('No coupon selected');
+    if (!couponId) throw new Error('No coupon selected');
     const previous = coupon;
     setCoupon(prev => prev ? { ...prev, ...(localChanges ?? apiChanges) } : prev);
     try {
-      const res = await fetch(`/api/coupons/${selectedCouponId}`, {
+      const res = await fetch(`/api/coupons/${couponId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(apiChanges),
@@ -240,7 +243,7 @@ export default function CouponDetailView() {
       setCoupon(previous);
       throw err;
     }
-  }, [selectedCouponId, coupon]);
+  }, [couponId, coupon]);
 
   const formatDate = (d: unknown) => {
     if (!d || typeof d !== 'string') return '\u2014';
@@ -248,7 +251,7 @@ export default function CouponDetailView() {
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
   };
 
-  const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Coupons/${selectedCouponId}`;
+  const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Coupons/${couponId}`;
 
   const toggleMulti = (arr: string[], val: string, setter: (v: string[]) => void) => {
     setter(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
@@ -269,7 +272,7 @@ export default function CouponDetailView() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
         <p className="text-text-muted">Coupon not found</p>
-        <button onClick={() => setCurrentView('coupons')} className="text-csa-accent text-sm cursor-pointer">Back to Coupons</button>
+        <button onClick={() => router.push(buildPath('coupons'))} className="text-csa-accent text-sm cursor-pointer">Back to Coupons</button>
       </div>
     );
   }
@@ -505,7 +508,7 @@ export default function CouponDetailView() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-3">
-            <button onClick={() => setCurrentView('coupons')} className="w-9 h-9 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
+            <button onClick={() => router.push(buildPath('coupons'))} className="w-9 h-9 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
               <ArrowLeft size={18} className="text-text-secondary" />
             </button>
 

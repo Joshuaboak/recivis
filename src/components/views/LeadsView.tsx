@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, type MouseEvent } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, UserSearch, Loader2, MapPin, ExternalLink, ChevronDown, Building2, User, Beaker, ArrowUp, ArrowDown, Download } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 import Pagination from '../Pagination';
 import { exportLeadsList } from '@/lib/export-lists';
 
@@ -55,7 +58,8 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function LeadsView() {
-  const { user, setCurrentView, setSelectedLeadId, setSelectedLeadSource, setSelectedAccountId } = useAppStore();
+  const router = useRouter();
+  const { user } = useAppStore();
   const [leads, setLeads] = useState<UnifiedLead[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -194,10 +198,16 @@ export default function LeadsView() {
 
   useEffect(() => { setCurrentPage(1); }, [searchDebounced, selectedReseller, selectedRegion, selectedStatus, selectedEval, sortDir]);
 
-  const openLead = (lead: UnifiedLead) => {
-    setSelectedLeadId(lead.id);
-    setSelectedLeadSource(lead._source);
-    setCurrentView('lead-detail');
+  /** Detail route for a lead. The module it lives in rides along as `?source=`. */
+  const leadHref = (lead: UnifiedLead) =>
+    `${buildPath('lead-detail', lead.id)}?source=${lead._source}`;
+
+  /** Clicking anywhere in a row opens the lead. Clicks that land on the row's
+   *  own link or any other control belong to that element, so the row stays
+   *  out of the way and the browser handles them normally. */
+  const openRow = (e: MouseEvent<HTMLTableRowElement>, href: string) => {
+    if (e.target instanceof Element && e.target.closest('a,button,input,select,[role="button"]')) return;
+    router.push(href);
   };
 
   // Count by source for the header
@@ -386,11 +396,11 @@ export default function LeadsView() {
                     key={`${lead._source}-${lead.id}`}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    onClick={() => openLead(lead)}
+                    onClick={(e) => openRow(e, leadHref(lead))}
                     className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                   >
                     <td>
-                      <div className="flex items-center gap-2">
+                      <Link href={leadHref(lead)} className="flex items-center gap-2">
                         {lead._source === 'lead' ? (
                           <UserSearch size={14} className="text-csa-accent flex-shrink-0" />
                         ) : (
@@ -402,7 +412,7 @@ export default function LeadsView() {
                             <span className="text-xs text-text-muted block truncate">{lead.email}</span>
                           )}
                         </div>
-                      </div>
+                      </Link>
                     </td>
                     <td className="text-text-secondary text-sm">
                       {lead.reseller?.name || '\u2014'}

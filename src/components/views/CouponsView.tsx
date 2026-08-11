@@ -16,9 +16,11 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Ticket, Loader2, Plus, Search, ChevronDown, Percent, DollarSign } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 import Pagination from '../Pagination';
 
 interface Coupon {
@@ -39,7 +41,7 @@ interface Coupon {
 }
 
 export default function CouponsView() {
-  const { user, setCurrentView, setSelectedCouponId } = useAppStore();
+  const { user } = useAppStore();
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -82,11 +84,6 @@ export default function CouponsView() {
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
   };
 
-  const openCoupon = (id: string) => {
-    setSelectedCouponId(id);
-    setCurrentView('coupon-detail');
-  };
-
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-6">
@@ -94,13 +91,13 @@ export default function CouponsView() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-text-primary">Coupons</h1>
             {isAdmin ? (
-              <button
-                onClick={() => setCurrentView('create-coupon')}
+              <Link
+                href={buildPath('create-coupon')}
                 className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
               >
                 <Plus size={14} />
                 Create Coupon
-              </button>
+              </Link>
             ) : null}
           </div>
 
@@ -162,10 +159,18 @@ export default function CouponsView() {
                       key={c.id}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      onClick={() => openCoupon(c.id)}
-                      className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
+                      className="relative cursor-pointer hover:bg-csa-accent/5 transition-colors"
                     >
-                      <td className="font-semibold text-csa-accent font-mono">{c.Name}</td>
+                      <td className="font-semibold text-csa-accent font-mono">
+                        {/* Row-wide link, stretched over the whole row so middle-click,
+                            ctrl-click and "copy link address" all work. */}
+                        <Link
+                          href={buildPath('coupon-detail', c.id)}
+                          aria-label={`Coupon ${c.Name}`}
+                          className="absolute inset-0"
+                        />
+                        {c.Name}
+                      </td>
                       <td className="text-text-primary">{c.Coupon_Name || '\u2014'}</td>
                       <td className="text-text-primary whitespace-nowrap">
                         {c.Discount_Type === 'Percentage Based' ? (

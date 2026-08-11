@@ -4,17 +4,23 @@
  * Features:
  * - Animated collapse/expand (260px <-> 72px icon-only mode)
  * - Nested submenus for Accounts, Invoices, and Partners sections
- * - Active view indicator with animated accent bar (Framer Motion layoutId)
+ * - Active indicator with animated accent bar (Framer Motion layoutId)
  * - CRM connection status indicator
  * - User menu (profile, logout) at the bottom
  *
- * Clears chat messages when navigating between views to prevent
+ * Every item is a real link built from routes.ts, and the active section is
+ * derived from the URL — so a cold deep link into a detail route lights up
+ * its parent item and opens the right submenu on the first paint.
+ *
+ * Clears chat messages when navigating between sections to prevent
  * stale conversation context from leaking across views.
  */
 
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -31,36 +37,48 @@ import {
   UserSearch,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 import UserMenu from './UserMenu';
 
-type ViewId = 'dashboard' | 'leads' | 'lead-detail' | 'create-lead' | 'accounts' | 'create-account' | 'invoice' | 'draft-invoices' | 'reports' | 'reports-dashboard' | 'coupons' | 'create-coupon' | 'resellers' | 'reseller-detail' | 'partner-resources';
+const PATHS = {
+  dashboard: buildPath('dashboard'),
+  leads: buildPath('leads'),
+  createLead: buildPath('create-lead'),
+  accounts: buildPath('accounts'),
+  createAccount: buildPath('create-account'),
+  orders: buildPath('draft-invoices'),
+  orderAssistant: buildPath('invoice'),
+  reports: buildPath('reports'),
+  reportsDashboard: buildPath('reports-dashboard'),
+  coupons: buildPath('coupons'),
+  partners: buildPath('resellers'),
+  partnerResources: buildPath('partner-resources'),
+} as const;
+
+/** True when `pathname` is `base` itself or any route nested under it. */
+function inSection(pathname: string, base: string): boolean {
+  return pathname === base || pathname.startsWith(`${base}/`);
+}
 
 export default function Sidebar() {
-  const { currentView, setCurrentView, sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
-  const [leadsMenuOpen, setLeadsMenuOpen] = useState(
-    currentView === 'leads' || currentView === 'lead-detail' || currentView === 'create-lead'
-  );
-  const [accountMenuOpen, setAccountMenuOpen] = useState(
-    currentView === 'accounts' || currentView === 'account-detail' || currentView === 'create-account'
-  );
-  const [invoiceMenuOpen, setInvoiceMenuOpen] = useState(
-    currentView === 'invoice' || currentView === 'draft-invoices' || currentView === 'invoice-detail'
-  );
-  const [reportsMenuOpen, setReportsMenuOpen] = useState(
-    currentView === 'reports' || currentView === 'reports-dashboard'
-  );
+  const { sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
+  const pathname = usePathname();
+
+  const isLeadActive = inSection(pathname, PATHS.leads);
+  const isAccountActive = inSection(pathname, PATHS.accounts);
+  const isInvoiceActive = inSection(pathname, PATHS.orders) || inSection(pathname, PATHS.orderAssistant);
+
+  const [leadsMenuOpen, setLeadsMenuOpen] = useState(isLeadActive);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(isAccountActive);
+  const [invoiceMenuOpen, setInvoiceMenuOpen] = useState(isInvoiceActive);
+  const [reportsMenuOpen, setReportsMenuOpen] = useState(inSection(pathname, PATHS.reports));
   const [partnerMenuOpen, setPartnerMenuOpen] = useState(
-    currentView === 'resellers' || currentView === 'reseller-detail' || currentView === 'partner-resources'
+    inSection(pathname, PATHS.partners) || inSection(pathname, PATHS.partnerResources)
   );
 
-  const handleNavClick = (id: ViewId) => {
-    if (id !== currentView) clearMessages();
-    setCurrentView(id);
+  const handleNavClick = (href: string) => {
+    if (href !== pathname) clearMessages();
   };
-
-  const isLeadActive = currentView === 'leads' || currentView === 'lead-detail' || currentView === 'create-lead';
-  const isAccountActive = currentView === 'accounts' || currentView === 'account-detail' || currentView === 'create-account';
-  const isInvoiceActive = currentView === 'invoice' || currentView === 'draft-invoices' || currentView === 'invoice-detail';
 
   return (
     <motion.aside
@@ -89,18 +107,19 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
         {/* Dashboard */}
-        <NavItem id="dashboard" label="Dashboard" icon={LayoutDashboard} active={currentView === 'dashboard'} onClick={() => handleNavClick('dashboard')} open={sidebarOpen} />
+        <NavItem href={PATHS.dashboard} label="Dashboard" icon={LayoutDashboard} active={pathname === PATHS.dashboard} onClick={() => handleNavClick(PATHS.dashboard)} open={sidebarOpen} />
 
         {/* Leads (with submenu) */}
         <div>
-          <button
-            onClick={() => {
-              if (!sidebarOpen) {
-                handleNavClick('leads');
-              } else {
+          <Link
+            href={PATHS.leads}
+            onClick={(e) => {
+              if (sidebarOpen) {
                 setLeadsMenuOpen(!leadsMenuOpen);
-                if (!isLeadActive) handleNavClick('leads');
+                // Already in this section — the click only works the disclosure.
+                if (isLeadActive) { e.preventDefault(); return; }
               }
+              handleNavClick(PATHS.leads);
             }}
             className={`
               w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
@@ -125,7 +144,7 @@ export default function Sidebar() {
             {sidebarOpen && (
               <ChevronDown size={14} className={`text-text-muted transition-transform ${leadsMenuOpen ? 'rotate-180' : ''}`} />
             )}
-          </button>
+          </Link>
           <AnimatePresence>
             {sidebarOpen && leadsMenuOpen && (
               <motion.div
@@ -136,8 +155,8 @@ export default function Sidebar() {
                 className="overflow-hidden"
               >
                 <div className="ml-8 mt-1 space-y-0.5">
-                  <SubNavItem label="Browse Leads" active={currentView === 'leads'} onClick={() => handleNavClick('leads')} />
-                  <SubNavItem label="Create Lead" active={currentView === 'create-lead'} onClick={() => handleNavClick('create-lead')} />
+                  <SubNavItem label="Browse Leads" href={PATHS.leads} active={isLeadActive && pathname !== PATHS.createLead} onClick={() => handleNavClick(PATHS.leads)} />
+                  <SubNavItem label="Create Lead" href={PATHS.createLead} active={pathname === PATHS.createLead} onClick={() => handleNavClick(PATHS.createLead)} />
                 </div>
               </motion.div>
             )}
@@ -146,14 +165,14 @@ export default function Sidebar() {
 
         {/* Accounts (with submenu) */}
         <div>
-          <button
-            onClick={() => {
-              if (!sidebarOpen) {
-                handleNavClick('accounts');
-              } else {
+          <Link
+            href={PATHS.accounts}
+            onClick={(e) => {
+              if (sidebarOpen) {
                 setAccountMenuOpen(!accountMenuOpen);
-                if (!isAccountActive) handleNavClick('accounts');
+                if (isAccountActive) { e.preventDefault(); return; }
               }
+              handleNavClick(PATHS.accounts);
             }}
             className={`
               w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
@@ -178,7 +197,7 @@ export default function Sidebar() {
             {sidebarOpen && (
               <ChevronDown size={14} className={`text-text-muted transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`} />
             )}
-          </button>
+          </Link>
 
           <AnimatePresence>
             {sidebarOpen && accountMenuOpen && (
@@ -190,8 +209,8 @@ export default function Sidebar() {
                 className="overflow-hidden"
               >
                 <div className="ml-8 mt-1 space-y-0.5">
-                  <SubNavItem label="Browse Accounts" active={currentView === 'accounts' || currentView === 'account-detail'} onClick={() => handleNavClick('accounts')} />
-                  <SubNavItem label="Create Account" active={currentView === 'create-account'} onClick={() => handleNavClick('create-account')} />
+                  <SubNavItem label="Browse Accounts" href={PATHS.accounts} active={isAccountActive && pathname !== PATHS.createAccount} onClick={() => handleNavClick(PATHS.accounts)} />
+                  <SubNavItem label="Create Account" href={PATHS.createAccount} active={pathname === PATHS.createAccount} onClick={() => handleNavClick(PATHS.createAccount)} />
                 </div>
               </motion.div>
             )}
@@ -200,14 +219,14 @@ export default function Sidebar() {
 
         {/* Invoices (with submenu) */}
         <div>
-          <button
-            onClick={() => {
-              if (!sidebarOpen) {
-                handleNavClick('invoice');
-              } else {
+          <Link
+            href={PATHS.orderAssistant}
+            onClick={(e) => {
+              if (sidebarOpen) {
                 setInvoiceMenuOpen(!invoiceMenuOpen);
-                if (!isInvoiceActive) handleNavClick('invoice');
+                if (isInvoiceActive) { e.preventDefault(); return; }
               }
+              handleNavClick(PATHS.orderAssistant);
             }}
             className={`
               w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
@@ -232,7 +251,7 @@ export default function Sidebar() {
             {sidebarOpen && (
               <ChevronDown size={14} className={`text-text-muted transition-transform ${invoiceMenuOpen ? 'rotate-180' : ''}`} />
             )}
-          </button>
+          </Link>
 
           {/* Submenu */}
           <AnimatePresence>
@@ -245,8 +264,8 @@ export default function Sidebar() {
                 className="overflow-hidden"
               >
                 <div className="ml-8 mt-1 space-y-0.5">
-                  <SubNavItem label="Browse Orders" active={currentView === 'draft-invoices'} onClick={() => handleNavClick('draft-invoices')} />
-                  <SubNavItem label="Order Assistant" active={currentView === 'invoice'} onClick={() => handleNavClick('invoice')} />
+                  <SubNavItem label="Browse Orders" href={PATHS.orders} active={inSection(pathname, PATHS.orders)} onClick={() => handleNavClick(PATHS.orders)} />
+                  <SubNavItem label="Order Assistant" href={PATHS.orderAssistant} active={pathname === PATHS.orderAssistant} onClick={() => handleNavClick(PATHS.orderAssistant)} />
                 </div>
               </motion.div>
             )}
@@ -255,16 +274,17 @@ export default function Sidebar() {
 
         {/* Reports (with submenu) */}
         {(() => {
-          const isReportsActive = currentView === 'reports' || currentView === 'reports-dashboard';
+          const isReportsActive = inSection(pathname, PATHS.reports);
           return (
             <div>
-              <button
-                onClick={() => {
-                  if (!sidebarOpen) { handleNavClick('reports-dashboard'); }
-                  else {
+              <Link
+                href={PATHS.reportsDashboard}
+                onClick={(e) => {
+                  if (sidebarOpen) {
                     setReportsMenuOpen(!reportsMenuOpen);
-                    if (!isReportsActive) handleNavClick('reports-dashboard');
+                    if (isReportsActive) { e.preventDefault(); return; }
                   }
+                  handleNavClick(PATHS.reportsDashboard);
                 }}
                 className={`w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold transition-all duration-150 relative group rounded-xl cursor-pointer ${
                   isReportsActive ? 'bg-csa-accent/15 text-csa-accent' : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
@@ -276,13 +296,13 @@ export default function Sidebar() {
                   {sidebarOpen && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">Reports</motion.span>}
                 </AnimatePresence>
                 {sidebarOpen && <ChevronDown size={14} className={`text-text-muted transition-transform ${reportsMenuOpen ? 'rotate-180' : ''}`} />}
-              </button>
+              </Link>
               <AnimatePresence>
                 {sidebarOpen && reportsMenuOpen && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
                     <div className="ml-8 mt-1 space-y-0.5">
-                      <SubNavItem label="Dashboard" active={currentView === 'reports-dashboard'} onClick={() => handleNavClick('reports-dashboard')} />
-                      <SubNavItem label="AI Assistant" active={currentView === 'reports'} onClick={() => handleNavClick('reports')} />
+                      <SubNavItem label="Dashboard" href={PATHS.reportsDashboard} active={pathname === PATHS.reportsDashboard} onClick={() => handleNavClick(PATHS.reportsDashboard)} />
+                      <SubNavItem label="AI Assistant" href={PATHS.reports} active={pathname === PATHS.reports} onClick={() => handleNavClick(PATHS.reports)} />
                     </div>
                   </motion.div>
                 )}
@@ -292,20 +312,21 @@ export default function Sidebar() {
         })()}
 
         {/* Coupons */}
-        <NavItem id="coupons" label="Coupons" icon={Ticket} active={currentView === 'coupons' || currentView === 'create-coupon' || currentView === 'coupon-detail'} onClick={() => handleNavClick('coupons')} open={sidebarOpen} />
+        <NavItem href={PATHS.coupons} label="Coupons" icon={Ticket} active={inSection(pathname, PATHS.coupons)} onClick={() => handleNavClick(PATHS.coupons)} open={sidebarOpen} />
 
         {/* Partners (with submenu) */}
         {(() => {
-          const isPartnerActive = currentView === 'resellers' || currentView === 'reseller-detail' || currentView === 'partner-resources';
+          const isPartnerActive = inSection(pathname, PATHS.partners) || inSection(pathname, PATHS.partnerResources);
           return (
             <div>
-              <button
-                onClick={() => {
-                  if (!sidebarOpen) { handleNavClick('resellers'); }
-                  else {
+              <Link
+                href={PATHS.partners}
+                onClick={(e) => {
+                  if (sidebarOpen) {
                     setPartnerMenuOpen(!partnerMenuOpen);
-                    if (!isPartnerActive) handleNavClick('resellers');
+                    if (isPartnerActive) { e.preventDefault(); return; }
                   }
+                  handleNavClick(PATHS.partners);
                 }}
                 className={`w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold transition-all duration-150 relative group rounded-xl cursor-pointer ${
                   isPartnerActive ? 'bg-csa-accent/15 text-csa-accent' : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
@@ -317,13 +338,13 @@ export default function Sidebar() {
                   {sidebarOpen && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">Partners</motion.span>}
                 </AnimatePresence>
                 {sidebarOpen && <ChevronDown size={14} className={`text-text-muted transition-transform ${partnerMenuOpen ? 'rotate-180' : ''}`} />}
-              </button>
+              </Link>
               <AnimatePresence>
                 {sidebarOpen && partnerMenuOpen && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
                     <div className="ml-8 mt-1 space-y-0.5">
-                      <SubNavItem label="Manage Partners" active={currentView === 'resellers' || currentView === 'reseller-detail'} onClick={() => handleNavClick('resellers')} />
-                      <SubNavItem label="Partner Resources" active={currentView === 'partner-resources'} onClick={() => handleNavClick('partner-resources')} />
+                      <SubNavItem label="Manage Partners" href={PATHS.partners} active={inSection(pathname, PATHS.partners)} onClick={() => handleNavClick(PATHS.partners)} />
+                      <SubNavItem label="Partner Resources" href={PATHS.partnerResources} active={inSection(pathname, PATHS.partnerResources)} onClick={() => handleNavClick(PATHS.partnerResources)} />
                     </div>
                   </motion.div>
                 )}
@@ -364,11 +385,12 @@ export default function Sidebar() {
 }
 
 // Standard nav item
-function NavItem({ id, label, icon: Icon, active, onClick, open }: {
-  id: string; label: string; icon: React.ComponentType<{ size: number; className?: string }>; active: boolean; onClick: () => void; open: boolean;
+function NavItem({ href, label, icon: Icon, active, onClick, open }: {
+  href: string; label: string; icon: React.ComponentType<{ size: number; className?: string }>; active: boolean; onClick: () => void; open: boolean;
 }) {
   return (
-    <button
+    <Link
+      href={href}
       onClick={onClick}
       className={`
         w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
@@ -387,21 +409,22 @@ function NavItem({ id, label, icon: Icon, active, onClick, open }: {
           </motion.span>
         )}
       </AnimatePresence>
-    </button>
+    </Link>
   );
 }
 
 // Sub-nav item (indented)
-function SubNavItem({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function SubNavItem({ label, href, active, onClick }: { label: string; href: string; active: boolean; onClick: () => void }) {
   return (
-    <button
+    <Link
+      href={href}
       onClick={onClick}
       className={`
-        w-full text-left px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer
+        block w-full text-left px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer
         ${active ? 'text-csa-accent bg-csa-accent/10' : 'text-text-muted hover:text-text-secondary hover:bg-surface-raised'}
       `}
     >
       {label}
-    </button>
+    </Link>
   );
 }

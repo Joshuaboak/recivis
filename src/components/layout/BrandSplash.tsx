@@ -1,11 +1,14 @@
-'use client';
+/**
+ * BrandSplash — Full-screen brand mark shown while the portal resolves.
+ *
+ * Rendered by the (portal) loading.tsx boundary and by the portal layout
+ * while it rehydrates the session from GET /api/auth.
+ */
 
-import dynamic from 'next/dynamic';
 import Image from 'next/image';
 
-const AppShell = dynamic(() => import('@/components/layout/AppShell'), {
-  ssr: false,
-  loading: () => (
+export default function BrandSplash() {
+  return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#021A26' }}>
       <div className="flex flex-col items-center gap-4">
         <Image src="/logo.svg" alt="Civil Survey Applications" width={36} height={72} priority />
@@ -16,9 +19,5 @@ const AppShell = dynamic(() => import('@/components/layout/AppShell'), {
         </div>
       </div>
     </div>
-  ),
-});
-
-export default function Home() {
-  return <AppShell />;
+  );
 }

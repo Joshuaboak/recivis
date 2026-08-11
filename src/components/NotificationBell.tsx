@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, UserSearch, Beaker, FileText, X, Trash2, ExternalLink } from 'lucide-react';
-import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 
 interface Notification {
   key: string;
@@ -21,8 +22,21 @@ const TYPE_CONFIG: Record<string, { icon: typeof Bell; color: string; bgColor: s
   invoice:    { icon: FileText,   color: 'text-csa-purple',  bgColor: 'bg-csa-purple/15' },
 };
 
+/** The record a notification points at, or null when it has no portal page. */
+function notificationHref(n: Notification): string | null {
+  switch (n.recordModule) {
+    case 'Leads':
+      return `${buildPath('lead-detail', n.recordId)}?source=lead`;
+    case 'Prospects':
+      return `${buildPath('lead-detail', n.recordId)}?source=prospect`;
+    case 'Invoices':
+      return buildPath('invoice-detail', n.recordId);
+    default:
+      return null;
+  }
+}
+
 export default function NotificationBell() {
-  const { user, setCurrentView, setSelectedLeadId, setSelectedLeadSource, setSelectedInvoiceId, setInvoiceReturnView } = useAppStore();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -57,27 +71,10 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
+  // Clicking a notification dismisses it and closes the panel; the link itself
+  // does the navigating.
   const handleNavigate = (n: Notification) => {
-    // Dismiss on click
     dismiss(n.key);
-
-    switch (n.recordModule) {
-      case 'Leads':
-        setSelectedLeadId(n.recordId);
-        setSelectedLeadSource('lead');
-        setCurrentView('lead-detail');
-        break;
-      case 'Prospects':
-        setSelectedLeadId(n.recordId);
-        setSelectedLeadSource('prospect');
-        setCurrentView('lead-detail');
-        break;
-      case 'Invoices':
-        setSelectedInvoiceId(n.recordId);
-        setInvoiceReturnView('draft-invoices');
-        setCurrentView('invoice-detail');
-        break;
-    }
     setOpen(false);
   };
 
@@ -174,6 +171,17 @@ export default function NotificationBell() {
                   {notifications.map(n => {
                     const config = TYPE_CONFIG[n.type] || TYPE_CONFIG.lead;
                     const Icon = config.icon;
+                    const href = notificationHref(n);
+                    const bodyClass = 'flex-1 text-left min-w-0 cursor-pointer';
+                    const body = (
+                      <>
+                        <p className="text-xs font-semibold text-text-primary group-hover:text-csa-accent transition-colors">
+                          {n.title}
+                        </p>
+                        <p className="text-[11px] text-text-secondary truncate">{n.message}</p>
+                        <p className="text-[10px] text-text-muted mt-0.5">{formatTimeAgo(n.timestamp)}</p>
+                      </>
+                    );
 
                     return (
                       <div
@@ -186,16 +194,15 @@ export default function NotificationBell() {
                         </div>
 
                         {/* Content — clickable */}
-                        <button
-                          onClick={() => handleNavigate(n)}
-                          className="flex-1 text-left min-w-0 cursor-pointer"
-                        >
-                          <p className="text-xs font-semibold text-text-primary group-hover:text-csa-accent transition-colors">
-                            {n.title}
-                          </p>
-                          <p className="text-[11px] text-text-secondary truncate">{n.message}</p>
-                          <p className="text-[10px] text-text-muted mt-0.5">{formatTimeAgo(n.timestamp)}</p>
-                        </button>
+                        {href ? (
+                          <Link href={href} onClick={() => handleNavigate(n)} className={bodyClass}>
+                            {body}
+                          </Link>
+                        ) : (
+                          <button onClick={() => handleNavigate(n)} className={bodyClass}>
+                            {body}
+                          </button>
+                        )}
 
                         {/* Dismiss button */}
                         <button

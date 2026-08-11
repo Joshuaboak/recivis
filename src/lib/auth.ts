@@ -18,6 +18,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { google } from 'googleapis';
 import { query, initDB } from './db';
+import { LOGIN_PATH } from './routes';
 import type { User, UserPermissions } from './types';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'recivis-dev-secret-change-in-production';
@@ -61,14 +62,14 @@ export async function createUser(
 // AUTHENTICATION
 // ============================================================
 
-export async function authenticateUser(
-  email: string,
-  password: string
-): Promise<{ token: string; user: User } | null> {
-  await ensureDB();
-
-  const result = await query(
-    `SELECT
+/**
+ * The column list and joins behind the `User` projection.
+ *
+ * Shared by `authenticateUser` (lookup by email) and `getUserById`
+ * (session refresh by id) so both paths return an identical user shape.
+ * Callers append their own `WHERE` clause.
+ */
+const USER_PROJECTION_SQL = `SELECT
        u.id, u.email, u.password_hash, u.name, u.is_active, u.reseller_id,
        ur.name AS user_role_name, ur.display_name AS user_role_display,
        ur.can_create_invoices AS ur_create, ur.can_approve_invoices AS ur_approve,
@@ -96,8 +97,19 @@ export async function authenticateUser(
      FROM users u
      LEFT JOIN user_roles ur ON ur.id = u.user_role_id
      LEFT JOIN resellers r ON r.id = u.reseller_id
-     LEFT JOIN reseller_roles rr ON rr.id = r.reseller_role_id
-     WHERE u.email = $1`,
+     LEFT JOIN reseller_roles rr ON rr.id = r.reseller_role_id`;
+
+/** A row produced by USER_PROJECTION_SQL. */
+type UserProjectionRow = Awaited<ReturnType<typeof query>>['rows'][number];
+
+export async function authenticateUser(
+  email: string,
+  password: string
+): Promise<{ token: string; user: User } | null> {
+  await ensureDB();
+
+  const result = await query(
+    `${USER_PROJECTION_SQL} WHERE u.email = $1`,
     [email.toLowerCase().trim()]
   );
 
@@ -110,6 +122,38 @@ export async function authenticateUser(
 
   await query('UPDATE users SET last_login = NOW() WHERE id = $1', [row.id]);
 
+  const user = await buildUserFromRow(row);
+
+  const token = jwt.sign(
+    { userId: row.id, email: row.email, userRole: row.user_role_name },
+    JWT_SECRET,
+    { expiresIn: '24h' }
+  );
+
+  return { token, user };
+}
+
+/**
+ * Load the `User` projection for an already-authenticated session.
+ *
+ * GET /api/auth uses this so a session refresh returns exactly the shape
+ * POST /api/auth returns at login — otherwise rehydrating the client would
+ * silently downgrade the user object.
+ */
+export async function getUserById(userId: number): Promise<User | null> {
+  await ensureDB();
+
+  const result = await query(
+    `${USER_PROJECTION_SQL} WHERE u.id = $1 AND u.is_active = true`,
+    [userId]
+  );
+
+  if (result.rows.length === 0) return null;
+  return buildUserFromRow(result.rows[0]);
+}
+
+/** Map a USER_PROJECTION_SQL row to the `User` object returned to the client. */
+async function buildUserFromRow(row: UserProjectionRow): Promise<User> {
   // Effective permissions = user_role AND reseller_role (intersection).
   // System admins bypass this — they get true for everything.
   // Per-reseller overrides (ro_*) take precedence over role defaults (rr_*).
@@ -186,13 +230,7 @@ export async function authenticateUser(
     } : undefined,
   };
 
-  const token = jwt.sign(
-    { userId: row.id, email: row.email, userRole: row.user_role_name },
-    JWT_SECRET,
-    { expiresIn: '24h' }
-  );
-
-  return { token, user };
+  return user;
 }
 
 /** Verify a JWT and return a minimal user object, or null if invalid/expired. */
@@ -328,7 +366,7 @@ export async function requestPasswordReset(email: string): Promise<boolean> {
   await query('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, tokenHash, expiresAt]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://recivis-production.up.railway.app';
-  const resetUrl = `${appUrl}?reset=${token}`;
+  const resetUrl = `${appUrl}${LOGIN_PATH}?reset=${token}`;
 
   await sendResetEmail(normalizedEmail, user.name, resetUrl);
   await auditLog(user.id, normalizedEmail, 'password_reset_requested');

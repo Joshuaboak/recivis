@@ -11,7 +11,9 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Users,
@@ -27,6 +29,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 
 interface RecentAccount {
   id: string;
@@ -101,7 +104,8 @@ const item = {
 };
 
 export default function DashboardView() {
-  const { user, setCurrentView, clearMessages, setSelectedAccountId } = useAppStore();
+  const router = useRouter();
+  const { user, clearMessages } = useAppStore();
   const [recentAccounts, setRecentAccounts] = useState<RecentAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
 
@@ -115,21 +119,19 @@ export default function DashboardView() {
       .finally(() => setLoadingAccounts(false));
   }, []);
 
-  const handleAction = (view: string) => {
-    clearMessages();
-    setCurrentView(view as Parameters<typeof setCurrentView>[0]);
-  };
-
-  const openAccount = (id: string) => {
-    setSelectedAccountId(id);
-    setCurrentView('account-detail');
-  };
-
   const timeOfDay = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'morning';
     if (hour < 17) return 'afternoon';
     return 'evening';
+  };
+
+  /** Clicking anywhere in a row opens the record. Clicks that land on the
+   *  row's own link or any other control belong to that element, so the row
+   *  stays out of the way and the browser handles them normally. */
+  const openRow = (e: MouseEvent<HTMLTableRowElement>, href: string) => {
+    if (e.target instanceof Element && e.target.closest('a,button,input,select,[role="button"]')) return;
+    router.push(href);
   };
 
   return (
@@ -166,8 +168,9 @@ export default function DashboardView() {
               {/* Hover accent bar */}
               <div className="absolute top-0 left-0 right-0 h-1 bg-csa-accent scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-200 rounded-b" />
 
-              <button
-                onClick={() => handleAction(card.view)}
+              <Link
+                href={buildPath(card.view)}
+                onClick={() => clearMessages()}
                 className="flex-1 text-left cursor-pointer"
               >
                 <div className={`w-10 h-10 ${card.color} flex items-center justify-center mb-4 rounded-lg`}>
@@ -179,7 +182,7 @@ export default function DashboardView() {
                 <p className="text-xs text-text-muted leading-relaxed">
                   {card.description}
                 </p>
-              </button>
+              </Link>
 
               <div className="mt-4 pt-3 border-t border-border-subtle">
                 <button
@@ -211,12 +214,13 @@ export default function DashboardView() {
               <Building2 size={18} className="text-csa-accent" />
               Recent Accounts
             </h2>
-            <button
-              onClick={() => { clearMessages(); setCurrentView('accounts'); }}
+            <Link
+              href={buildPath('accounts')}
+              onClick={() => clearMessages()}
               className="text-xs font-semibold text-csa-accent hover:text-csa-highlight transition-colors flex items-center gap-1 cursor-pointer"
             >
               View All <ArrowRight size={12} />
-            </button>
+            </Link>
           </div>
 
           {loadingAccounts ? (
@@ -241,14 +245,14 @@ export default function DashboardView() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.4 + i * 0.03 }}
-                      onClick={() => openAccount(acc.id)}
+                      onClick={(e) => openRow(e, buildPath('account-detail', acc.id))}
                       className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                     >
                       <td>
-                        <div className="flex items-center gap-2">
+                        <Link href={buildPath('account-detail', acc.id)} className="flex items-center gap-2">
                           <Building2 size={14} className="text-csa-accent flex-shrink-0" />
                           <span className="font-semibold text-text-primary">{acc.Account_Name}</span>
-                        </div>
+                        </Link>
                         {acc.Email_Domain && (
                           <span className="text-xs text-text-muted ml-6">{acc.Email_Domain}</span>
                         )}

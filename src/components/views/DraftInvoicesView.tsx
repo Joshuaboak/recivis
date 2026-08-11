@@ -18,9 +18,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { FileText, Loader2, ExternalLink, ChevronDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 import Pagination from '../Pagination';
 import { exportInvoicesList } from '@/lib/export-lists';
 
@@ -52,7 +54,7 @@ type SortField = 'Reference_Number' | 'Invoice_Date' | 'Due_Date' | 'Grand_Total
 type SortDir = 'asc' | 'desc';
 
 export default function DraftInvoicesView() {
-  const { user, setCurrentView, setSelectedInvoiceId, setInvoiceReturnView } = useAppStore();
+  const { user } = useAppStore();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('Draft');
@@ -386,14 +388,18 @@ export default function DraftInvoicesView() {
                     key={inv.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    onClick={() => {
-                      setSelectedInvoiceId(inv.id);
-                      setInvoiceReturnView('draft-invoices');
-                      setCurrentView('invoice-detail');
-                    }}
-                    className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
+                    className="relative cursor-pointer hover:bg-csa-accent/5 transition-colors"
                   >
-                    <td className="text-text-muted text-xs font-mono whitespace-nowrap">{inv.Reference_Number || '\u2014'}</td>
+                    <td className="text-text-muted text-xs font-mono whitespace-nowrap">
+                      {/* Row-wide link, stretched over the whole row so middle-click,
+                          ctrl-click and "copy link address" all work. */}
+                      <Link
+                        href={buildPath('invoice-detail', inv.id)}
+                        aria-label={`Order ${inv.Reference_Number || inv.id}`}
+                        className="absolute inset-0"
+                      />
+                      {inv.Reference_Number || '\u2014'}
+                    </td>
                     <td className="text-text-secondary">{inv.Account_Name?.name || '\u2014'}</td>
                     <td className="text-text-muted text-sm">{inv.Reseller?.name || '\u2014'}</td>
                     <td className="text-text-secondary whitespace-nowrap">{formatDate(inv.Invoice_Date)}</td>

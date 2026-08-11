@@ -20,6 +20,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -38,12 +39,17 @@ import {
   Replace,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 import SKUBuilder from '../SKUBuilder';
 
 const CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'INR', 'NZD'];
 
+/** Shown on /accounts when this view is opened without an account context. */
+const NO_CONTEXT_MESSAGE = 'Pick an account to start an order';
+
 export default function CreateInvoiceView() {
-  const { newInvoiceContext, setCurrentView, setSelectedAccountId, setSelectedInvoiceId, setInvoiceReturnView } = useAppStore();
+  const { newInvoiceContext } = useAppStore();
+  const router = useRouter();
 
   const account = newInvoiceContext?.account as { name?: string; id?: string } | null;
   const contact = newInvoiceContext?.contact as { name?: string; id?: string } | null;
@@ -79,6 +85,15 @@ export default function CreateInvoiceView() {
   }, [resellerData?.id]);
   const [saving, setSaving] = useState(false);
   const [skuBuilderIndex, setSkuBuilderIndex] = useState<number | null>(null);
+
+  // The account context only ever lives in the store, so a cold deep link to
+  // this route has nothing to build an order from. Send the user back to pick
+  // an account rather than showing an empty form.
+  useEffect(() => {
+    if (!account) {
+      router.replace(`${buildPath('accounts')}?notice=${encodeURIComponent(NO_CONTEXT_MESSAGE)}`);
+    }
+  }, [account, router]);
 
   const getCurrencySymbol = (c: string) => {
     if (c === 'EUR') return '\u20AC';
@@ -134,7 +149,7 @@ export default function CreateInvoiceView() {
   };
 
   const goBack = () => {
-    setCurrentView('account-detail');
+    router.push(account?.id ? buildPath('account-detail', account.id) : buildPath('accounts'));
   };
 
   const createInvoice = async () => {
@@ -197,9 +212,7 @@ export default function CreateInvoiceView() {
       const data = await res.json();
       if (data.id) {
         // Navigate to the created invoice
-        setSelectedInvoiceId(data.id);
-        setInvoiceReturnView('account-detail');
-        setCurrentView('invoice-detail');
+        router.push(buildPath('invoice-detail', data.id));
       } else {
         // Stay on page
         setSaving(false);
@@ -215,11 +228,11 @@ export default function CreateInvoiceView() {
     return sum + qty * price;
   }, 0);
 
+  // Redirecting — see the effect above.
   if (!account) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3">
-        <p className="text-text-muted">No account selected</p>
-        <button onClick={() => setCurrentView('accounts')} className="text-csa-accent text-sm cursor-pointer">Back to Accounts</button>
+      <div className="flex items-center justify-center h-full">
+        <Loader2 size={24} className="text-csa-accent animate-spin" />
       </div>
     );
   }

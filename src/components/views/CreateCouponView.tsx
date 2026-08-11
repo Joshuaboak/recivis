@@ -17,9 +17,11 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Ticket, Save, Loader2, ChevronDown, Search } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { buildPath } from '@/lib/routes';
 
 const CURRENCIES = ['AUD', 'USD', 'EUR', 'INR'];
 const REGIONS = ['AU', 'EU', 'NA', 'AS', 'NZ', 'WW'];
@@ -28,7 +30,8 @@ const PRODUCTS = ['Civil Site Design', 'Civil Site Design Plus', 'Stringer', 'Co
 const ORDER_TYPES = ['New Product', 'Renewal'];
 
 export default function CreateCouponView() {
-  const { user, setCurrentView, setSelectedCouponId } = useAppStore();
+  const { user } = useAppStore();
+  const router = useRouter();
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
 
   const [couponCode, setCouponCode] = useState('');
@@ -134,8 +137,7 @@ export default function CreateCouponView() {
       const result = await res.json();
 
       if (result.id) {
-        setSelectedCouponId(result.id);
-        setCurrentView('coupon-detail');
+        router.push(buildPath('coupon-detail', result.id));
       }
     } catch { /* handled */ }
     setSaving(false);
