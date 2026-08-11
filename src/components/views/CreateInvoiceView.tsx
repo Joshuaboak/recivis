@@ -11,6 +11,8 @@
  * - Per-line editable quantity and list price
  * - Auto-calculated subtotal
  * - On save: creates Draft invoice in Zoho CRM, then navigates to detail view
+ * - Unsaved work is drafted per account (see useDraft) and offered back on
+ *   return; it is never rehydrated without the user asking.
  *
  * Contract_Term_Years logic: If the user modifies the list price from the
  * product's default unit price, Contract_Term_Years is set to 0 to signal
@@ -19,8 +21,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -40,6 +41,10 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useGuardedRouter } from '@/lib/useGuardedRouter';
+import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
+import { useDraft } from '@/lib/useDraft';
+import { DraftRestoreBar } from '@/components/DraftRestoreBar';
 import SKUBuilder from '../SKUBuilder';
 
 const CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'INR', 'NZD'];
@@ -47,9 +52,30 @@ const CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'INR', 'NZD'];
 /** Shown on /accounts when this view is opened without an account context. */
 const NO_CONTEXT_MESSAGE = 'Pick an account to start an order';
 
+/** Persisted between visits so browser Back doesn't destroy a half-built order. */
+interface InvoiceDraft {
+  invoiceDate: string;
+  dueDate: string;
+  currency: string;
+  lineItems: Record<string, unknown>[];
+}
+
+/**
+ * Sentinel for "nothing worth saving". `useDraft` only starts writing once the
+ * value differs from what it saw at mount, so handing it this constant while the
+ * form is untouched keeps an empty order from ever reaching localStorage.
+ */
+const EMPTY_INVOICE_DRAFT: InvoiceDraft = {
+  invoiceDate: '',
+  dueDate: '',
+  currency: '',
+  lineItems: [],
+};
+
 export default function CreateInvoiceView() {
   const { newInvoiceContext } = useAppStore();
-  const router = useRouter();
+  const router = useGuardedRouter();
+  const { registerDirty } = useUnsavedChanges();
 
   const account = newInvoiceContext?.account as { name?: string; id?: string } | null;
   const contact = newInvoiceContext?.contact as { name?: string; id?: string } | null;
@@ -66,6 +92,29 @@ export default function CreateInvoiceView() {
   const [dueDate, setDueDate] = useState(plus30);
   const [currency, setCurrency] = useState('AUD');
   const [lineItems, setLineItems] = useState<Record<string, unknown>[]>([]);
+
+  // Scoped by account: two half-built orders for different accounts must not
+  // overwrite each other.
+  const draftKey = `orders:new:${account?.id || 'none'}`;
+
+  const draft = useMemo<InvoiceDraft>(
+    () => ({ invoiceDate, dueDate, currency, lineItems }),
+    [invoiceDate, dueDate, currency, lineItems],
+  );
+
+  // Currency is stored in the draft but deliberately left out of this test: the
+  // reseller fetch below overwrites it, and a form nobody touched must not look
+  // dirty or leave a draft behind.
+  const isDirty = lineItems.length > 0 || invoiceDate !== today || dueDate !== plus30;
+
+  const { pendingDraft, pendingDraftSavedAt, restore, discard, clear } =
+    useDraft<InvoiceDraft>(draftKey, isDirty ? draft : EMPTY_INVOICE_DRAFT);
+
+  // Drafts survive browser Back; this makes in-app navigation prompt first.
+  useEffect(() => {
+    registerDirty('create-invoice', isDirty, 'this new order');
+    return () => registerDirty('create-invoice', false);
+  }, [registerDirty, isDirty]);
 
   const [resellerPercentage, setResellerPercentage] = useState<number | null>(null);
 
@@ -211,6 +260,10 @@ export default function CreateInvoiceView() {
 
       const data = await res.json();
       if (data.id) {
+        // It's a real record now — drop the draft and the dirty flag so the
+        // navigation below doesn't prompt.
+        clear();
+        registerDirty('create-invoice', false);
         // Navigate to the created invoice
         router.push(buildPath('invoice-detail', data.id));
       } else {
@@ -240,6 +293,24 @@ export default function CreateInvoiceView() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-6">
+        {/* Never rehydrated silently — a stale order that reappears on its own
+            gets submitted by accident. The user chooses. */}
+        {pendingDraft && pendingDraftSavedAt !== null ? (
+          <DraftRestoreBar
+            savedAt={pendingDraftSavedAt}
+            label="unsaved order"
+            onRestore={() => {
+              const d = restore();
+              if (!d) return;
+              setInvoiceDate(d.invoiceDate);
+              setDueDate(d.dueDate);
+              setCurrency(d.currency);
+              setLineItems(d.lineItems);
+            }}
+            onDiscard={discard}
+          />
+        ) : null}
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-3">

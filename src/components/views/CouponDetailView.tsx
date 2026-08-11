@@ -18,11 +18,12 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Ticket, Loader2, ExternalLink, Percent, DollarSign, Calendar, Hash, Globe, Package, ShoppingCart, Pencil, Save, X, Search, ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useGuardedRouter } from '@/lib/useGuardedRouter';
+import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 
 const CURRENCIES = ['AUD', 'USD', 'EUR', 'INR'];
@@ -37,9 +38,13 @@ function toArray(v: unknown): string[] {
   return [];
 }
 
+/** Scope id for the full-page edit form registered with the dirty registry. */
+const SCOPE_EDIT = 'coupon-detail:edit';
+
 export default function CouponDetailView({ couponId }: { couponId: string }) {
   const { user } = useAppStore();
-  const router = useRouter();
+  const router = useGuardedRouter();
+  const { registerDirty } = useUnsavedChanges();
   const isAdminUser = user?.role === 'admin' || user?.role === 'ibm';
   const [coupon, setCoupon] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,6 +98,14 @@ export default function CouponDetailView({ couponId }: { couponId: string }) {
       .then(data => setAllResellers((data.resellers || []).map((r: { id: string; name: string }) => ({ id: r.id, name: r.name }))))
       .catch(() => {});
   }, [partnerRestrictions, allResellers.length]);
+
+  // The full-page edit form mirrors ~20 coupon fields into local state with no
+  // persistence, so the whole mode counts as unsaved work while it is open.
+  // The inline-edit fields in view mode register themselves.
+  useEffect(() => {
+    registerDirty(SCOPE_EDIT, editing, 'this coupon');
+    return () => registerDirty(SCOPE_EDIT, false);
+  }, [registerDirty, editing]);
 
   const filteredPartners = useMemo(() => {
     if (!partnerSearch) return allResellers;
@@ -215,6 +228,7 @@ export default function CouponDetailView({ couponId }: { couponId: string }) {
         const refreshData = await refreshRes.json();
         setCoupon(refreshData.coupon);
         setEditing(false);
+        registerDirty(SCOPE_EDIT, false);
       }
     } catch { /* handled */ }
     setSaving(false);

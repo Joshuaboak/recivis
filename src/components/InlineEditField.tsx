@@ -26,12 +26,14 @@ import {
   useContext,
   useState,
   useEffect,
+  useId,
   useRef,
   useCallback,
   ReactNode,
 } from 'react';
 import { motion, useAnimation } from 'framer-motion';
 import { Check, X, Loader2, ChevronDown } from 'lucide-react';
+import { useOptionalUnsavedChanges } from './UnsavedChangesProvider';
 
 // ──────────────────────────────────────────────────────────────────────────
 // Provider — coordinates which field is currently editing
@@ -211,6 +213,18 @@ export function InlineEditField({
       markDirty(fieldId, isDirty);
     }
   }, [isEditing, isDirty, fieldId, markDirty]);
+
+  // Mirror that dirty flag into the app-wide unsaved-changes registry so the
+  // navigation guards know this field has uncommitted edits. `fieldId` is only
+  // unique within a provider scope, so the registry scope is keyed on a
+  // render-unique id instead.
+  const unsavedChanges = useOptionalUnsavedChanges();
+  const unsavedScopeId = `inline-edit:${useId()}`;
+  useEffect(() => {
+    if (!unsavedChanges) return;
+    unsavedChanges.registerDirty(unsavedScopeId, isDirty, label);
+    return () => unsavedChanges.registerDirty(unsavedScopeId, false);
+  }, [unsavedChanges, unsavedScopeId, isDirty, label]);
 
   // Click-outside detection.
   useEffect(() => {

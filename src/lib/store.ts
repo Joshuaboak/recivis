@@ -6,10 +6,20 @@
  * - Chat messages (AI invoice assistant conversation)
  * - UI controls (sidebar, loading, pending PO file)
  *
- * Nothing is persisted. The `recivis-token` cookie is the only session:
+ * Nothing here is persisted. The `recivis-token` cookie is the only session:
  * the portal layout rehydrates `user` from GET /api/auth on mount. Keeping
  * a copy in localStorage used to desynchronise the server and client on the
  * first render, which is why the app had to opt out of SSR entirely.
+ *
+ * One deliberate, narrow exception — do not "fix" this back:
+ * `ChatInterface` persists the chat transcript to **sessionStorage**. Once the
+ * app gained real routing, browser Back could destroy 5-30 minutes of work, and
+ * Back cannot be intercepted in the App Router. Session scope was chosen because
+ * a transcript can contain a customer's purchase-order contents: it survives
+ * in-app Back, route changes and a reload in the same tab, then dies with the
+ * tab. It is **never written to localStorage** and never persists across
+ * sessions or to disk. The store itself stays plain in-memory state — the
+ * persistence lives in `ChatInterface`, not here.
  */
 
 import { create } from 'zustand';

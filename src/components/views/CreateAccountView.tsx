@@ -14,6 +14,9 @@
  * - Viewer role users see a permission denied message
  *
  * Data: Creates via /api/accounts (POST) + /api/contacts (POST) + /api/accounts/[id] (PATCH).
+ *
+ * Unsaved work is drafted (see useDraft) and offered back on return; it is never
+ * rehydrated without the user asking.
  */
 
 'use client';
@@ -37,6 +40,9 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
+import { useDraft } from '@/lib/useDraft';
+import { DraftRestoreBar } from '@/components/DraftRestoreBar';
 
 const COUNTRIES = [
   'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia','Austria',
@@ -66,6 +72,41 @@ interface ResellerOption {
   region: string;
 }
 
+/**
+ * Persisted between visits so browser Back doesn't destroy a part-filled account.
+ * The country/reseller search boxes are excluded — transient UI, not content.
+ */
+interface AccountDraft {
+  accountName: string;
+  country: string;
+  street: string;
+  city: string;
+  state: string;
+  postCode: string;
+  selectedReseller: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  title: string;
+}
+
+/** A pristine form. Matches the initial state below field for field. */
+const EMPTY_ACCOUNT_DRAFT: AccountDraft = {
+  accountName: '',
+  country: '',
+  street: '',
+  city: '',
+  state: '',
+  postCode: '',
+  selectedReseller: '',
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  title: '',
+};
+
 interface DuplicateMatch {
   id: string;
   Account_Name: string;
@@ -77,6 +118,7 @@ interface DuplicateMatch {
 export default function CreateAccountView() {
   const router = useRouter();
   const { user } = useAppStore();
+  const { registerDirty } = useUnsavedChanges();
 
   // Form state
   const [accountName, setAccountName] = useState('');
@@ -141,6 +183,49 @@ export default function CreateAccountView() {
 
   const [attempted, setAttempted] = useState(false);
   const isValid = accountName.trim() && country.trim() && selectedReseller && firstName.trim() && lastName.trim() && email.trim();
+
+  const draft = useMemo<AccountDraft>(() => ({
+    accountName, country, street, city, state, postCode, selectedReseller,
+    firstName, lastName, email, phone, title,
+  }), [
+    accountName, country, street, city, state, postCode, selectedReseller,
+    firstName, lastName, email, phone, title,
+  ]);
+
+  // `selectedReseller` is stored in the draft but deliberately left out of this
+  // test: the effect above auto-fills it for non-admins, and a form nobody
+  // touched must not look dirty or leave a draft behind. Handing `useDraft` the
+  // empty constant until then is what keeps localStorage clean.
+  const isDirty = Boolean(
+    accountName.trim() || country.trim() || street || city || state || postCode ||
+    firstName.trim() || lastName.trim() || email.trim() || phone || title,
+  );
+
+  const { pendingDraft, pendingDraftSavedAt, restore, discard, clear } =
+    useDraft<AccountDraft>('accounts:new', isDirty ? draft : EMPTY_ACCOUNT_DRAFT);
+
+  // Drafts survive browser Back; this makes in-app navigation prompt first.
+  useEffect(() => {
+    registerDirty('create-account', isDirty, 'this new account');
+    return () => registerDirty('create-account', false);
+  }, [registerDirty, isDirty]);
+
+  const restoreDraft = () => {
+    const d = restore();
+    if (!d) return;
+    setAccountName(d.accountName);
+    setCountry(d.country);
+    setStreet(d.street);
+    setCity(d.city);
+    setState(d.state);
+    setPostCode(d.postCode);
+    if (d.selectedReseller) setSelectedReseller(d.selectedReseller);
+    setFirstName(d.firstName);
+    setLastName(d.lastName);
+    setEmail(d.email);
+    setPhone(d.phone);
+    setTitle(d.title);
+  };
 
   // Check for duplicates
   const checkDuplicates = async () => {
@@ -260,6 +345,10 @@ export default function CreateAccountView() {
         });
       }
 
+      // It's a real record now — drop the draft and the dirty flag.
+      clear();
+      registerDirty('create-account', false);
+
       // Navigate to the new account
       router.push(buildPath('account-detail', accountId));
     } catch { /* handled */ }
@@ -277,6 +366,16 @@ export default function CreateAccountView() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 py-6">
+        {/* Never rehydrated silently — the user chooses. */}
+        {pendingDraft && pendingDraftSavedAt !== null ? (
+          <DraftRestoreBar
+            savedAt={pendingDraftSavedAt}
+            label="unsaved account"
+            onRestore={restoreDraft}
+            onDiscard={discard}
+          />
+        ) : null}
+
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>

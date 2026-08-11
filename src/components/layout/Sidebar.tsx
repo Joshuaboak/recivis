@@ -14,12 +14,15 @@
  *
  * Clears chat messages when navigating between sections to prevent
  * stale conversation context from leaking across views.
+ *
+ * Items use <GuardedLink>, so a plain left-click asks before discarding unsaved
+ * work elsewhere in the app. Middle-click, ctrl/cmd-click and "copy link
+ * address" are untouched — they open a new tab and leave the work alone.
  */
 
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -38,6 +41,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { GuardedLink } from '@/components/GuardedLink';
 import UserMenu from './UserMenu';
 
 const PATHS = {
@@ -111,7 +115,7 @@ export default function Sidebar() {
 
         {/* Leads (with submenu) */}
         <div>
-          <Link
+          <GuardedLink
             href={PATHS.leads}
             onClick={(e) => {
               if (sidebarOpen) {
@@ -144,7 +148,7 @@ export default function Sidebar() {
             {sidebarOpen && (
               <ChevronDown size={14} className={`text-text-muted transition-transform ${leadsMenuOpen ? 'rotate-180' : ''}`} />
             )}
-          </Link>
+          </GuardedLink>
           <AnimatePresence>
             {sidebarOpen && leadsMenuOpen && (
               <motion.div
@@ -165,7 +169,7 @@ export default function Sidebar() {
 
         {/* Accounts (with submenu) */}
         <div>
-          <Link
+          <GuardedLink
             href={PATHS.accounts}
             onClick={(e) => {
               if (sidebarOpen) {
@@ -197,7 +201,7 @@ export default function Sidebar() {
             {sidebarOpen && (
               <ChevronDown size={14} className={`text-text-muted transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`} />
             )}
-          </Link>
+          </GuardedLink>
 
           <AnimatePresence>
             {sidebarOpen && accountMenuOpen && (
@@ -219,7 +223,7 @@ export default function Sidebar() {
 
         {/* Invoices (with submenu) */}
         <div>
-          <Link
+          <GuardedLink
             href={PATHS.orderAssistant}
             onClick={(e) => {
               if (sidebarOpen) {
@@ -251,7 +255,7 @@ export default function Sidebar() {
             {sidebarOpen && (
               <ChevronDown size={14} className={`text-text-muted transition-transform ${invoiceMenuOpen ? 'rotate-180' : ''}`} />
             )}
-          </Link>
+          </GuardedLink>
 
           {/* Submenu */}
           <AnimatePresence>
@@ -277,7 +281,7 @@ export default function Sidebar() {
           const isReportsActive = inSection(pathname, PATHS.reports);
           return (
             <div>
-              <Link
+              <GuardedLink
                 href={PATHS.reportsDashboard}
                 onClick={(e) => {
                   if (sidebarOpen) {
@@ -296,7 +300,7 @@ export default function Sidebar() {
                   {sidebarOpen && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">Reports</motion.span>}
                 </AnimatePresence>
                 {sidebarOpen && <ChevronDown size={14} className={`text-text-muted transition-transform ${reportsMenuOpen ? 'rotate-180' : ''}`} />}
-              </Link>
+              </GuardedLink>
               <AnimatePresence>
                 {sidebarOpen && reportsMenuOpen && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
@@ -319,7 +323,7 @@ export default function Sidebar() {
           const isPartnerActive = inSection(pathname, PATHS.partners) || inSection(pathname, PATHS.partnerResources);
           return (
             <div>
-              <Link
+              <GuardedLink
                 href={PATHS.partners}
                 onClick={(e) => {
                   if (sidebarOpen) {
@@ -338,7 +342,7 @@ export default function Sidebar() {
                   {sidebarOpen && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">Partners</motion.span>}
                 </AnimatePresence>
                 {sidebarOpen && <ChevronDown size={14} className={`text-text-muted transition-transform ${partnerMenuOpen ? 'rotate-180' : ''}`} />}
-              </Link>
+              </GuardedLink>
               <AnimatePresence>
                 {sidebarOpen && partnerMenuOpen && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
@@ -389,7 +393,7 @@ function NavItem({ href, label, icon: Icon, active, onClick, open }: {
   href: string; label: string; icon: React.ComponentType<{ size: number; className?: string }>; active: boolean; onClick: () => void; open: boolean;
 }) {
   return (
-    <Link
+    <GuardedLink
       href={href}
       onClick={onClick}
       className={`
@@ -409,14 +413,14 @@ function NavItem({ href, label, icon: Icon, active, onClick, open }: {
           </motion.span>
         )}
       </AnimatePresence>
-    </Link>
+    </GuardedLink>
   );
 }
 
 // Sub-nav item (indented)
 function SubNavItem({ label, href, active, onClick }: { label: string; href: string; active: boolean; onClick: () => void }) {
   return (
-    <Link
+    <GuardedLink
       href={href}
       onClick={onClick}
       className={`
@@ -425,6 +429,6 @@ function SubNavItem({ label, href, active, onClick }: { label: string; href: str
       `}
     >
       {label}
-    </Link>
+    </GuardedLink>
   );
 }

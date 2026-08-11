@@ -1,16 +1,95 @@
 'use client';
 
+/**
+ * ChatInterface — the AI invoice assistant conversation.
+ *
+ * Transcript persistence is deliberately **sessionStorage, not localStorage**.
+ * A transcript can hold a customer's purchase-order contents, so it must not
+ * outlive the tab or land on disk between sessions; but it is also 5-30 minutes
+ * of work, and browser Back cannot be intercepted in the App Router. Session
+ * scope is the narrow middle: it survives in-app Back, route changes and a
+ * reload in the same tab, and dies when the tab closes.
+ *
+ * This is implemented here rather than with `useDraft` because that hook is
+ * localStorage-only. It follows the same rules: no silent rehydration (the user
+ * is offered a `DraftRestoreBar` and chooses), and every storage access is
+ * try/catch'd so private browsing or disabled storage degrades to a no-op.
+ *
+ * The staged PO file (`pendingPOFile`) is never persisted — base64 file bodies
+ * stay out of storage. Only the parsed text the assistant was given (a message's
+ * `apiContent`) is kept.
+ */
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, RotateCcw, Sparkles, LucideIcon } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import type { ChatMessage } from '@/lib/types';
+import { DraftRestoreBar } from '@/components/DraftRestoreBar';
 import ChatMessageComponent from './ChatMessage';
 
 interface QuickAction {
   label: string;
   icon: LucideIcon;
   message: string;
+}
+
+const CHAT_SESSION_KEY = 'recivis:session:chat';
+
+interface StoredTranscript {
+  savedAt: number;
+  messages: ChatMessage[];
+}
+
+function readStoredTranscript(): StoredTranscript | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(CHAT_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { savedAt?: unknown; messages?: unknown };
+    if (typeof parsed?.savedAt !== 'number' || !Array.isArray(parsed.messages)) return null;
+    if (parsed.messages.length === 0) return null;
+    const messages = (parsed.messages as ChatMessage[]).map((m) => ({
+      ...m,
+      // JSON turned the Date into a string on the way out.
+      timestamp: new Date(m.timestamp),
+    }));
+    return { savedAt: parsed.savedAt, messages };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredTranscript(messages: ChatMessage[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    // An explicit allowlist, not a spread: it keeps file bodies and any future
+    // field out of storage by default. `isStreaming` is dropped so a half-streamed
+    // bubble can never come back looking live.
+    const payload: StoredTranscript = {
+      savedAt: Date.now(),
+      messages: messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        apiContent: m.apiContent,
+        timestamp: m.timestamp,
+        components: m.components,
+      })),
+    };
+    window.sessionStorage.setItem(CHAT_SESSION_KEY, JSON.stringify(payload));
+  } catch {
+    // Private browsing, quota, disabled storage — persistence is best-effort.
+  }
+}
+
+function clearStoredTranscript() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(CHAT_SESSION_KEY);
+  } catch {
+    // no-op
+  }
 }
 
 interface ChatInterfaceProps {
@@ -27,6 +106,10 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hasInitialized = useRef(false);
 
+  // Read once, at mount, in the initialiser — never applied to the conversation
+  // on its own. Until the user answers, this holds the restore prompt.
+  const [pendingTranscript, setPendingTranscript] = useState(readStoredTranscript);
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
@@ -35,9 +118,10 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  // Send initial greeting
+  // Send initial greeting. Held back while a restore prompt is open so the
+  // greeting doesn't end up stacked on top of a restored conversation.
   useEffect(() => {
-    if (!hasInitialized.current && messages.length === 0 && initialMessage) {
+    if (!hasInitialized.current && !pendingTranscript && messages.length === 0 && initialMessage) {
       hasInitialized.current = true;
       const greeting: ChatMessage = {
         id: crypto.randomUUID(),
@@ -47,7 +131,32 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
       };
       addMessage(greeting);
     }
-  }, [initialMessage, messages.length, addMessage]);
+  }, [initialMessage, messages.length, addMessage, pendingTranscript]);
+
+  // Debounced session write.
+  useEffect(() => {
+    // Suspended while the restore prompt is open, so a fresh conversation can't
+    // overwrite the transcript the user is still deciding about.
+    if (pendingTranscript) return;
+    // Just the greeting isn't work worth offering back.
+    if (messages.length < 2) return;
+    const timer = setTimeout(() => writeStoredTranscript(messages), 500);
+    return () => clearTimeout(timer);
+  }, [messages, pendingTranscript]);
+
+  const restoreTranscript = () => {
+    const stored = pendingTranscript;
+    setPendingTranscript(null);
+    if (!stored) return;
+    hasInitialized.current = true;   // the greeting must not also fire
+    clearMessages();
+    for (const message of stored.messages) addMessage(message);
+  };
+
+  const discardTranscript = () => {
+    setPendingTranscript(null);
+    clearStoredTranscript();
+  };
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return;
@@ -286,6 +395,9 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
 
   const handleNewConversation = () => {
     clearMessages();
+    // An explicit reset — drop the stored transcript with it.
+    clearStoredTranscript();
+    setPendingTranscript(null);
     hasInitialized.current = false;
   };
 
@@ -297,6 +409,16 @@ export default function ChatInterface({ initialMessage, placeholder, quickAction
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
         <div className="max-w-5xl mx-auto space-y-1">
+          {/* Never rehydrated silently — the user chooses. */}
+          {pendingTranscript ? (
+            <DraftRestoreBar
+              savedAt={pendingTranscript.savedAt}
+              label="unsaved conversation"
+              onRestore={restoreTranscript}
+              onDiscard={discardTranscript}
+            />
+          ) : null}
+
           <AnimatePresence initial={false}>
             {messages.map((message, index) => (
               <ChatMessageComponent

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Search, X, Loader2, Building2, UserSearch, User, FileText, ExternalLink, Users } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { GuardedLink } from '@/components/GuardedLink';
 
 interface SearchResult {
   id: string;
@@ -255,14 +255,14 @@ export default function SearchModal({ onClose }: SearchModalProps) {
                       );
 
                       return href ? (
-                        <Link
+                        <GuardedLink
                           key={`${result.module}-${result.id}`}
                           href={href}
                           onClick={onClose}
                           className={rowClass}
                         >
                           {row}
-                        </Link>
+                        </GuardedLink>
                       ) : (
                         <button
                           key={`${result.module}-${result.id}`}

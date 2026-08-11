@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, UserSearch, Beaker, FileText, X, Trash2, ExternalLink } from 'lucide-react';
 import { buildPath } from '@/lib/routes';
+import { GuardedLink } from '@/components/GuardedLink';
 
 interface Notification {
   key: string;
@@ -195,9 +195,9 @@ export default function NotificationBell() {
 
                         {/* Content — clickable */}
                         {href ? (
-                          <Link href={href} onClick={() => handleNavigate(n)} className={bodyClass}>
+                          <GuardedLink href={href} onClick={() => handleNavigate(n)} className={bodyClass}>
                             {body}
-                          </Link>
+                          </GuardedLink>
                         ) : (
                           <button onClick={() => handleNavigate(n)} className={bodyClass}>
                             {body}

@@ -26,7 +26,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -37,6 +37,8 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useGuardedRouter } from '@/lib/useGuardedRouter';
+import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import Pagination from '../Pagination';
 import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 
@@ -124,8 +126,50 @@ export default function ResellerManagementView({ resellerId }: { resellerId?: st
 // ============================================================
 // RESELLER LIST
 // ============================================================
+
+/** Blank create-partner form — also the reference for "has the user typed anything". */
+const BLANK_PARTNER: Record<string, unknown> = {
+  Name: '', Email: '', Region: 'AU', Currency: 'AUD', Partner_Category: 'Reseller',
+  Reseller_First_Name: '', Reseller_Last_Name: '',
+  Street_Address: '', City: '', State: '', Post_Code: '', Country: '',
+  Reseller_Sale: '', Distributor_Percentage_Rate: '', Additional_Tax_Infromation: '',
+  Direct_Customer_Contact: false, Can_Purchase_on_Credit: false,
+};
+
+/**
+ * Register one unsaved-work scope for the lifetime of a dirty form.
+ *
+ * Clears the scope on unmount, so a view left via the browser Back button (which
+ * cannot be intercepted in the App Router) never strands a dirty scope and blocks
+ * every later navigation.
+ */
+function useDirtyScope(scopeId: string, isDirty: boolean, label: string) {
+  const { registerDirty } = useUnsavedChanges();
+  useEffect(() => {
+    registerDirty(scopeId, isDirty, label);
+    return () => registerDirty(scopeId, false);
+  }, [scopeId, isDirty, label, registerDirty]);
+}
+
+/**
+ * Snapshot a prefilled form when it opens, so "dirty" means the user actually
+ * changed something rather than merely opening the form.
+ */
+function useFormSnapshot(isOpen: boolean, value: unknown): boolean {
+  const snapshot = useRef<string>('');
+  const serialised = JSON.stringify(value);
+  useEffect(() => {
+    if (isOpen) snapshot.current = JSON.stringify(value);
+    // Capture only on open; `value` changing afterwards is the edit we want to detect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+  return isOpen && serialised !== snapshot.current;
+}
+
 function ResellerListView() {
   const { user } = useAppStore();
+  // Not guarded: the only navigation here fires after a successful create, by
+  // which point the form is saved and its scope cleared.
   const router = useRouter();
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
 
@@ -139,15 +183,16 @@ function ResellerListView() {
   // Create partner
   const [showCreate, setShowCreate] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [newP, setNewP] = useState<Record<string, any>>({
-    Name: '', Email: '', Region: 'AU', Currency: 'AUD', Partner_Category: 'Reseller',
-    Reseller_First_Name: '', Reseller_Last_Name: '',
-    Street_Address: '', City: '', State: '', Post_Code: '', Country: '',
-    Reseller_Sale: '', Distributor_Percentage_Rate: '', Additional_Tax_Infromation: '',
-    Direct_Customer_Contact: false, Can_Purchase_on_Credit: false,
-  });
+  const [newP, setNewP] = useState<Record<string, any>>({ ...BLANK_PARTNER });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+
+  // Prompt before discarding a part-filled new partner.
+  useDirtyScope(
+    'partner-create',
+    showCreate && JSON.stringify(newP) !== JSON.stringify(BLANK_PARTNER),
+    'this new partner'
+  );
 
   // Resellers for distributor lookup
   const [allResellers, setAllResellers] = useState<ResellerItem[]>([]);
@@ -462,7 +507,9 @@ function PartnerFormFields({ values, onChange, allResellers }: { values: Record<
 // ============================================================
 function ResellerDetailView({ resellerId }: { resellerId: string }) {
   const { user } = useAppStore();
-  const router = useRouter();
+  // Guarded: leaving this view can discard an open partner, user or permissions
+  // edit, so `goBack` must prompt first. Every scope below clears on save.
+  const router = useGuardedRouter();
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
   const hasChildResellers = user?.permissions?.canViewChildRecords;
   const availableRoles = isAdmin ? ALL_ROLES : ALL_ROLES.filter(r => MANAGER_ROLES.includes(r.value));
@@ -515,6 +562,51 @@ function ResellerDetailView({ resellerId }: { resellerId: string }) {
   const [editPerms, setEditPerms] = useState<Record<string, boolean | null>>({});
   const [editMaxEvals, setEditMaxEvals] = useState<number | null>(null);
   const [savingPerms, setSavingPerms] = useState(false);
+
+  // --- Unsaved-work scopes -------------------------------------------------
+  // One scope per form that can hold user input. Prefilled forms compare against
+  // a snapshot taken when they opened, so merely opening one does not prompt.
+  // Password values are guarded but never persisted anywhere.
+
+  useDirtyScope(
+    'reseller-edit',
+    useFormSnapshot(editingReseller, editFields),
+    'this partner'
+  );
+
+  useDirtyScope(
+    'reseller-add-user',
+    showAddUser && (addName !== '' || addEmail !== '' || addPassword !== ''),
+    'this new user'
+  );
+
+  useDirtyScope(
+    'reseller-edit-user',
+    useFormSnapshot(editingUser !== null, { editUserName, editUserRole }),
+    'this user'
+  );
+
+  useDirtyScope(
+    'reseller-reset-password',
+    resetUserId !== null && newPassword !== '',
+    'this password reset'
+  );
+
+  useDirtyScope(
+    'reseller-register',
+    showRegisterForm && (
+      Object.keys(registerFields).length > 0 ||
+      Object.keys(registerPermissions).length > 0 ||
+      registerMaxEvals !== null
+    ),
+    'this partner registration'
+  );
+
+  useDirtyScope(
+    'reseller-permissions',
+    useFormSnapshot(editingPermissions, { editPerms, editMaxEvals }),
+    'these partner permissions'
+  );
 
   useEffect(() => { if (resellerId) loadData(); }, [resellerId]);
 

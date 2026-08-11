@@ -6,12 +6,14 @@
  * Duplicate detection by email before creation.
  *
  * Data: Creates via POST /api/leads.
+ *
+ * Unsaved work is drafted (see useDraft) and offered back on return; it is never
+ * rehydrated without the user asking.
  */
 
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   User,
@@ -30,6 +32,10 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useGuardedRouter } from '@/lib/useGuardedRouter';
+import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
+import { useDraft } from '@/lib/useDraft';
+import { DraftRestoreBar } from '@/components/DraftRestoreBar';
 
 const COUNTRIES = [
   'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia','Austria',
@@ -84,13 +90,55 @@ interface ResellerOption {
   region: string;
 }
 
+/**
+ * Persisted between visits so browser Back doesn't destroy a part-filled lead.
+ * The country/reseller search boxes are excluded — transient UI, not content.
+ */
+interface LeadDraft {
+  firstName: string;
+  lastName: string;
+  company: string;
+  email: string;
+  phone: string;
+  mobile: string;
+  jobTitle: string;
+  website: string;
+  country: string;
+  leadStatus: string;
+  productInterest: string;
+  industry: string;
+  leadSource: string;
+  description: string;
+  selectedReseller: string;
+}
+
+/** A pristine form. Matches the initial state below field for field. */
+const EMPTY_LEAD_DRAFT: LeadDraft = {
+  firstName: '',
+  lastName: '',
+  company: '',
+  email: '',
+  phone: '',
+  mobile: '',
+  jobTitle: '',
+  website: '',
+  country: '',
+  leadStatus: 'Not Contacted',
+  productInterest: '',
+  industry: '',
+  leadSource: '',
+  description: '',
+  selectedReseller: '',
+};
+
 const inputCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg";
 const selectCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg appearance-none cursor-pointer pr-8";
 const labelCls = "text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block";
 
 export default function CreateLeadView() {
-  const router = useRouter();
+  const router = useGuardedRouter();
   const { user } = useAppStore();
+  const { registerDirty } = useUnsavedChanges();
 
   // Form fields
   const [firstName, setFirstName] = useState('');
@@ -119,6 +167,49 @@ export default function CreateLeadView() {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
   const canSelectReseller = isAdmin || user?.permissions?.canViewChildRecords;
+
+  const draft = useMemo<LeadDraft>(() => ({
+    firstName, lastName, company, email, phone, mobile, jobTitle, website,
+    country, leadStatus, productInterest, industry, leadSource, description,
+    selectedReseller,
+  }), [
+    firstName, lastName, company, email, phone, mobile, jobTitle, website,
+    country, leadStatus, productInterest, industry, leadSource, description,
+    selectedReseller,
+  ]);
+
+  // Handing `useDraft` the empty constant while the form is pristine is what
+  // stops an untouched form from ever being written to localStorage.
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(EMPTY_LEAD_DRAFT);
+
+  const { pendingDraft, pendingDraftSavedAt, restore, discard, clear } =
+    useDraft<LeadDraft>('leads:new', isDirty ? draft : EMPTY_LEAD_DRAFT);
+
+  // Drafts survive browser Back; this makes in-app navigation prompt first.
+  useEffect(() => {
+    registerDirty('create-lead', isDirty, 'this new lead');
+    return () => registerDirty('create-lead', false);
+  }, [registerDirty, isDirty]);
+
+  const restoreDraft = () => {
+    const d = restore();
+    if (!d) return;
+    setFirstName(d.firstName);
+    setLastName(d.lastName);
+    setCompany(d.company);
+    setEmail(d.email);
+    setPhone(d.phone);
+    setMobile(d.mobile);
+    setJobTitle(d.jobTitle);
+    setWebsite(d.website);
+    setCountry(d.country);
+    setLeadStatus(d.leadStatus);
+    setProductInterest(d.productInterest);
+    setIndustry(d.industry);
+    setLeadSource(d.leadSource);
+    setDescription(d.description);
+    setSelectedReseller(d.selectedReseller);
+  };
 
   // Load resellers for selector
   useEffect(() => {
@@ -181,6 +272,9 @@ export default function CreateLeadView() {
       const data = await res.json();
 
       if (data.id) {
+        // It's a real record now — drop the draft and the dirty flag.
+        clear();
+        registerDirty('create-lead', false);
         router.push(`${buildPath('lead-detail', data.id)}?source=lead`);
       } else if (data.error) {
         setError(data.error);
@@ -197,6 +291,16 @@ export default function CreateLeadView() {
     <div className="h-full overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 py-6">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          {/* Never rehydrated silently — the user chooses. */}
+          {pendingDraft && pendingDraftSavedAt !== null ? (
+            <DraftRestoreBar
+              savedAt={pendingDraftSavedAt}
+              label="unsaved lead"
+              onRestore={restoreDraft}
+              onDiscard={discard}
+            />
+          ) : null}
+
           <h1 className="text-2xl font-bold text-text-primary mb-6">Create Lead</h1>
 
           {/* Contact Information */}

@@ -1,8 +1,9 @@
 /**
  * Portal layout — the authenticated app shell.
  *
- * Owns the sidebar, header bar, notifications, search modal and the
- * session-expiry watcher. Middleware has already checked that a
+ * Owns the sidebar, header bar, notifications, search modal, the
+ * session-expiry watcher and the app-wide unsaved-changes guard.
+ * Middleware has already checked that a
  * `recivis-token` cookie exists by the time this renders; this layout turns
  * that cookie into a user by calling GET /api/auth once on mount. Nothing is
  * read from localStorage, so the server and client agree on the first render.
@@ -24,6 +25,7 @@ import BrandSplash from '@/components/layout/BrandSplash';
 import SessionExpiryWatcher from '@/components/layout/SessionExpiryWatcher';
 import SearchModal from '@/components/SearchModal';
 import NotificationBell from '@/components/NotificationBell';
+import { UnsavedChangesProvider } from '@/components/UnsavedChangesProvider';
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const { user, setUser } = useAppStore();
@@ -64,40 +66,42 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   if (!user) return <BrandSplash />;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-csa-deep">
-      <SessionExpiryWatcher />
-      <Sidebar />
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 border-b-4 border-border bg-csa-dark flex items-center justify-between px-6 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-text-primary">
-              {getRouteTitle(pathname)}
-            </h2>
-            <span className="h-4 w-px bg-border-subtle" />
-            <span className="text-xs text-text-muted">Civil Survey Applications Partner Portal</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="flex items-center gap-2.5 px-4 py-2 bg-surface border border-border-subtle rounded-xl text-text-muted hover:text-text-primary hover:border-csa-accent/50 transition-colors cursor-pointer group"
-            >
-              <Search size={15} className="group-hover:text-csa-accent transition-colors" />
-              <span className="text-xs font-medium">Search</span>
-              <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono font-semibold text-text-muted/60 bg-csa-dark border border-border-subtle rounded ml-2">
-                Ctrl K
-              </kbd>
-            </button>
-            <NotificationBell />
-          </div>
-        </header>
+    <UnsavedChangesProvider>
+      <div className="flex h-screen overflow-hidden bg-csa-deep">
+        <SessionExpiryWatcher />
+        <Sidebar />
+        <main className="flex-1 flex flex-col overflow-hidden">
+          <header className="h-16 border-b-4 border-border bg-csa-dark flex items-center justify-between px-6 flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-bold text-text-primary">
+                {getRouteTitle(pathname)}
+              </h2>
+              <span className="h-4 w-px bg-border-subtle" />
+              <span className="text-xs text-text-muted">Civil Survey Applications Partner Portal</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="flex items-center gap-2.5 px-4 py-2 bg-surface border border-border-subtle rounded-xl text-text-muted hover:text-text-primary hover:border-csa-accent/50 transition-colors cursor-pointer group"
+              >
+                <Search size={15} className="group-hover:text-csa-accent transition-colors" />
+                <span className="text-xs font-medium">Search</span>
+                <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono font-semibold text-text-muted/60 bg-csa-dark border border-border-subtle rounded ml-2">
+                  Ctrl K
+                </kbd>
+              </button>
+              <NotificationBell />
+            </div>
+          </header>
 
-        <div className="flex-1 overflow-hidden">
-          {children}
-        </div>
-      </main>
-      <AnimatePresence>
-        {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
-      </AnimatePresence>
-    </div>
+          <div className="flex-1 overflow-hidden">
+            {children}
+          </div>
+        </main>
+        <AnimatePresence>
+          {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
+        </AnimatePresence>
+      </div>
+    </UnsavedChangesProvider>
   );
 }

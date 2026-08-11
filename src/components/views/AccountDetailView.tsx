@@ -19,14 +19,15 @@
 'use client';
 
 import { useState, useEffect, useCallback, type MouseEvent } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Save, Download, Beaker, Send } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { exportFullAccount, exportContacts, exportInvoices, exportAssets } from '@/lib/export-account';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useGuardedRouter } from '@/lib/useGuardedRouter';
+import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
+import { GuardedLink } from '@/components/GuardedLink';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
 import CreateEvaluationModal from '../CreateEvaluationModal';
@@ -39,8 +40,13 @@ interface ResellerOption {
   region: string;
 }
 
+/** Scope ids for the batch edit forms registered with the dirty registry. */
+const SCOPE_ADDRESS = 'account-detail:address';
+const SCOPE_NEW_CONTACT = 'account-detail:new-contact';
+
 export default function AccountDetailView({ accountId }: { accountId: string }) {
-  const router = useRouter();
+  const router = useGuardedRouter();
+  const { registerDirty } = useUnsavedChanges();
   const { user, setNewInvoiceContext } = useAppStore();
   const [account, setAccount] = useState<Record<string, unknown> | null>(null);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
@@ -158,6 +164,7 @@ export default function AccountDetailView({ accountId }: { accountId: string }) 
         setContacts(data.contacts || []);
         setNewContact({ First_Name: '', Last_Name: '', Email: '', Phone: '' });
         setShowAddContact(false);
+        registerDirty(SCOPE_NEW_CONTACT, false);
       }
     } catch { /* handled by UI */ }
     setAddingContact(false);
@@ -340,10 +347,32 @@ export default function AccountDetailView({ accountId }: { accountId: string }) 
         const data = await reload.json();
         setAccount(data.account);
         setEditingAddress(false);
+        registerDirty(SCOPE_ADDRESS, false);
       }
     } catch { /* handled */ }
     setSavingAddress(false);
   };
+
+  // Unsaved-changes registration for the two batch forms on this page. The
+  // inline-edit fields (reseller) register themselves from InlineEditField.
+  const addressDirty = editingAddress && (
+    editAddress.street !== (account?.Billing_Street as string || '')
+    || editAddress.city !== (account?.Billing_City as string || '')
+    || editAddress.state !== (account?.Billing_State as string || '')
+    || editAddress.code !== (account?.Billing_Code as string || '')
+    || editAddress.country !== (account?.Billing_Country as string || '')
+  );
+  const newContactDirty = showAddContact
+    && Object.values(newContact).some(v => v.trim().length > 0);
+
+  useEffect(() => {
+    registerDirty(SCOPE_ADDRESS, addressDirty, 'the billing address');
+    registerDirty(SCOPE_NEW_CONTACT, newContactDirty, 'the new contact');
+    return () => {
+      registerDirty(SCOPE_ADDRESS, false);
+      registerDirty(SCOPE_NEW_CONTACT, false);
+    };
+  }, [registerDirty, addressDirty, newContactDirty]);
 
   const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Accounts/${accountId}`;
 
@@ -701,9 +730,9 @@ export default function AccountDetailView({ accountId }: { accountId: string }) 
                       >
                         <td className="text-text-muted text-xs font-mono">{inv.Reference_Number as string || '\u2014'}</td>
                         <td className="font-semibold text-csa-accent">
-                          <Link href={buildPath('invoice-detail', inv.id as string)}>
+                          <GuardedLink href={buildPath('invoice-detail', inv.id as string)}>
                             {inv.Subject as string || `Order ${inv.id as string}`}
-                          </Link>
+                          </GuardedLink>
                         </td>
                         <td className="text-text-secondary">{formatDate(inv.Invoice_Date)}</td>
                         <td>

@@ -12,6 +12,9 @@
  * Zoho stores multi-select values as semicolon-delimited strings.
  *
  * Data: Creates via /api/coupons (POST), then navigates to CouponDetailView.
+ *
+ * Unsaved work is drafted (see useDraft) and offered back on return; it is never
+ * rehydrated without the user asking.
  */
 
 'use client';
@@ -22,6 +25,9 @@ import { motion } from 'framer-motion';
 import { Ticket, Save, Loader2, ChevronDown, Search } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
+import { useDraft } from '@/lib/useDraft';
+import { DraftRestoreBar } from '@/components/DraftRestoreBar';
 
 const CURRENCIES = ['AUD', 'USD', 'EUR', 'INR'];
 const REGIONS = ['AU', 'EU', 'NA', 'AS', 'NZ', 'WW'];
@@ -29,9 +35,66 @@ const REGION_LABELS: Record<string, string> = { AU: 'Australia', EU: 'Europe', N
 const PRODUCTS = ['Civil Site Design', 'Civil Site Design Plus', 'Stringer', 'CorridorEZ'];
 const ORDER_TYPES = ['New Product', 'Renewal'];
 
+/**
+ * Persisted between visits so browser Back doesn't destroy a part-built coupon.
+ * `allResellers` and `partnerSearch` are excluded — one is fetched, the other is
+ * transient UI.
+ */
+interface CouponDraft {
+  couponCode: string;
+  couponName: string;
+  description: string;
+  discountType: string;
+  discountPercentage: string;
+  discountAmount: string;
+  currency: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  totalUses: string;
+  regionRestrictions: boolean;
+  selectedRegions: string[];
+  productRestrictions: boolean;
+  selectedProducts: string[];
+  partnerRestrictions: boolean;
+  selectedPartners: { id: string; name: string }[];
+  orderTypeRestrictions: boolean;
+  selectedOrderTypes: string[];
+  usageRestrictions: boolean;
+  minOrder: string;
+  maxOrder: string;
+}
+
+/** A pristine form. Matches the initial state below field for field. */
+const EMPTY_COUPON_DRAFT: CouponDraft = {
+  couponCode: '',
+  couponName: '',
+  description: '',
+  discountType: 'Percentage Based',
+  discountPercentage: '',
+  discountAmount: '',
+  currency: 'AUD',
+  status: 'Draft',
+  startDate: '',
+  endDate: '',
+  totalUses: '',
+  regionRestrictions: false,
+  selectedRegions: [],
+  productRestrictions: false,
+  selectedProducts: [],
+  partnerRestrictions: false,
+  selectedPartners: [],
+  orderTypeRestrictions: false,
+  selectedOrderTypes: [],
+  usageRestrictions: false,
+  minOrder: '',
+  maxOrder: '',
+};
+
 export default function CreateCouponView() {
   const { user } = useAppStore();
   const router = useRouter();
+  const { registerDirty } = useUnsavedChanges();
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
 
   const [couponCode, setCouponCode] = useState('');
@@ -61,6 +124,60 @@ export default function CreateCouponView() {
 
   const [saving, setSaving] = useState(false);
   const [attempted, setAttempted] = useState(false);
+
+  const draft = useMemo<CouponDraft>(() => ({
+    couponCode, couponName, description, discountType, discountPercentage,
+    discountAmount, currency, status, startDate, endDate, totalUses,
+    regionRestrictions, selectedRegions, productRestrictions, selectedProducts,
+    partnerRestrictions, selectedPartners, orderTypeRestrictions,
+    selectedOrderTypes, usageRestrictions, minOrder, maxOrder,
+  }), [
+    couponCode, couponName, description, discountType, discountPercentage,
+    discountAmount, currency, status, startDate, endDate, totalUses,
+    regionRestrictions, selectedRegions, productRestrictions, selectedProducts,
+    partnerRestrictions, selectedPartners, orderTypeRestrictions,
+    selectedOrderTypes, usageRestrictions, minOrder, maxOrder,
+  ]);
+
+  // Handing `useDraft` the empty constant while the form is pristine is what
+  // stops an untouched form from ever being written to localStorage.
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(EMPTY_COUPON_DRAFT);
+
+  const { pendingDraft, pendingDraftSavedAt, restore, discard, clear } =
+    useDraft<CouponDraft>('coupons:new', isDirty ? draft : EMPTY_COUPON_DRAFT);
+
+  // Drafts survive browser Back; this makes in-app navigation prompt first.
+  useEffect(() => {
+    registerDirty('create-coupon', isDirty, 'this new coupon');
+    return () => registerDirty('create-coupon', false);
+  }, [registerDirty, isDirty]);
+
+  const restoreDraft = () => {
+    const d = restore();
+    if (!d) return;
+    setCouponCode(d.couponCode);
+    setCouponName(d.couponName);
+    setDescription(d.description);
+    setDiscountType(d.discountType);
+    setDiscountPercentage(d.discountPercentage);
+    setDiscountAmount(d.discountAmount);
+    setCurrency(d.currency);
+    setStatus(d.status);
+    setStartDate(d.startDate);
+    setEndDate(d.endDate);
+    setTotalUses(d.totalUses);
+    setRegionRestrictions(d.regionRestrictions);
+    setSelectedRegions(d.selectedRegions);
+    setProductRestrictions(d.productRestrictions);
+    setSelectedProducts(d.selectedProducts);
+    setPartnerRestrictions(d.partnerRestrictions);
+    setSelectedPartners(d.selectedPartners);
+    setOrderTypeRestrictions(d.orderTypeRestrictions);
+    setSelectedOrderTypes(d.selectedOrderTypes);
+    setUsageRestrictions(d.usageRestrictions);
+    setMinOrder(d.minOrder);
+    setMaxOrder(d.maxOrder);
+  };
 
   // Load resellers for partner restrictions
   useEffect(() => {
@@ -137,6 +254,9 @@ export default function CreateCouponView() {
       const result = await res.json();
 
       if (result.id) {
+        // It's a real record now — drop the draft and the dirty flag.
+        clear();
+        registerDirty('create-coupon', false);
         router.push(buildPath('coupon-detail', result.id));
       }
     } catch { /* handled */ }
@@ -149,6 +269,16 @@ export default function CreateCouponView() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 py-6">
+        {/* Never rehydrated silently — the user chooses. */}
+        {pendingDraft && pendingDraftSavedAt !== null ? (
+          <DraftRestoreBar
+            savedAt={pendingDraftSavedAt}
+            label="unsaved coupon"
+            onRestore={restoreDraft}
+            onDiscard={discard}
+          />
+        ) : null}
+
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-text-primary">Create Coupon</h1>

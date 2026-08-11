@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, type MouseEvent } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone,
@@ -12,6 +10,8 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useGuardedRouter } from '@/lib/useGuardedRouter';
+import { GuardedLink } from '@/components/GuardedLink';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
 import CreateEvaluationModal from '../CreateEvaluationModal';
@@ -69,7 +69,9 @@ export default function LeadDetailView({
   leadId: string;
   source?: 'lead' | 'prospect';
 }) {
-  const router = useRouter();
+  // Every editable field here is an InlineEditField, which registers its own
+  // dirty state — this view has no batch form of its own to register.
+  const router = useGuardedRouter();
   const { user, setNewInvoiceContext } = useAppStore();
 
   const [loading, setLoading] = useState(true);
@@ -430,13 +432,13 @@ export default function LeadDetailView({
                         <p className="text-xs text-text-muted">Prospect account and contact created. Workflows have been triggered.</p>
                       </div>
                     </div>
-                    <Link
+                    <GuardedLink
                       href={buildPath('account-detail', convertResult.accountId!)}
                       className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
                     >
                       <ExternalLink size={14} />
                       View Account
-                    </Link>
+                    </GuardedLink>
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
@@ -771,9 +773,9 @@ export default function LeadDetailView({
                       >
                         <td className="text-text-muted text-xs font-mono">{inv.Reference_Number as string || '\u2014'}</td>
                         <td className="font-semibold text-csa-accent">
-                          <Link href={buildPath('invoice-detail', inv.id as string)}>
+                          <GuardedLink href={buildPath('invoice-detail', inv.id as string)}>
                             {inv.Subject as string || `Order ${inv.id as string}`}
-                          </Link>
+                          </GuardedLink>
                         </td>
                         <td className="text-text-secondary">{formatDate(inv.Invoice_Date)}</td>
                         <td>
