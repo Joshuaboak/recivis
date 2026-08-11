@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback, type MouseEvent } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, type MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone,
   MapPin, FileText, Star, Plus, X, Eye, Beaker, ArrowRightLeft, Check,
   AlertTriangle, Globe, Briefcase, Tag, Clock, MessageSquare,
-  Smartphone, Factory, Send,
+  Smartphone, Factory, Send, Pencil, Save, ChevronDown,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
+import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import { GuardedLink } from '@/components/GuardedLink';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
@@ -56,6 +57,68 @@ const STATUS_COLORS: Record<string, string> = {
   'Prospect': 'bg-csa-highlight/20 text-csa-accent',
 };
 
+/** Scope id for the full-page edit form registered with the dirty registry. */
+const SCOPE_EDIT = 'lead-detail:edit';
+
+/** One field the full edit form may write. */
+interface EditableField {
+  /** Zoho api name. Doubles as the PATCH body key and the form state key. */
+  name: string;
+  label: string;
+  section: (typeof SECTIONS)[number]['id'];
+  input: 'text' | 'email' | 'tel' | 'select' | 'lookup';
+  options?: readonly string[];
+  required?: true;
+  /** Mirrors the `canEdit` prop on this field's InlineEditField. */
+  gate: 'admin' | 'reseller';
+}
+
+const SECTIONS = [
+  { id: 'contact', label: 'Contact Information', Icon: User },
+  { id: 'company', label: 'Company Details', Icon: Building2 },
+  { id: 'lead', label: 'Lead Details', Icon: Tag },
+  { id: 'assignment', label: 'Assignment', Icon: Briefcase },
+] as const;
+
+/**
+ * The lead fields the full form may write. Each entry mirrors an
+ * InlineEditField in the view below — same api name, same input type, same
+ * permission gate — and every name is on the PATCH /api/leads/[id] allowlist.
+ * Fields the view shows read-only (Country, Lead_Source, Owner, Created) stay
+ * out even where the route would accept them: a form that writes what the
+ * inline path refuses is a permissions hole.
+ */
+const LEAD_FIELDS: readonly EditableField[] = [
+  { name: 'First_Name', label: 'First Name', section: 'contact', input: 'text', gate: 'admin' },
+  { name: 'Last_Name', label: 'Last Name', section: 'contact', input: 'text', required: true, gate: 'admin' },
+  { name: 'Email', label: 'Email', section: 'contact', input: 'email', gate: 'admin' },
+  { name: 'Phone', label: 'Phone', section: 'contact', input: 'tel', gate: 'admin' },
+  { name: 'Mobile', label: 'Mobile', section: 'contact', input: 'tel', gate: 'admin' },
+  { name: 'Job_Title3', label: 'Job Title', section: 'contact', input: 'text', gate: 'admin' },
+  { name: 'Company', label: 'Company', section: 'company', input: 'text', required: true, gate: 'admin' },
+  { name: 'Website', label: 'Website', section: 'company', input: 'text', gate: 'admin' },
+  { name: 'Industry', label: 'Industry', section: 'company', input: 'select', options: INDUSTRIES, gate: 'admin' },
+  { name: 'Lead_Status', label: 'Status', section: 'lead', input: 'select', options: LEAD_STATUSES, gate: 'admin' },
+  { name: 'Product_Interest', label: 'Products of Interest', section: 'lead', input: 'select', options: PRODUCTS_OF_INTEREST, gate: 'admin' },
+  { name: 'Reseller', label: 'Reseller', section: 'assignment', input: 'lookup', gate: 'reseller' },
+];
+
+/**
+ * A prospect is an Account, not a lead. The only field either detail view lets
+ * a user edit inline on that record is its Reseller — under the same
+ * `canEditReseller` gate — and it saves through the Accounts module. The
+ * prospect's own columns (billing address, contacts) are read-only here and
+ * belong to the account edit route.
+ */
+const PROSPECT_FIELDS: readonly EditableField[] = [
+  { name: 'Reseller', label: 'Reseller', section: 'assignment', input: 'lookup', gate: 'reseller' },
+];
+
+const labelCls = 'text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block';
+const inputCls = (invalid: boolean) =>
+  `w-full bg-csa-dark border px-3 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg ${invalid ? 'border-error' : 'border-border-subtle'}`;
+const selectCls = 'w-full bg-csa-dark border border-border-subtle px-3 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg appearance-none cursor-pointer pr-8';
+
 /**
  * `source` comes from the route's `?source=` param. It is optional: a link
  * that knows which module the record lives in passes it, and anything else
@@ -65,14 +128,19 @@ const STATUS_COLORS: Record<string, string> = {
 export default function LeadDetailView({
   leadId,
   source: initialSource,
+  mode = 'view',
 }: {
   leadId: string;
   source?: 'lead' | 'prospect';
+  /** `edit` renders the full form. Driven by the route, not local state, so the
+   *  form is linkable, survives a refresh, and is exited with the Back button. */
+  mode?: 'view' | 'edit';
 }) {
   // Every editable field here is an InlineEditField, which registers its own
   // dirty state — this view has no batch form of its own to register.
   const router = useGuardedRouter();
   const { user, setNewInvoiceContext } = useAppStore();
+  const { registerDirty } = useUnsavedChanges();
 
   const [loading, setLoading] = useState(true);
   const [lead, setLead] = useState<Record<string, unknown> | null>(null);
@@ -83,6 +151,20 @@ export default function LeadDetailView({
   const [archivedAssets, setArchivedAssets] = useState<Record<string, unknown>[]>([]);
   const [invoices, setInvoices] = useState<Record<string, unknown>[]>([]);
   const [source, setSource] = useState<'lead' | 'prospect'>(initialSource || 'lead');
+
+  // Full-form edit state (mode === 'edit')
+  const editing = mode === 'edit';
+  /** Serialised form state as it was when the record finished loading, so "dirty"
+   *  means the user changed something rather than merely opening the edit URL. */
+  const pristine = useRef<string | null>(null);
+  /** Which record the form mirrors, so a direct hit on /edit populates once. */
+  const populatedFor = useRef<string | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [resellerSearch, setResellerSearch] = useState('');
+  const [resellerOpen, setResellerOpen] = useState(false);
 
   // Convert state
   const [converting, setConverting] = useState(false);
@@ -110,6 +192,16 @@ export default function LeadDetailView({
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
   const hasChildResellers = !!user?.permissions?.canViewChildRecords;
   const canEditReseller = isAdmin || hasChildResellers;
+
+  /** The fields the full form offers: narrowed to the module the record lives
+   *  in, then to the gates this user passes. Empty means there is nothing this
+   *  user may edit, which is also what hides the Edit affordance. */
+  const fields = useMemo(
+    () => (source === 'lead' ? LEAD_FIELDS : PROSPECT_FIELDS)
+      .filter(f => (f.gate === 'admin' ? isAdmin : canEditReseller)),
+    [source, isAdmin, canEditReseller],
+  );
+  const canEditAnything = fields.length > 0;
 
   /** Fetch the reseller list. Called eagerly on mount and again when the
    *  reseller lookup field is opened, so a freshly-created reseller appears
@@ -185,6 +277,126 @@ export default function LeadDetailView({
       setLoading(false);
     })();
   }, [leadId, initialSource]);
+
+  /** The record the form edits — a Leads record or the prospect's Account. */
+  const editRecord = source === 'lead' ? lead : account;
+
+  /** The value a field currently holds on the record. Lookups keep their id,
+   *  which is what the form edits and what the API expects back. */
+  const recordValue = useCallback((record: Record<string, unknown>, field: EditableField) =>
+    field.input === 'lookup'
+      ? (record[field.name] as { id?: string } | null)?.id || ''
+      : ((record[field.name] as string) || ''),
+  []);
+
+  /** Populate form state from the loaded record. */
+  const populateForm = useCallback((record: Record<string, unknown>) => {
+    const next: Record<string, string> = {};
+    for (const f of source === 'lead' ? LEAD_FIELDS : PROSPECT_FIELDS) {
+      next[f.name] = recordValue(record, f);
+    }
+    setForm(next);
+  }, [source, recordValue]);
+
+  /** Populate key. The source is part of it because the two modules share
+   *  almost no api names: a form populated as a lead holds field names an
+   *  Account does not have, so a resolved source must repopulate rather than
+   *  keep lead values under the same id. */
+  const populateKey = `${leadId}:${source}`;
+
+  // Arriving straight at /leads/[id]/edit means the record is still loading, so
+  // the form is filled here rather than in a click handler.
+  useEffect(() => {
+    if (editing && editRecord && populatedFor.current !== populateKey) {
+      populateForm(editRecord);
+      populatedFor.current = populateKey;
+      pristine.current = null;
+      setAttempted(false);
+      setSaveError('');
+    }
+    if (!editing) populatedFor.current = null;
+  }, [editing, editRecord, populateKey, populateForm]);
+
+  /** Every editable field, in a stable order, for the pristine comparison. */
+  const formState = useMemo(
+    () => JSON.stringify(fields.map(f => form[f.name] ?? '')),
+    [fields, form],
+  );
+
+  // Runs on the render after populateForm's batched update lands.
+  useEffect(() => {
+    if (editing && populatedFor.current === populateKey && pristine.current === null) {
+      pristine.current = formState;
+    }
+  }, [editing, populateKey, formState]);
+
+  // Only a changed form counts as unsaved work. Opening /edit and pressing
+  // Cancel must not prompt. The inline-edit fields register themselves.
+  useEffect(() => {
+    const dirty = editing && pristine.current !== null && formState !== pristine.current;
+    registerDirty(SCOPE_EDIT, dirty, source === 'prospect' ? 'this prospect' : 'this lead');
+    return () => registerDirty(SCOPE_EDIT, false);
+  }, [registerDirty, editing, formState, source]);
+
+  /** Detail and edit paths for this record. `?source=` rides along so neither
+   *  route has to re-infer which module the record lives in. */
+  const detailPath = `${buildPath('lead-detail', leadId)}?source=${source}`;
+  const editPath = `${buildPath('lead-edit', leadId)}?source=${source}`;
+
+  const setField = (name: string, value: string) =>
+    setForm(prev => ({ ...prev, [name]: value }));
+
+  const missingRequired = fields.some(f => f.required && !(form[f.name] || '').trim());
+
+  const handleEdit = () => router.push(editPath);
+
+  const handleCancel = () => {
+    setAttempted(false);
+    router.push(detailPath);
+  };
+
+  const handleSave = async () => {
+    setAttempted(true);
+    setSaveError('');
+    if (missingRequired || !editRecord) return;
+
+    // Only changed fields go up, so saving never rewrites a field the user
+    // left alone. Empty clears the field, matching the inline `v || null` save.
+    const changes: Record<string, unknown> = {};
+    for (const f of fields) {
+      const value = (form[f.name] || '').trim();
+      if (value !== recordValue(editRecord, f)) changes[f.name] = value || null;
+    }
+
+    if (Object.keys(changes).length === 0) {
+      handleCancel();
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // A prospect is an Account, so its save target is the Accounts route.
+      const url = source === 'prospect' ? `/api/accounts/${leadId}` : `/api/leads/${leadId}`;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changes),
+      });
+      if (res.ok) {
+        // Clear the scope before navigating, or the guard would prompt about
+        // work that has just been saved.
+        pristine.current = null;
+        registerDirty(SCOPE_EDIT, false);
+        router.push(detailPath);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setSaveError(data.error || 'Failed to save changes');
+      }
+    } catch {
+      setSaveError('Failed to save changes');
+    }
+    setSaving(false);
+  };
 
   const goBack = () => router.push(buildPath('leads'));
 
@@ -267,6 +479,145 @@ export default function LeadDetailView({
     );
   }
 
+  // === EDIT MODE (/leads/[id]/edit) ===
+  // Serves both a Leads record and a prospect Account; `fields` is already
+  // narrowed to the resolved source and to this user's permissions, and the
+  // save below posts to whichever module the record actually lives in.
+  if (editing) {
+    if (!editRecord) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-3">
+          <p className="text-text-muted">{source === 'prospect' ? 'Prospect' : 'Lead'} not found</p>
+          <button onClick={goBack} className="text-csa-accent text-sm cursor-pointer">Back to Leads</button>
+        </div>
+      );
+    }
+
+    const heading = (editRecord.Company || editRecord.Account_Name || editRecord.Full_Name || leadId) as string;
+    const selectedResellerName = resellerOptions.find(r => r.id === form.Reseller)?.name;
+    const filteredResellers = resellerSearch
+      ? resellerOptions.filter(r => r.name.toLowerCase().includes(resellerSearch.toLowerCase()))
+      : resellerOptions;
+
+    const renderField = (f: EditableField) => {
+      const value = form[f.name] || '';
+      const invalid = !!f.required && attempted && !value.trim();
+
+      if (f.input === 'lookup') {
+        return (
+          <>
+            <input
+              type="text"
+              value={value ? (selectedResellerName || '') : resellerSearch}
+              onChange={e => { setResellerSearch(e.target.value); if (value) setField(f.name, ''); }}
+              onFocus={() => setResellerOpen(true)}
+              onBlur={() => setTimeout(() => setResellerOpen(false), 200)}
+              placeholder="Search resellers..."
+              className={inputCls(invalid)}
+            />
+            {resellerOpen && !value && filteredResellers.length > 0 && (
+              <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-csa-dark border border-border rounded-xl max-h-[200px] overflow-y-auto shadow-lg">
+                {filteredResellers.slice(0, 30).map(r => (
+                  <button key={r.id} onMouseDown={() => { setField(f.name, r.id); setResellerSearch(''); }}
+                    className="w-full text-left px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-raised transition-colors cursor-pointer">
+                    {r.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        );
+      }
+
+      if (f.input === 'select') {
+        return (
+          <div className="relative">
+            <select value={value} onChange={e => setField(f.name, e.target.value)} className={selectCls}>
+              <option value="">&mdash; None &mdash;</option>
+              {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          </div>
+        );
+      }
+
+      return (
+        <input
+          type={f.input}
+          value={value}
+          onChange={e => setField(f.name, e.target.value)}
+          placeholder={f.label}
+          className={inputCls(invalid)}
+        />
+      );
+    };
+
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-6 py-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-text-primary">
+                Edit {source === 'prospect' ? 'Prospect' : 'Lead'}
+              </h1>
+              <p className="text-sm text-text-muted mt-1">Editing {heading}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={handleCancel}
+                className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
+                <X size={14} /> Cancel
+              </button>
+              {canEditAnything && (
+                <button onClick={handleSave} disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-40">
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {attempted && missingRequired ? (
+            <div className="mb-5 p-3 bg-error/10 border border-error/20 rounded-xl text-xs text-error">
+              Please fill in {fields.filter(f => f.required).map(f => f.label).join(' and ')}.
+            </div>
+          ) : null}
+
+          {saveError ? (
+            <div className="mb-5 p-3 bg-error/10 border border-error/30 rounded-xl flex items-center gap-2 text-sm text-error">
+              <AlertTriangle size={16} /> {saveError}
+            </div>
+          ) : null}
+
+          {canEditAnything ? SECTIONS.map(section => {
+            const inSection = fields.filter(f => f.section === section.id);
+            if (inSection.length === 0) return null;
+            return (
+              <motion.div key={section.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-surface border border-border-subtle rounded-xl p-5 mb-5">
+                <h2 className="text-sm font-bold text-text-primary mb-4 flex items-center gap-2">
+                  <section.Icon size={15} className="text-csa-accent" /> {section.label}
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {inSection.map(f => (
+                    <div key={f.name} className="relative">
+                      <label className={labelCls}>{f.label}{f.required ? ' *' : ''}</label>
+                      {renderField(f)}
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            );
+          }) : (
+            <div className="bg-surface border border-border-subtle rounded-xl p-5 text-sm text-text-secondary">
+              You do not have permission to edit this {source === 'prospect' ? 'prospect' : 'lead'}.
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // === LEAD VIEW (Zoho Leads module) ===
   if (source === 'lead') {
     if (!lead) {
@@ -322,6 +673,12 @@ export default function LeadDetailView({
                   </button>
                   <span className="text-[10px] text-text-muted">To create evaluations, convert this lead to a prospect first</span>
                 </div>
+              )}
+              {canEditAnything && (
+                <button onClick={handleEdit} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+                  <Pencil size={14} />
+                  Edit
+                </button>
               )}
               <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
                 <ExternalLink size={14} />
@@ -603,6 +960,12 @@ export default function LeadDetailView({
             </div>
             <p className="text-sm text-text-muted">{account.Email_Domain as string || ''}</p>
           </div>
+          {canEditAnything && (
+            <button onClick={handleEdit} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+              <Pencil size={14} />
+              Edit
+            </button>
+          )}
           <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
             <ExternalLink size={14} />
             Open in CRM

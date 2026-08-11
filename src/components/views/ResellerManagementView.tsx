@@ -1,7 +1,8 @@
 /**
  * ResellerManagementView — Manage partner organizations and their users.
  *
- * Two display modes controlled by the optional resellerId prop:
+ * Three display modes, picked by the optional resellerId prop (list vs record)
+ * and the mode prop (read-only vs full form):
  *
  * 1. Grid mode (no reseller selected):
  *    - Shows reseller cards with name, region, category, user count
@@ -16,8 +17,12 @@
  *    - Edit user role, toggle active status, reset password
  *    - Link to open the reseller in Zoho CRM
  *
+ * 3. Edit mode (reseller selected, mode="edit"):
+ *    - The same fields the detail view edits inline, as one full form
+ *    - Admin/IBM only, matching PATCH /api/resellers/[id] and every inline field
+ *
  * Permissions:
- * - Admin/IBM: See all resellers, create resellers, create any role
+ * - Admin/IBM: See all resellers, create resellers, create any role, edit partner fields
  * - Managers: See own + child resellers, create viewer/standard/manager roles
  * - Others: Only see their own reseller
  *
@@ -98,7 +103,16 @@ const MotionLink = motion.create(Link);
 // ============================================================
 // MAIN COMPONENT — routes between list and detail
 // ============================================================
-export default function ResellerManagementView({ resellerId }: { resellerId?: string }) {
+export default function ResellerManagementView({
+  resellerId,
+  mode = 'view',
+}: {
+  resellerId?: string;
+  /** `edit` renders the full form for the selected partner. Driven by the route,
+   *  not local state, so the form is linkable, survives a refresh, and is exited
+   *  with the Back button. Ignored without a `resellerId`. */
+  mode?: 'view' | 'edit';
+}) {
   const { user } = useAppStore();
   const router = useRouter();
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
@@ -106,20 +120,28 @@ export default function ResellerManagementView({ resellerId }: { resellerId?: st
   const hasChildResellers = user?.permissions?.canViewChildRecords;
   const ownResellerId = user?.resellerId;
 
-  // A partner who can only see their own record never gets a list — send them
-  // straight to their own detail page. `replace`, not `push`: this must not
-  // leave a /partners entry in history for Back to land on and bounce again.
   useEffect(() => {
+    // A partner who can only see their own record never gets a list — send them
+    // straight to their own detail page. `replace`, not `push`: this must not
+    // leave a /partners entry in history for Back to land on and bounce again.
     if (!resellerId && !isAdmin && !hasChildResellers && ownResellerId) {
       router.replace(buildPath('reseller-detail', ownResellerId));
+      return;
     }
-  }, [resellerId, isAdmin, hasChildResellers, ownResellerId, router]);
+    // Same rule for the edit route: only admin/IBM may write a partner record,
+    // so anyone else is put back on read-only detail — their own when this is
+    // not a record they are allowed to see at all.
+    if (resellerId && mode === 'edit' && !isAdmin) {
+      const mayView = hasChildResellers || ownResellerId === resellerId;
+      router.replace(buildPath('reseller-detail', mayView ? resellerId : (ownResellerId || resellerId)));
+    }
+  }, [resellerId, mode, isAdmin, hasChildResellers, ownResellerId, router]);
 
   if (!isManager && !isAdmin) {
     return <div className="flex items-center justify-center h-full"><p className="text-text-muted">You do not have permission to manage partners.</p></div>;
   }
 
-  if (resellerId) return <ResellerDetailView resellerId={resellerId} />;
+  if (resellerId) return <ResellerDetailView resellerId={resellerId} mode={mode} />;
   return <ResellerListView />;
 }
 
@@ -135,6 +157,29 @@ const BLANK_PARTNER: Record<string, unknown> = {
   Reseller_Sale: '', Distributor_Percentage_Rate: '', Additional_Tax_Infromation: '',
   Direct_Customer_Contact: false, Can_Purchase_on_Credit: false,
 };
+
+/**
+ * The same field set as BLANK_PARTNER, read off a loaded Zoho record. Module
+ * level and pure so the effect that populates the edit form needs no extra
+ * dependency.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function partnerFormValues(r: Record<string, any>): Record<string, any> {
+  return {
+    Name: r.Name || '', Email: r.Email || '',
+    Region: r.Region || 'AU', Currency: r.Currency || 'AUD',
+    Partner_Category: r.Partner_Category || 'Reseller',
+    Reseller_First_Name: r.Reseller_First_Name || '', Reseller_Last_Name: r.Reseller_Last_Name || '',
+    Street_Address: r.Street_Address || '', City: r.City || '',
+    State: r.State || '', Post_Code: r.Post_Code || '', Country: r.Country || '',
+    Reseller_Sale: String(r.Reseller_Sale ?? ''),
+    Distributor_Percentage_Rate: String(r.Distributor_Percentage_Rate ?? ''),
+    Additional_Tax_Infromation: r.Additional_Tax_Infromation || '',
+    Direct_Customer_Contact: !!r.Direct_Customer_Contact,
+    Can_Purchase_on_Credit: !!r.Can_Purchase_on_Credit,
+    Distributor: r.Distributor?.id || '',
+  };
+}
 
 /**
  * Register one unsaved-work scope for the lifetime of a dirty form.
@@ -505,11 +550,14 @@ function PartnerFormFields({ values, onChange, allResellers }: { values: Record<
 // ============================================================
 // RESELLER DETAIL
 // ============================================================
-function ResellerDetailView({ resellerId }: { resellerId: string }) {
+function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'view' | 'edit' }) {
   const { user } = useAppStore();
   // Guarded: leaving this view can discard an open partner, user or permissions
   // edit, so `goBack` must prompt first. Every scope below clears on save.
   const router = useGuardedRouter();
+  // Save clears the edit scope itself, before navigating, so the guard does not
+  // prompt about work that has just been written.
+  const { registerDirty } = useUnsavedChanges();
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
   const hasChildResellers = user?.permissions?.canViewChildRecords;
   const availableRoles = isAdmin ? ALL_ROLES : ALL_ROLES.filter(r => MANAGER_ROLES.includes(r.value));
@@ -520,11 +568,18 @@ function ResellerDetailView({ resellerId }: { resellerId: string }) {
   const [allResellers, setAllResellers] = useState<ResellerItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Edit reseller
-  const [editingReseller, setEditingReseller] = useState(false);
+  // Edit reseller. `editing` comes from the route, never from a click handler —
+  // the /edit URL is the state. A non-admin is bounced by the parent's redirect;
+  // falling back to read-only here keeps the form off screen until it lands.
+  const editing = mode === 'edit' && isAdmin;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [editFields, setEditFields] = useState<Record<string, any>>({});
   const [savingReseller, setSavingReseller] = useState(false);
+  /** Which partner the form mirrors, so a direct hit on /edit populates once. */
+  const populatedFor = useRef<string | null>(null);
+  /** Serialised form as it was when the record finished loading, so "dirty"
+   *  means the user changed something rather than merely opening the edit URL. */
+  const pristine = useRef<string | null>(null);
 
   // User modals
   const [showAddUser, setShowAddUser] = useState(false);
@@ -568,9 +623,13 @@ function ResellerDetailView({ resellerId }: { resellerId: string }) {
   // a snapshot taken when they opened, so merely opening one does not prompt.
   // Password values are guarded but never persisted anywhere.
 
+  // The full-form route cannot use useFormSnapshot: `editing` is true before the
+  // record has loaded, so a snapshot taken on open would capture an empty form
+  // and every populated field would read as the user's typing. The pristine ref
+  // is set once population lands instead.
   useDirtyScope(
     'reseller-edit',
-    useFormSnapshot(editingReseller, editFields),
+    editing && pristine.current !== null && JSON.stringify(editFields) !== pristine.current,
     'this partner'
   );
 
@@ -610,6 +669,24 @@ function ResellerDetailView({ resellerId }: { resellerId: string }) {
 
   useEffect(() => { if (resellerId) loadData(); }, [resellerId]);
 
+  // Arriving straight at /partners/[id]/edit means the record is still loading,
+  // so the form is filled from the loaded record rather than in a click handler.
+  useEffect(() => {
+    if (editing && reseller && populatedFor.current !== resellerId) {
+      setEditFields(partnerFormValues(reseller));
+      populatedFor.current = resellerId;
+      pristine.current = null;
+    }
+    if (!editing) populatedFor.current = null;
+  }, [editing, reseller, resellerId]);
+
+  // Runs on the render after the populate above lands.
+  useEffect(() => {
+    if (editing && populatedFor.current === resellerId && pristine.current === null) {
+      pristine.current = JSON.stringify(editFields);
+    }
+  }, [editing, resellerId, editFields]);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -644,22 +721,10 @@ function ResellerDetailView({ resellerId }: { resellerId: string }) {
 
   const startEditReseller = () => {
     if (!reseller) return;
-    setEditFields({
-      Name: reseller.Name || '', Email: reseller.Email || '',
-      Region: reseller.Region || 'AU', Currency: reseller.Currency || 'AUD',
-      Partner_Category: reseller.Partner_Category || 'Reseller',
-      Reseller_First_Name: reseller.Reseller_First_Name || '', Reseller_Last_Name: reseller.Reseller_Last_Name || '',
-      Street_Address: reseller.Street_Address || '', City: reseller.City || '',
-      State: reseller.State || '', Post_Code: reseller.Post_Code || '', Country: reseller.Country || '',
-      Reseller_Sale: String(reseller.Reseller_Sale ?? ''),
-      Distributor_Percentage_Rate: String(reseller.Distributor_Percentage_Rate ?? ''),
-      Additional_Tax_Infromation: reseller.Additional_Tax_Infromation || '',
-      Direct_Customer_Contact: !!reseller.Direct_Customer_Contact,
-      Can_Purchase_on_Credit: !!reseller.Can_Purchase_on_Credit,
-      Distributor: reseller.Distributor?.id || '',
-    });
-    setEditingReseller(true);
+    router.push(buildPath('reseller-edit-route', resellerId));
   };
+
+  const cancelEditReseller = () => router.push(buildPath('reseller-detail', resellerId));
 
   const saveReseller = async () => {
     setSavingReseller(true);
@@ -675,8 +740,13 @@ function ResellerDetailView({ resellerId }: { resellerId: string }) {
       await fetch(`/api/resellers/${resellerId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
       });
-      setEditingReseller(false);
       loadData();
+      // Clear the scope before navigating, or the guard would prompt about work
+      // that has just been saved. The ref alone does not re-render, so the
+      // registry is cleared directly.
+      pristine.current = null;
+      registerDirty('reseller-edit', false);
+      router.push(buildPath('reseller-detail', resellerId));
     } catch {}
     setSavingReseller(false);
   };
@@ -755,6 +825,40 @@ function ResellerDetailView({ resellerId }: { resellerId: string }) {
   if (loading) return <div className="flex items-center justify-center h-full"><Loader2 size={24} className="text-csa-accent animate-spin" /></div>;
   if (!reseller) return <div className="flex flex-col items-center justify-center h-full gap-3"><p className="text-text-muted">Partner not found</p><button onClick={goBack} className="text-csa-accent text-sm cursor-pointer">Go back</button></div>;
 
+  // ─── EDIT MODE ───────────────────────────────────────────────────────
+  // The full form for the fields PATCH /api/resellers/[id] accepts. Same fields,
+  // same gate (admin/IBM) as the inline editors on the detail page.
+
+  if (editing) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-6 py-6">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-2xl font-bold text-text-primary">Edit Partner</h1>
+              <p className="text-sm text-text-muted mt-1">Editing {reseller.Name}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={cancelEditReseller} className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
+                <X size={14} /> Cancel
+              </button>
+              <button onClick={saveReseller} disabled={savingReseller} className="flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-40">
+                {savingReseller ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {savingReseller ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            <PartnerFormFields values={editFields} onChange={setEditFields} allResellers={allResellers} />
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── READ-ONLY MODE ──────────────────────────────────────────────────
+
   const distributor = reseller.Distributor as { name?: string; id?: string } | null;
 
   return (
@@ -784,7 +888,7 @@ function ResellerDetailView({ resellerId }: { resellerId: string }) {
                 <RefreshCw size={14} /> Sync
               </button>
             )}
-            {isAdmin && !editingReseller ? (
+            {isAdmin ? (
               <button onClick={startEditReseller} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-warning bg-warning/10 border border-warning/30 rounded-xl hover:bg-warning/20 transition-colors cursor-pointer">
                 <Pencil size={14} /> Edit
               </button>
@@ -1151,22 +1255,11 @@ function ResellerDetailView({ resellerId }: { resellerId: string }) {
           </div>
         )}
 
-        {/* Edit Form or Info Cards */}
-        {editingReseller ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-surface border border-csa-accent/40 rounded-xl p-5 mb-8">
-            <PartnerFormFields values={editFields} onChange={setEditFields} allResellers={allResellers} />
-            <div className="flex gap-2 mt-5 pt-4 border-t border-border-subtle">
-              <button onClick={() => setEditingReseller(false)} className="px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl cursor-pointer">Cancel</button>
-              <button onClick={saveReseller} disabled={savingReseller} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl cursor-pointer disabled:opacity-50">
-                {savingReseller ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
-              </button>
-            </div>
-          </motion.div>
-        ) : (
-          <InlineEditFieldProvider>
+        {/* Info Cards — click any card to edit it inline */}
+        <InlineEditFieldProvider>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
 
-            {/* Primary Contact — composite (First+Last). Click opens existing edit form. */}
+            {/* Primary Contact — composite (First+Last). Click opens the full edit form. */}
             <div
               onClick={isAdmin ? startEditReseller : undefined}
               className={`bg-surface border border-border-subtle rounded-xl px-4 py-3 transition-colors ${isAdmin ? 'cursor-pointer hover:border-csa-accent/40' : ''}`}
@@ -1255,7 +1348,7 @@ function ResellerDetailView({ resellerId }: { resellerId: string }) {
               canEdit={isAdmin}
               onSave={v => saveFields({ Direct_Customer_Contact: v === 'true' })} />
 
-            {/* Address — composite. Click opens existing edit form. */}
+            {/* Address — composite. Click opens the full edit form. */}
             {reseller.Street_Address || reseller.City ? (
               <div
                 onClick={isAdmin ? startEditReseller : undefined}
@@ -1269,8 +1362,7 @@ function ResellerDetailView({ resellerId }: { resellerId: string }) {
             {reseller.Owner ? <InfoCard label="CSA Account Manager" value={reseller.Owner?.name || '\u2014'} icon={<Users size={14} />} /> : null}
             <InfoCard label="Portal Users" value={String(users.length)} icon={<Users size={14} />} />
           </motion.div>
-          </InlineEditFieldProvider>
-        )}
+        </InlineEditFieldProvider>
 
         {/* Users Section */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>

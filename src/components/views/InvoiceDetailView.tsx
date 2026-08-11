@@ -16,7 +16,7 @@
  * shared InlineEditField component.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   Building2,
@@ -26,6 +26,11 @@ import {
   Globe,
   Loader2,
   MapPin,
+  Send,
+  Save,
+  X,
+  FileText,
+  ChevronDown,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
@@ -46,6 +51,16 @@ import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 const SCOPE_LINE_ITEMS = 'invoice-detail:line-items';
 const SCOPE_PO = 'invoice-detail:purchase-order';
 const SCOPE_COUPON = 'invoice-detail:coupon';
+/** Scope id for the full-page edit form at /orders/[id]/edit. */
+const SCOPE_EDIT = 'invoice-detail:edit';
+
+/** Statuses the portal writes. The route permission-checks `Approved`. */
+const STATUS_OPTIONS = ['Draft', 'Approved', 'Sent'];
+
+/** Mirrors the local `CURRENCIES` const in CreateInvoiceView — that one is not
+ *  exported, so the list is duplicated here. Worth factoring into one shared
+ *  const if a third view ever needs it. */
+const CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'INR', 'NZD'];
 
 /**
  * Line items keyed for comparison, with the edit-only `_originalPrice`
@@ -61,7 +76,52 @@ function lineItemFingerprint(items: Record<string, unknown>[]): string {
   }));
 }
 
-export default function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
+/**
+ * Maps the edit-mode line items onto the `Invoiced_Items` subform payload Zoho
+ * accepts. Extracted so the batch line-item edit and the full edit form send
+ * exactly the same shape — there is one line-item editing model, not two.
+ */
+function buildInvoicedItemsPayload(items: Record<string, unknown>[]): Record<string, unknown>[] {
+  return items.map(li => {
+    const isExisting = !!li.id;
+
+    // Deleted existing items — tell Zoho to remove them
+    if (li._deleted && isExisting) {
+      return { id: li.id, _delete: true };
+    }
+
+    // Skip deleted new items (shouldn't exist, but safety)
+    if (li._deleted) return null;
+
+    const priceChanged = li._originalPrice !== li.List_Price;
+    const product = li.Product_Name as { id?: string } | null;
+
+    const cleaned: Record<string, unknown> = {};
+    if (isExisting) cleaned.id = li.id;
+    // Only send Product_Name for NEW items
+    if (!isExisting && product?.id) cleaned.Product_Name = { id: product.id };
+    cleaned.Quantity = li.Quantity;
+    cleaned.List_Price = li.List_Price;
+    cleaned.Contract_Term_Years = priceChanged ? 0 : (li.Contract_Term_Years ?? 1);
+    if (li.Start_Date) cleaned.Start_Date = li.Start_Date;
+    if (li.Renewal_Date) cleaned.Renewal_Date = li.Renewal_Date;
+    if (li.Description !== undefined) cleaned.Description = li.Description;
+    if (li.Asset_Code) cleaned.Asset_Code = li.Asset_Code;
+    if (li.Align_to) cleaned.Align_to = li.Align_to;
+
+    return cleaned;
+  }).filter(Boolean) as Record<string, unknown>[];
+}
+
+export default function InvoiceDetailView({
+  invoiceId,
+  mode = 'view',
+}: {
+  invoiceId: string;
+  /** `edit` renders the full form. Driven by the route, not local state, so the
+   *  form is linkable, survives a refresh, and is exited with the Back button. */
+  mode?: 'view' | 'edit';
+}) {
   const { user } = useAppStore();
   const router = useGuardedRouter();
   const { registerDirty } = useUnsavedChanges();
@@ -102,10 +162,27 @@ export default function InvoiceDetailView({ invoiceId }: { invoiceId: string }) 
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadResult, setUploadResult] = useState<string | null>(null);
 
+  // Full-page edit form (/orders/[id]/edit) — URL-driven, never local state.
+  const formEditing = mode === 'edit';
+  /** Serialised form state as it was when the record finished loading, so "dirty"
+   *  means the user changed something rather than merely opening the edit URL. */
+  const pristine = useRef<string | null>(null);
+  const [attempted, setAttempted] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formInvoiceDate, setFormInvoiceDate] = useState('');
+  const [formDueDate, setFormDueDate] = useState('');
+  const [formPO, setFormPO] = useState('');
+  const [formStatus, setFormStatus] = useState('');
+  const [formCurrency, setFormCurrency] = useState('');
+
   // Derived permission flags
   const isEditor = user?.role === 'admin' || user?.role === 'ibm';
   const canEdit = isEditor && invoice?.Status === 'Draft';
   const isRenewal = invoice?.Invoice_Type === 'Renewal';
+  /** PO is editable by any role on a Draft — matches InvoicePurchaseOrder. */
+  const canEditPO = invoice?.Status === 'Draft';
+  /** Mirrors the PATCH route: `Approved` needs canApproveInvoices or admin/IBM. */
+  const canEditStatus = isEditor || !!user?.permissions?.canApproveInvoices;
 
   // -------------------------------------------------------------------
   // Data fetching
@@ -190,6 +267,53 @@ export default function InvoiceDetailView({ invoiceId }: { invoiceId: string }) 
   }, [registerDirty, lineItemsDirty, poDirty, couponDirty]);
 
   // -------------------------------------------------------------------
+  // Full edit form — populate, dirty tracking, save
+  // -------------------------------------------------------------------
+
+  /** Every form field, in a stable order, for the pristine comparison. */
+  const formState = useMemo(() => JSON.stringify([
+    formInvoiceDate, formDueDate, formPO, formStatus, formCurrency, lineItemFingerprint(editLineItems),
+  ]), [formInvoiceDate, formDueDate, formPO, formStatus, formCurrency, editLineItems]);
+
+  // Only a changed form counts as unsaved work. Opening /edit and pressing Cancel
+  // must not prompt. The inline-edit fields in view mode register themselves.
+  useEffect(() => {
+    const dirty = formEditing && pristine.current !== null && formState !== pristine.current;
+    registerDirty(SCOPE_EDIT, dirty, 'this order');
+    return () => registerDirty(SCOPE_EDIT, false);
+  }, [registerDirty, formEditing, formState]);
+
+  /** Which order the form currently mirrors, so a direct hit on /edit populates once. */
+  const populatedFor = useRef<string | null>(null);
+
+  // Arriving straight at /orders/[id]/edit means the record is still loading, so
+  // the form is filled here rather than in a click handler.
+  useEffect(() => {
+    if (formEditing && invoice && populatedFor.current !== invoiceId) {
+      setFormInvoiceDate((invoice.Invoice_Date as string)?.slice(0, 10) || '');
+      setFormDueDate((invoice.Due_Date as string)?.slice(0, 10) || '');
+      setFormPO((invoice.Purchase_Order as string) || '');
+      setFormStatus((invoice.Status as string) || '');
+      setFormCurrency((invoice.Currency as string) || 'AUD');
+      // Same editing model as the batch line-item edit, including the
+      // `_originalPrice` bookkeeping that drives Contract_Term_Years.
+      setEditLineItems(lineItems.map(li => ({ ...li, _originalPrice: li.List_Price })));
+      populatedFor.current = invoiceId;
+      pristine.current = null;
+      setAttempted(false);
+      setFormError(null);
+    }
+    if (!formEditing) populatedFor.current = null;
+  }, [formEditing, invoice, lineItems, invoiceId]);
+
+  // Runs on the render after the populate effect's batched updates land.
+  useEffect(() => {
+    if (formEditing && populatedFor.current === invoiceId && pristine.current === null) {
+      pristine.current = formState;
+    }
+  }, [formEditing, invoiceId, formState]);
+
+  // -------------------------------------------------------------------
   // Edit mode handlers
   // -------------------------------------------------------------------
 
@@ -215,36 +339,7 @@ export default function InvoiceDetailView({ invoiceId }: { invoiceId: string }) 
       const body: Record<string, unknown> = {};
 
       // Build line items for Zoho — only send fields Zoho accepts
-      const updatedItems = editLineItems.map(li => {
-        const isExisting = !!li.id;
-
-        // Deleted existing items — tell Zoho to remove them
-        if (li._deleted && isExisting) {
-          return { id: li.id, _delete: true };
-        }
-
-        // Skip deleted new items (shouldn't exist, but safety)
-        if (li._deleted) return null;
-
-        const priceChanged = li._originalPrice !== li.List_Price;
-        const product = li.Product_Name as { id?: string } | null;
-
-        const cleaned: Record<string, unknown> = {};
-        if (isExisting) cleaned.id = li.id;
-        // Only send Product_Name for NEW items
-        if (!isExisting && product?.id) cleaned.Product_Name = { id: product.id };
-        cleaned.Quantity = li.Quantity;
-        cleaned.List_Price = li.List_Price;
-        cleaned.Contract_Term_Years = priceChanged ? 0 : (li.Contract_Term_Years ?? 1);
-        if (li.Start_Date) cleaned.Start_Date = li.Start_Date;
-        if (li.Renewal_Date) cleaned.Renewal_Date = li.Renewal_Date;
-        if (li.Description !== undefined) cleaned.Description = li.Description;
-        if (li.Asset_Code) cleaned.Asset_Code = li.Asset_Code;
-        if (li.Align_to) cleaned.Align_to = li.Align_to;
-
-        return cleaned;
-      }).filter(Boolean);
-      body.Invoiced_Items = updatedItems;
+      body.Invoiced_Items = buildInvoicedItemsPayload(editLineItems);
 
       const res = await fetch(`/api/invoices/${invoiceId}`, {
         method: 'PATCH',
@@ -295,6 +390,80 @@ export default function InvoiceDetailView({ invoiceId }: { invoiceId: string }) 
       throw err;
     }
   }, [invoiceId, invoice]);
+
+  // -------------------------------------------------------------------
+  // Full edit form handlers
+  // -------------------------------------------------------------------
+
+  /** The PATCH route only writes dates when the value is truthy, so an existing
+   *  date cannot be cleared through the API. Block the save rather than let the
+   *  clear be silently dropped. */
+  const clearedDate = (!!invoice?.Invoice_Date && !formInvoiceDate)
+    || (!!invoice?.Due_Date && !formDueDate);
+
+  const handleFormCancel = () => {
+    setAttempted(false);
+    setFormError(null);
+    router.push(buildPath('invoice-detail', invoiceId));
+  };
+
+  const saveForm = async () => {
+    setAttempted(true);
+    setFormError(null);
+    if (!invoiceId || clearedDate) return;
+
+    const body: Record<string, unknown> = {};
+    if (canEdit) {
+      if (formInvoiceDate && formInvoiceDate !== ((invoice?.Invoice_Date as string)?.slice(0, 10) || '')) {
+        body.Invoice_Date = formInvoiceDate;
+      }
+      if (formDueDate && formDueDate !== ((invoice?.Due_Date as string)?.slice(0, 10) || '')) {
+        body.Due_Date = formDueDate;
+      }
+      // The route writes Currency only when truthy, which is fine — a currency is
+      // never blank. Line item amounts are not converted; only the currency changes.
+      if (formCurrency && formCurrency !== ((invoice?.Currency as string) || 'AUD')) {
+        body.Currency = formCurrency;
+      }
+      if (lineItemFingerprint(editLineItems) !== lineItemFingerprint(lineItems)) {
+        body.Invoiced_Items = buildInvoicedItemsPayload(editLineItems);
+      }
+    }
+    if (canEditPO && formPO !== ((invoice?.Purchase_Order as string) || '')) {
+      body.Purchase_Order = formPO;
+    }
+    if (canEditStatus && formStatus && formStatus !== (invoice?.Status as string)) {
+      body.Status = formStatus;
+    }
+
+    // Nothing changed — leave without touching the record.
+    if (Object.keys(body).length === 0) {
+      handleFormCancel();
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        // Clear the scope before navigating, or the guard would prompt about work
+        // that has just been saved.
+        pristine.current = null;
+        registerDirty(SCOPE_EDIT, false);
+        router.push(buildPath('invoice-detail', invoiceId));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setFormError(data.error || 'Failed to save the order');
+      }
+    } catch {
+      setFormError('Failed to save the order');
+    }
+    setSaving(false);
+  };
 
   // -------------------------------------------------------------------
   // Line item handlers
@@ -607,6 +776,173 @@ export default function InvoiceDetailView({ invoiceId }: { invoiceId: string }) 
   // In edit mode show the editable items (minus deleted); otherwise show fetched items
   const displayLineItems = editing ? editLineItems.filter(li => !li._deleted) : lineItems;
 
+  // ─── EDIT MODE (/orders/[id]/edit) ───────────────────────────────────
+  //
+  // Only fields the PATCH route actually writes are offered, each behind the
+  // same condition as its inline-edit counterpart. Currency and the Send To
+  // flag are shown read-only — see the notes at each.
+
+  if (formEditing) {
+    const nothingEditable = !canEdit && !canEditPO && !canEditStatus;
+
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="max-w-6xl mx-auto px-6 py-6">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-2xl font-bold text-text-primary">Edit Order</h1>
+              <p className="text-sm text-text-muted mt-1">
+                Editing {invoice.Reference_Number ? `#${invoice.Reference_Number as string}` : (invoice.Subject as string) || invoiceId}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={handleFormCancel} className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
+                <X size={14} /> Cancel
+              </button>
+              {!nothingEditable ? (
+                <button onClick={saveForm} disabled={saving} className="flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-40">
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {nothingEditable ? (
+            <div className="text-xs text-text-muted bg-surface border border-border-subtle rounded-xl px-4 py-2.5 mb-6">
+              This order is {status.toLowerCase()} and you do not have permission to change any of its fields.
+            </div>
+          ) : null}
+
+          {attempted && clearedDate ? (
+            <div className="text-xs text-error bg-error/10 border border-error/20 rounded-xl px-4 py-2.5 mb-6">
+              Order Date and Due Date cannot be cleared once set — enter a date or press Cancel.
+            </div>
+          ) : null}
+
+          {formError ? (
+            <div className="text-xs text-error bg-error/10 border border-error/20 rounded-xl px-4 py-2.5 mb-6">
+              {formError}
+            </div>
+          ) : null}
+
+          {/* Order details */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+            <h2 className="text-base font-bold text-text-primary mb-4 flex items-center gap-2">
+              <FileText size={16} className="text-csa-accent" />
+              Order Details
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {canEdit ? (
+                <>
+                  <div>
+                    <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Order Date</label>
+                    <input type="date" value={formInvoiceDate} onChange={e => setFormInvoiceDate(e.target.value)}
+                      className={`w-full bg-surface border-2 px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent transition-colors rounded-xl ${attempted && !!invoice.Invoice_Date && !formInvoiceDate ? 'border-error' : 'border-border-subtle'}`} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Due Date</label>
+                    <input type="date" value={formDueDate} onChange={e => setFormDueDate(e.target.value)}
+                      className={`w-full bg-surface border-2 px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent transition-colors rounded-xl ${attempted && !!invoice.Due_Date && !formDueDate ? 'border-error' : 'border-border-subtle'}`} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <ReadOnlyField label="Order Date" value={formatDate(invoice.Invoice_Date)} icon={<Calendar size={14} />} />
+                  <ReadOnlyField label="Due Date" value={formatDate(invoice.Due_Date)} icon={<Calendar size={14} />} />
+                </>
+              )}
+
+              {canEditPO ? (
+                <div>
+                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Purchase Order</label>
+                  <input type="text" value={formPO} onChange={e => setFormPO(e.target.value)} placeholder="PO number"
+                    className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl" />
+                  <p className="text-[10px] text-text-muted mt-1">Attach the PO document from the order page.</p>
+                </div>
+              ) : (
+                <ReadOnlyField label="Purchase Order" value={(invoice.Purchase_Order as string) || '—'} icon={<FileText size={14} />} />
+              )}
+
+              {canEditStatus ? (
+                <div>
+                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Status</label>
+                  <div className="relative">
+                    <select value={formStatus} onChange={e => setFormStatus(e.target.value)}
+                      className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10">
+                      {(STATUS_OPTIONS.includes(formStatus) ? STATUS_OPTIONS : [formStatus, ...STATUS_OPTIONS]).map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                  </div>
+                </div>
+              ) : (
+                <ReadOnlyField label="Status" value={status} icon={<FileText size={14} />} />
+              )}
+
+              {/* Currency is seeded from the Reseller when the order is created but
+                  stays editable — an order can be raised in a currency other than
+                  the partner's default. The PATCH route writes it. */}
+              {canEdit ? (
+                <div>
+                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Currency</label>
+                  <div className="relative">
+                    <select value={formCurrency} onChange={e => setFormCurrency(e.target.value)}
+                      className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10">
+                      {(CURRENCIES.includes(formCurrency) || !formCurrency ? CURRENCIES : [formCurrency, ...CURRENCIES]).map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                  </div>
+                  <p className="text-[10px] text-text-muted mt-1">Line item amounts are not converted.</p>
+                </div>
+              ) : (
+                <ReadOnlyField label="Currency" value={activeCurrency} icon={<DollarSign size={14} />} />
+              )}
+
+              {/* Reseller_Direct_Purchase is writable, but changing it also
+                  reprices every line item. That coupled update lives in the
+                  Send To toggle on the order page; duplicating it here would be
+                  a second pricing model. */}
+              <ReadOnlyField
+                label="Send Order To"
+                value={invoice.Reseller_Direct_Purchase ? 'Reseller' : 'Customer'}
+                icon={<Send size={14} />}
+                note="Change on the order page — it also reprices line items"
+              />
+            </div>
+          </motion.div>
+
+          {/* Line items — the existing table and editing model, not a second editor */}
+          <InvoiceLineItems
+            displayLineItems={canEdit ? editLineItems.filter(li => !li._deleted) : lineItems}
+            editing={!!canEdit}
+            isRenewal={!!isRenewal}
+            symbol={symbol}
+            formatDate={formatDate}
+            onUpdateLineItem={updateLineItem}
+            onAddLineItem={addLineItem}
+            onRemoveLineItem={removeLineItem}
+            onOpenSkuBuilder={setSkuBuilderIndex}
+            resellerPercentage={resellerPercentage}
+            isResellerPricing={!!invoice.Reseller_Direct_Purchase && resellerPercentage != null}
+          />
+        </div>
+
+        {/* SKU Builder Modal — product picker for line items */}
+        {skuBuilderIndex !== null && (
+          <SKUBuilder
+            region={resellerRegion}
+            onSelect={(product) => handleProductSelect(skuBuilderIndex, product)}
+            onCancel={() => setSkuBuilderIndex(null)}
+          />
+        )}
+      </div>
+    );
+  }
+
   // -------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------
@@ -624,7 +960,7 @@ export default function InvoiceDetailView({ invoiceId }: { invoiceId: string }) 
           user={user}
           selectedInvoiceId={invoiceId}
           onGoBack={goBack}
-          onEdit={enterEditMode}
+          onEdit={() => router.push(buildPath('invoice-edit', invoiceId))}
           onCancelEdit={cancelEdit}
           onSave={saveEdits}
         />
@@ -844,6 +1180,20 @@ function InfoCard({ label, value, icon }: { label: string; value: string; icon: 
         {label}
       </div>
       <p className="text-sm text-text-primary truncate">{value || '\u2014'}</p>
+    </div>
+  );
+}
+
+/** Field shown in the edit form that the PATCH route will not write from here. */
+function ReadOnlyField({ label, value, icon, note }: { label: string; value: string; icon: React.ReactNode; note?: string }) {
+  return (
+    <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3" title={note}>
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1">
+        {icon}
+        {label}
+      </div>
+      <p className="text-sm text-text-primary truncate">{value || '—'}</p>
+      {note ? <p className="text-[10px] text-text-muted mt-1">{note}</p> : null}
     </div>
   );
 }

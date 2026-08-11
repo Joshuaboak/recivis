@@ -12,15 +12,21 @@
  * - XLSX export (full account, contacts only, invoices only, or assets only)
  * - Direct link to the account in Zoho CRM
  *
+ * Edit mode presents the same editable fields as one form at /accounts/[id]/edit,
+ * saved with a single PATCH /api/accounts/[id]. Inline per-field editing stays
+ * available in view mode; both honour the same per-field permissions.
+ *
  * Data: Fetches from /api/accounts/[id] which returns account + related records.
- * Permissions: Address/reseller editing is admin/ibm only.
+ * Permissions: Address editing is admin/ibm only; reseller also allows users who
+ * can view child records. Contact role assignment is open to any user who can
+ * reach the account.
  */
 
 'use client';
 
-import { useState, useEffect, useCallback, type MouseEvent } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type MouseEvent } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Save, Download, Beaker, Send } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Save, Download, Beaker, Send, Pencil, Search, ChevronDown } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { exportFullAccount, exportContacts, exportInvoices, exportAssets } from '@/lib/export-account';
 import { useAppStore } from '@/lib/store';
@@ -43,8 +49,18 @@ interface ResellerOption {
 /** Scope ids for the batch edit forms registered with the dirty registry. */
 const SCOPE_ADDRESS = 'account-detail:address';
 const SCOPE_NEW_CONTACT = 'account-detail:new-contact';
+/** Scope id for the full-page edit form registered with the dirty registry. */
+const SCOPE_EDIT = 'account-detail:edit';
 
-export default function AccountDetailView({ accountId }: { accountId: string }) {
+export default function AccountDetailView({
+  accountId,
+  mode = 'view',
+}: {
+  accountId: string;
+  /** `edit` renders the full form. Driven by the route, not local state, so the
+   *  form is linkable, survives a refresh, and is exited with the Back button. */
+  mode?: 'view' | 'edit';
+}) {
   const router = useGuardedRouter();
   const { registerDirty } = useUnsavedChanges();
   const { user, setNewInvoiceContext } = useAppStore();
@@ -92,6 +108,25 @@ export default function AccountDetailView({ accountId }: { accountId: string }) 
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
   const hasChildResellers = !!user?.permissions?.canViewChildRecords;
   const canEditReseller = isAdmin || hasChildResellers;
+
+  // ─── Full-form edit mode ─────────────────────────────────────────────
+  const editing = mode === 'edit';
+  /** Serialised form state as it was when the record finished loading, so "dirty"
+   *  means the user changed something rather than merely opening the edit URL. */
+  const pristine = useRef<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+
+  // Form fields. Only fields the inline path lets this user edit are rendered,
+  // and only fields PATCH /api/accounts/[id] accepts appear at all.
+  const [formStreet, setFormStreet] = useState('');
+  const [formCity, setFormCity] = useState('');
+  const [formAddrState, setFormAddrState] = useState('');
+  const [formCode, setFormCode] = useState('');
+  const [formReseller, setFormReseller] = useState('');
+  const [formResellerSearch, setFormResellerSearch] = useState('');
+  const [formPrimary, setFormPrimary] = useState('');
+  const [formSecondary, setFormSecondary] = useState('');
 
   /** Optimistic per-field save: update local state immediately, PATCH the
    *  record, and roll back by throwing on error. `localChanges` is the shape
@@ -374,6 +409,116 @@ export default function AccountDetailView({ accountId }: { accountId: string }) 
     };
   }, [registerDirty, addressDirty, newContactDirty]);
 
+  /** The account's values for every field the form can write, in a stable order. */
+  const savedFormValues = useMemo(() => ({
+    street: (account?.Billing_Street as string) || '',
+    city: (account?.Billing_City as string) || '',
+    state: (account?.Billing_State as string) || '',
+    code: (account?.Billing_Code as string) || '',
+    reseller: (account?.Reseller as { id?: string })?.id || '',
+    primary: (account?.Primary_Contact as { id?: string })?.id || '',
+    secondary: (account?.Secondary_Contact as { id?: string })?.id || '',
+  }), [account]);
+
+  /** Every form field, in a stable order, for the pristine comparison. */
+  const formState = useMemo(() => JSON.stringify([
+    formStreet, formCity, formAddrState, formCode, formReseller, formPrimary, formSecondary,
+  ]), [formStreet, formCity, formAddrState, formCode, formReseller, formPrimary, formSecondary]);
+
+  /** Which account the form currently mirrors, so a direct hit on /edit populates once. */
+  const populatedFor = useRef<string | null>(null);
+
+  // Arriving straight at /accounts/[id]/edit means the record is still loading, so
+  // the form is filled here rather than in a click handler.
+  useEffect(() => {
+    if (editing && account && populatedFor.current !== accountId) {
+      setFormStreet(savedFormValues.street);
+      setFormCity(savedFormValues.city);
+      setFormAddrState(savedFormValues.state);
+      setFormCode(savedFormValues.code);
+      setFormReseller(savedFormValues.reseller);
+      setFormPrimary(savedFormValues.primary);
+      setFormSecondary(savedFormValues.secondary);
+      setFormResellerSearch('');
+      populatedFor.current = accountId;
+      pristine.current = null;
+      setSaveError(false);
+    }
+    if (!editing) populatedFor.current = null;
+  }, [editing, account, accountId, savedFormValues]);
+
+  // Runs on the render after the populate effect's batched updates land.
+  useEffect(() => {
+    if (editing && populatedFor.current === accountId && pristine.current === null) {
+      pristine.current = formState;
+    }
+  }, [editing, accountId, formState]);
+
+  // Only a changed form counts as unsaved work. Opening /edit and pressing Cancel
+  // must not prompt. The inline-edit fields in view mode register themselves.
+  useEffect(() => {
+    const dirty = editing && pristine.current !== null && formState !== pristine.current;
+    registerDirty(SCOPE_EDIT, dirty, 'this account');
+    return () => registerDirty(SCOPE_EDIT, false);
+  }, [registerDirty, editing, formState]);
+
+  const handleEdit = () => router.push(buildPath('account-edit', accountId));
+
+  const handleCancel = () => {
+    setSaveError(false);
+    router.push(buildPath('account-detail', accountId));
+  };
+
+  /** One PATCH with only the fields this user changed — and only fields their
+   *  inline-edit permissions already allow them to write. */
+  const handleSave = async () => {
+    if (!accountId) return;
+    setSaving(true);
+    setSaveError(false);
+
+    const changes: Record<string, unknown> = {};
+    if (isAdmin) {
+      if (formStreet !== savedFormValues.street) changes.Billing_Street = formStreet;
+      if (formCity !== savedFormValues.city) changes.Billing_City = formCity;
+      if (formAddrState !== savedFormValues.state) changes.Billing_State = formAddrState;
+      if (formCode !== savedFormValues.code) changes.Billing_Code = formCode;
+    }
+    if (canEditReseller && formReseller !== savedFormValues.reseller) {
+      changes.Reseller = formReseller || null;
+    }
+    if (formPrimary !== savedFormValues.primary) changes.Primary_Contact = formPrimary || null;
+    if (formSecondary !== savedFormValues.secondary) changes.Secondary_Contact = formSecondary || null;
+
+    // Nothing changed — no request, just leave the form.
+    if (Object.keys(changes).length === 0) {
+      setSaving(false);
+      handleCancel();
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/accounts/${accountId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changes),
+      });
+      if (!res.ok) throw new Error('Save failed');
+
+      const reload = await fetch(`/api/accounts/${accountId}`);
+      const data = await reload.json();
+      setAccount(data.account);
+      setContacts(data.contacts || []);
+      // Clear the scope before navigating, or the guard would prompt about work
+      // that has just been saved.
+      pristine.current = null;
+      registerDirty(SCOPE_EDIT, false);
+      router.push(buildPath('account-detail', accountId));
+    } catch {
+      setSaveError(true);
+    }
+    setSaving(false);
+  };
+
   const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Accounts/${accountId}`;
 
   if (loading) {
@@ -422,6 +567,191 @@ export default function AccountDetailView({ accountId }: { accountId: string }) 
     return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
   };
 
+  // ─── EDIT MODE ───────────────────────────────────────────────────────
+
+  if (editing) {
+    const formResellerName = formReseller
+      ? (resellerOptions.find(r => r.id === formReseller)?.name
+        || (formReseller === savedFormValues.reseller ? reseller?.name || '' : ''))
+      : '';
+    const filteredResellers = formResellerSearch
+      ? resellerOptions.filter(r => r.name.toLowerCase().includes(formResellerSearch.toLowerCase()))
+      : resellerOptions;
+    const contactOptions = sortedContacts.map(c => ({
+      id: c.id as string,
+      name: (c.Full_Name as string) || [c.First_Name, c.Last_Name].filter(Boolean).join(' '),
+    }));
+
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-6 py-6">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-2xl font-bold text-text-primary">Edit Account</h1>
+              <p className="text-sm text-text-muted mt-1">Editing {account.Account_Name as string}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={handleCancel} className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
+                <X size={14} /> Cancel
+              </button>
+              <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-40">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+
+          {saveError ? (
+            <div className="flex items-center gap-2 text-xs text-error bg-error/10 border border-error/20 rounded-xl px-4 py-2.5 mb-6">
+              Could not save this account. Please try again.
+            </div>
+          ) : null}
+
+          {/* Account Details */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+            <h2 className="text-base font-bold text-text-primary mb-4 flex items-center gap-2">
+              <Building2 size={16} className="text-csa-accent" />
+              Account Details
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Account Name and Country are not writable by PATCH /api/accounts/[id],
+                  so they are shown as they are rather than offered as inputs. */}
+              <div>
+                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Account Name</label>
+                <div className="bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-secondary rounded-xl truncate">
+                  {account.Account_Name as string}
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Country</label>
+                <div className="bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-secondary rounded-xl truncate">
+                  {(account.Billing_Country as string) || '—'}
+                </div>
+              </div>
+
+              {/* Reseller — admin/ibm, or users who can view child records */}
+              {canEditReseller ? (
+                <div className="md:col-span-2">
+                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Reseller</label>
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                    <input
+                      type="text"
+                      value={formReseller ? formResellerName : formResellerSearch}
+                      onChange={e => { setFormResellerSearch(e.target.value); setFormReseller(''); }}
+                      onFocus={() => { if (formReseller) { setFormResellerSearch(formResellerName); setFormReseller(''); } fetchResellerOptions(); }}
+                      placeholder="Search resellers..."
+                      className="w-full bg-surface border-2 border-border-subtle pl-9 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
+                    />
+                    {!formReseller && formResellerSearch ? (
+                      <div className="absolute left-0 right-0 top-full mt-1 z-10 bg-csa-dark border border-border rounded-xl max-h-[200px] overflow-y-auto shadow-lg">
+                        {filteredResellers.map(r => (
+                          <button
+                            key={r.id}
+                            onClick={() => { setFormReseller(r.id); setFormResellerSearch(''); }}
+                            className="w-full text-left px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-raised transition-colors cursor-pointer"
+                          >
+                            {r.name}
+                          </button>
+                        ))}
+                        {filteredResellers.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-text-muted">No resellers found</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  {savedFormValues.reseller && !formReseller && !formResellerSearch ? (
+                    <p className="text-[10px] text-warning mt-1">Saving now removes the reseller from this account.</p>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="md:col-span-2">
+                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Reseller</label>
+                  <div className="bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-secondary rounded-xl truncate">
+                    {reseller?.name || '—'}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Address — admin/ibm only, matching the inline address card */}
+            {isAdmin ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+                <div className="md:col-span-2">
+                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Street</label>
+                  <input type="text" value={formStreet} onChange={e => setFormStreet(e.target.value)} placeholder="Street address"
+                    className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">City</label>
+                  <input type="text" value={formCity} onChange={e => setFormCity(e.target.value)} placeholder="City"
+                    className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl" />
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">State</label>
+                    <input type="text" value={formAddrState} onChange={e => setFormAddrState(e.target.value)} placeholder="State"
+                      className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Post Code</label>
+                    <input type="text" value={formCode} onChange={e => setFormCode(e.target.value)} placeholder="Code"
+                      className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3">
+                <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Address</label>
+                <div className="bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-secondary rounded-xl truncate">
+                  {[account.Billing_Street, account.Billing_City, account.Billing_State, account.Billing_Code].filter(Boolean).join(', ') || '—'}
+                </div>
+              </div>
+            )}
+          </motion.div>
+
+          {/* Contact Roles — same reach as the Primary/Secondary buttons in the contacts table */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+            <h2 className="text-base font-bold text-text-primary mb-4 flex items-center gap-2">
+              <User size={16} className="text-csa-accent" />
+              Contact Roles
+            </h2>
+            {contactOptions.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Primary Contact</label>
+                  <div className="relative">
+                    <select value={formPrimary} onChange={e => setFormPrimary(e.target.value)}
+                      className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10">
+                      <option value="">&mdash; None &mdash;</option>
+                      {contactOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block">Secondary Contact</label>
+                  <div className="relative">
+                    <select value={formSecondary} onChange={e => setFormSecondary(e.target.value)}
+                      className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10">
+                      <option value="">&mdash; None &mdash;</option>
+                      {contactOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-text-muted">This account has no contacts to assign.</p>
+            )}
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── VIEW MODE ───────────────────────────────────────────────────────
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-6">
@@ -444,6 +774,10 @@ export default function AccountDetailView({ accountId }: { accountId: string }) 
                 Export All
               </button>
             )}
+            <button onClick={handleEdit} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+              <Pencil size={14} />
+              Edit
+            </button>
             <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
               <ExternalLink size={14} />
               Open in CRM

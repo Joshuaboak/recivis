@@ -103,7 +103,12 @@ export async function PATCH(
     // Only allow specific fields
     if (body.Invoice_Date) updateData.Invoice_Date = body.Invoice_Date;
     if (body.Due_Date) updateData.Due_Date = body.Due_Date;
-    // Currency is sourced from the Reseller record — not user-editable here.
+    // Currency is seeded from the Reseller record when an order is created, but it
+    // stays editable afterwards: an order can legitimately be raised in a currency
+    // other than its partner's default. Removed from this allow-list in dab7c76 and
+    // deliberately restored — dropping it silently was worse than either choice,
+    // because the request still returned success and the edit vanished without a word.
+    if (body.Currency) updateData.Currency = body.Currency;
     if (body.Invoiced_Items) updateData.Invoiced_Items = body.Invoiced_Items;
     if (body.Reseller_Direct_Purchase !== undefined) updateData.Reseller_Direct_Purchase = body.Reseller_Direct_Purchase;
     if (body.Purchase_Order !== undefined) updateData.Purchase_Order = body.Purchase_Order;

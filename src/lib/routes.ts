@@ -31,12 +31,15 @@ export const ROUTES = [
   { path: '/leads', legacyViewId: 'leads', title: 'Leads', needsId: false },
   { path: '/leads/new', legacyViewId: 'create-lead', title: 'Create Lead', needsId: false },
   { path: '/leads/[id]', legacyViewId: 'lead-detail', title: 'Lead', needsId: true },
+  { path: '/leads/[id]/edit', legacyViewId: 'lead-edit', title: 'Edit Lead', needsId: true },
   { path: '/accounts', legacyViewId: 'accounts', title: 'Accounts', needsId: false },
   { path: '/accounts/new', legacyViewId: 'create-account', title: 'Create Account', needsId: false },
   { path: '/accounts/[id]', legacyViewId: 'account-detail', title: 'Account', needsId: true },
+  { path: '/accounts/[id]/edit', legacyViewId: 'account-edit', title: 'Edit Account', needsId: true },
   { path: '/orders', legacyViewId: 'draft-invoices', title: 'Existing Orders', needsId: false },
   { path: '/orders/new', legacyViewId: 'create-invoice', title: 'New Order', needsId: false },
   { path: '/orders/[id]', legacyViewId: 'invoice-detail', title: 'Order', needsId: true },
+  { path: '/orders/[id]/edit', legacyViewId: 'invoice-edit', title: 'Edit Order', needsId: true },
   { path: '/order-assistant', legacyViewId: 'invoice', title: 'Order Assistant', needsId: false },
   { path: '/coupons', legacyViewId: 'coupons', title: 'Coupons', needsId: false },
   { path: '/coupons/new', legacyViewId: 'create-coupon', title: 'Create Coupon', needsId: false },
@@ -46,6 +49,7 @@ export const ROUTES = [
   { path: '/reports/dashboard', legacyViewId: 'reports-dashboard', title: 'Reports Dashboard', needsId: false },
   { path: '/partners', legacyViewId: 'resellers', title: 'Partners', needsId: false },
   { path: '/partners/[id]', legacyViewId: 'reseller-detail', title: 'Partner', needsId: true },
+  { path: '/partners/[id]/edit', legacyViewId: 'reseller-edit-route', title: 'Edit Partner', needsId: true },
   { path: '/partner-resources', legacyViewId: 'partner-resources', title: 'Partner Resources', needsId: false },
 ] as const satisfies readonly RouteDef[];
 

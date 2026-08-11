@@ -52,7 +52,7 @@ export default function AccountsView({ notice }: { notice?: string }) {
   const { user } = useAppStore();
   const [dismissedNotice, setDismissedNotice] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
   const [resellers, setResellers] = useState<ResellerFilter[]>([]);
@@ -70,13 +70,20 @@ export default function AccountsView({ notice }: { notice?: string }) {
   const hasChildResellers = user?.permissions?.canViewChildRecords;
   const canFilterReseller = isAdmin || hasChildResellers;
 
+  // Gates the account fetch until the reseller list is settled. Users who can't
+  // filter by reseller never load one, so for them it starts open. `user` is
+  // resolved before this view mounts, so this reads its final value.
+  const [resellersReady, setResellersReady] = useState(!canFilterReseller);
+
   // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(search), 400);
     return () => clearTimeout(t);
   }, [search]);
 
-  // Load resellers for filter
+  // Load resellers for filter. This opens the `resellersReady` gate when it
+  // settles, so the two loads don't overlap — an account request fired before
+  // the list arrives would be scoped wrong and immediately superseded.
   useEffect(() => {
     if (!canFilterReseller) return;
     async function load() {
@@ -89,6 +96,7 @@ export default function AccountsView({ notice }: { notice?: string }) {
         const data = await res.json();
         setResellers(data.resellers || []);
       } catch { /* skip */ }
+      setResellersReady(true);
     }
     load();
   }, [isAdmin, user?.resellerId, canFilterReseller]);
@@ -125,30 +133,38 @@ export default function AccountsView({ notice }: { notice?: string }) {
     [resellers, user?.resellerId]
   );
 
-  // Fetch accounts — aborts any in-flight request when deps change so
-  // stale responses can't clobber fresher ones (paste / fast typing race).
-  const fetchAccounts = useCallback((signal: AbortSignal) => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (searchDebounced) params.set('search', searchDebounced);
-
+  // Reseller scoping for the account query, resolved to a query string. The fetch
+  // depends on this string rather than on `resellers` itself: the reseller list
+  // arriving can't change the callback's identity unless it actually changes the
+  // query, so it can no longer abort an in-flight account request.
+  const resellerScope = useMemo(() => {
+    const scope = new URLSearchParams();
     if (selectedReseller) {
-      params.set('resellerId', selectedReseller);
+      scope.set('resellerId', selectedReseller);
     } else if (isAdmin && selectedRegion) {
       // Region selected — get all reseller IDs in that region
       const regionResellerIds = resellers
         .filter(r => r.region === selectedRegion)
         .map(r => r.id);
       if (regionResellerIds.length > 0) {
-        params.set('resellerIds', regionResellerIds.join(','));
+        scope.set('resellerIds', regionResellerIds.join(','));
       }
     } else if (!isAdmin && user?.resellerId) {
       if (hasChildResellers && resellers.length > 1) {
-        params.set('resellerIds', resellers.map(r => r.id).join(','));
+        scope.set('resellerIds', resellers.map(r => r.id).join(','));
       } else {
-        params.set('resellerId', user.resellerId);
+        scope.set('resellerId', user.resellerId);
       }
     }
+    return scope.toString();
+  }, [resellers, selectedReseller, selectedRegion, isAdmin, hasChildResellers, user?.resellerId]);
+
+  // Fetch accounts — aborts any in-flight request when deps change so
+  // stale responses can't clobber fresher ones (paste / fast typing race).
+  const fetchAccounts = useCallback((signal: AbortSignal) => {
+    setLoading(true);
+    const params = new URLSearchParams(resellerScope);
+    if (searchDebounced) params.set('search', searchDebounced);
 
     fetch(`/api/accounts?${params}`, { signal })
       .then(res => res.json())
@@ -162,13 +178,14 @@ export default function AccountsView({ notice }: { notice?: string }) {
         setAccounts([]);
         setLoading(false);
       });
-  }, [searchDebounced, selectedReseller, selectedRegion, isAdmin, hasChildResellers, user?.resellerId, resellers]);
+  }, [searchDebounced, resellerScope]);
 
   useEffect(() => {
+    if (!resellersReady) return;
     const controller = new AbortController();
     fetchAccounts(controller.signal);
     return () => controller.abort();
-  }, [fetchAccounts]);
+  }, [fetchAccounts, resellersReady]);
 
   // Sort by created date
   const sortedAccounts = useMemo(() => {

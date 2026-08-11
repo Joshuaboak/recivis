@@ -61,7 +61,7 @@ export default function LeadsView() {
   const router = useRouter();
   const { user } = useAppStore();
   const [leads, setLeads] = useState<UnifiedLead[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
   const [resellers, setResellers] = useState<ResellerFilter[]>([]);
@@ -78,13 +78,20 @@ export default function LeadsView() {
   const hasChildResellers = user?.permissions?.canViewChildRecords;
   const canFilterReseller = isAdmin || hasChildResellers;
 
+  // Gates the lead fetch until the reseller list is settled. Users who can't
+  // filter by reseller never load one, so for them it starts open. `user` is
+  // resolved before this view mounts, so this reads its final value.
+  const [resellersReady, setResellersReady] = useState(!canFilterReseller);
+
   // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(search), 400);
     return () => clearTimeout(t);
   }, [search]);
 
-  // Load resellers for filter
+  // Load resellers for filter. This opens the `resellersReady` gate when it
+  // settles, so the two loads don't overlap — a lead request fired before the
+  // list arrives would be scoped wrong and immediately superseded.
   useEffect(() => {
     if (!canFilterReseller) return;
     async function load() {
@@ -97,6 +104,7 @@ export default function LeadsView() {
         const data = await res.json();
         setResellers(data.resellers || []);
       } catch { /* skip */ }
+      setResellersReady(true);
     }
     load();
   }, [isAdmin, user?.resellerId, canFilterReseller]);
@@ -132,31 +140,39 @@ export default function LeadsView() {
     [resellers, user?.resellerId]
   );
 
-  // Fetch leads — aborts any in-flight request when deps change so
-  // stale responses can't clobber fresher ones (paste / fast typing race).
-  const fetchLeads = useCallback((signal: AbortSignal) => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (searchDebounced) params.set('search', searchDebounced);
-    if (selectedStatus) params.set('status', selectedStatus);
-    if (selectedEval) params.set('evaluation', selectedEval);
-
+  // Reseller scoping for the lead query, resolved to a query string. The fetch
+  // depends on this string rather than on `resellers` itself: the reseller list
+  // arriving can't change the callback's identity unless it actually changes the
+  // query, so it can no longer abort an in-flight lead request.
+  const resellerScope = useMemo(() => {
+    const scope = new URLSearchParams();
     if (selectedReseller) {
-      params.set('resellerId', selectedReseller);
+      scope.set('resellerId', selectedReseller);
     } else if (isAdmin && selectedRegion) {
       const regionResellerIds = resellers
         .filter(r => r.region === selectedRegion)
         .map(r => r.id);
       if (regionResellerIds.length > 0) {
-        params.set('resellerIds', regionResellerIds.join(','));
+        scope.set('resellerIds', regionResellerIds.join(','));
       }
     } else if (!isAdmin && user?.resellerId) {
       if (hasChildResellers && resellers.length > 1) {
-        params.set('resellerIds', resellers.map(r => r.id).join(','));
+        scope.set('resellerIds', resellers.map(r => r.id).join(','));
       } else {
-        params.set('resellerId', user.resellerId);
+        scope.set('resellerId', user.resellerId);
       }
     }
+    return scope.toString();
+  }, [resellers, selectedReseller, selectedRegion, isAdmin, hasChildResellers, user?.resellerId]);
+
+  // Fetch leads — aborts any in-flight request when deps change so
+  // stale responses can't clobber fresher ones (paste / fast typing race).
+  const fetchLeads = useCallback((signal: AbortSignal) => {
+    setLoading(true);
+    const params = new URLSearchParams(resellerScope);
+    if (searchDebounced) params.set('search', searchDebounced);
+    if (selectedStatus) params.set('status', selectedStatus);
+    if (selectedEval) params.set('evaluation', selectedEval);
 
     fetch(`/api/leads?${params}`, { signal })
       .then(res => res.json())
@@ -170,13 +186,14 @@ export default function LeadsView() {
         setLeads([]);
         setLoading(false);
       });
-  }, [searchDebounced, selectedReseller, selectedRegion, selectedStatus, selectedEval, isAdmin, hasChildResellers, user?.resellerId, resellers]);
+  }, [searchDebounced, selectedStatus, selectedEval, resellerScope]);
 
   useEffect(() => {
+    if (!resellersReady) return;
     const controller = new AbortController();
     fetchLeads(controller.signal);
     return () => controller.abort();
-  }, [fetchLeads]);
+  }, [fetchLeads, resellersReady]);
 
   // Sort by created date
   const sortedLeads = useMemo(() => {
