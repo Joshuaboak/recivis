@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     // Validate account ownership for non-admin users
     if (!isAdmin(user) && user.allowedResellerIds.length > 0) {
       const accResult = await callMcpTool('ZohoCRM_getRecord', {
-        path_variables: { module: 'Accounts', recordID: accountId },
+        path_variables: { module: 'Accounts', recordId: accountId },
         query_params: { fields: 'Reseller' },
       });
       const accParsed = parseMcpResult(accResult);
@@ -63,9 +63,9 @@ export async function POST(request: NextRequest) {
       // Count existing evaluation assets for this account
       const existingResult = await callMcpTool('ZohoCRM_getRelatedRecords', {
         path_variables: {
-          module: 'Accounts',
-          recordID: accountId,
-          relatedModule: 'Assets1',
+          parentRecordModule: 'Accounts',
+          parentRecord: accountId,
+          relatedList: 'Assets',
         },
         query_params: {
           fields: 'id,Evaluation_License',

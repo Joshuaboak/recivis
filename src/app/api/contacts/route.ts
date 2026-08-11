@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     // Validate account ownership for non-admin users
     if (body.Account_Name?.id && !isAdmin(user) && user.allowedResellerIds.length > 0) {
       const accResult = await callMcpTool('ZohoCRM_getRecord', {
-        path_variables: { module: 'Accounts', recordID: body.Account_Name.id },
+        path_variables: { module: 'Accounts', recordId: body.Account_Name.id },
         query_params: { fields: 'Reseller' },
       });
       const accParsed = parseMcpResult(accResult);

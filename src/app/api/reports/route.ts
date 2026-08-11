@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
     const resellerFetches = Array.from(resellerIdSet).map(async (rid) => {
       try {
         const result = await callMcpTool('ZohoCRM_getRecord', {
-          path_variables: { module: 'Resellers', recordID: rid },
+          path_variables: { module: 'Resellers', recordId: rid },
         });
         const parsed = parseMcpResult(result);
         const rec = parsed.data[0];
@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
     const distroFetches = Array.from(distributorIdSet).map(async (did) => {
       try {
         const result = await callMcpTool('ZohoCRM_getRecord', {
-          path_variables: { module: 'Resellers', recordID: did },
+          path_variables: { module: 'Resellers', recordId: did },
         });
         const parsed = parseMcpResult(result);
         const rec = parsed.data[0];

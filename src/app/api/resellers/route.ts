@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       // Fetch all and filter — Zoho doesn't support OR on lookup + equals:id easily
       const [ownResult, childResult] = await Promise.all([
         callMcpTool('ZohoCRM_getRecord', {
-          path_variables: { module: 'Resellers', recordID: resellerId },
+          path_variables: { module: 'Resellers', recordId: resellerId },
         }),
         callMcpTool('ZohoCRM_searchRecords', {
           path_variables: { module: 'Resellers' },
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     } else if (resellerId) {
       // Single reseller
       const result = await callMcpTool('ZohoCRM_getRecord', {
-        path_variables: { module: 'Resellers', recordID: resellerId },
+        path_variables: { module: 'Resellers', recordId: resellerId },
       });
       const data = parseResult(result).filter(
         (r: Record<string, unknown>) => r.Record_Status__s !== 'Trash'

@@ -292,7 +292,7 @@ export async function executeZohoTool(
       return callMcpTool('ZohoCRM_getRecord', {
         path_variables: {
           module: args.module,
-          recordID: args.record_id,
+          recordId: args.record_id,
         },
       });
     }
