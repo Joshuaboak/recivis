@@ -25,6 +25,7 @@ import BrandSplash from '@/components/layout/BrandSplash';
 import SessionExpiryWatcher from '@/components/layout/SessionExpiryWatcher';
 import SearchModal from '@/components/SearchModal';
 import NotificationBell from '@/components/NotificationBell';
+import ThemeToggle from '@/components/ThemeToggle';
 import { UnsavedChangesProvider } from '@/components/UnsavedChangesProvider';
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -90,6 +91,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   Ctrl K
                 </kbd>
               </button>
+              <ThemeToggle />
               <NotificationBell />
             </div>
           </header>

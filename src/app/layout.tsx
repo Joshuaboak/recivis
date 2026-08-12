@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import ThemeScript from "@/components/ThemeScript";
 
 export const metadata: Metadata = {
   title: "Partner Portal — Civil Survey Applications",
@@ -18,7 +19,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: ThemeScript sets data-theme on this element before
+    // React hydrates, so the server-rendered markup and the DOM differ by design.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
       <body>{children}</body>
     </html>
   );

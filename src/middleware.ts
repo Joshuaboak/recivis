@@ -17,6 +17,13 @@ export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const hasSession = request.cookies.has(SESSION_COOKIE);
 
+  // The design-system specimen page carries no data and 404s in production (see
+  // src/app/style-preview/page.tsx). It is left ungated so the restyle can be
+  // reviewed locally without a database or a Zoho key.
+  if (pathname === '/style-preview') {
+    return NextResponse.next();
+  }
+
   if (pathname === LOGIN_PATH) {
     if (hasSession) {
       return NextResponse.redirect(new URL(DEFAULT_PORTAL_PATH, request.url));

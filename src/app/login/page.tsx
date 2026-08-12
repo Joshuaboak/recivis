@@ -19,6 +19,7 @@ import { useAppStore } from '@/lib/store';
 import { DEFAULT_PORTAL_PATH } from '@/lib/routes';
 import LoginView from '@/components/views/LoginView';
 import BrandSplash from '@/components/layout/BrandSplash';
+import ThemeToggle from '@/components/ThemeToggle';
 
 /** Only same-origin absolute paths are followed, so `?next=` cannot redirect off-site. */
 function safeNext(next: string | null): string {
@@ -42,6 +43,9 @@ function LoginScreen() {
 
   return (
     <>
+      {/* The toggle has to exist here too: a user who prefers dark should not be
+          forced through a light login screen to reach it. */}
+      <ThemeToggle className="fixed top-6 right-6 z-50" />
       <LoginView />
       {expired && (
         <motion.div
