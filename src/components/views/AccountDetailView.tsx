@@ -31,6 +31,7 @@ import { AnimatePresence } from 'framer-motion';
 import { exportFullAccount, exportContacts, exportInvoices, exportAssets } from '@/lib/export-account';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useTrackRecentItem } from '@/lib/useRecentItems';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import { GuardedLink } from '@/components/GuardedLink';
@@ -169,6 +170,15 @@ export default function AccountDetailView({
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [accountId]);
+
+  // Feed the header's Recent Items menu once the record has a name.
+  useTrackRecentItem(account ? {
+    type: 'account',
+    id: accountId,
+    title: (account.Account_Name as string) || 'Account',
+    subtitle: (account.Email_Domain as string) || undefined,
+    href: buildPath('account-detail', accountId),
+  } : null);
 
   const goBack = () => router.push(buildPath('accounts'));
 

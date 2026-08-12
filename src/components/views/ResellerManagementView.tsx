@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useTrackRecentItem } from '@/lib/useRecentItems';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import Pagination from '../Pagination';
@@ -668,6 +669,15 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
   );
 
   useEffect(() => { if (resellerId) loadData(); }, [resellerId]);
+
+  // Feed the header's Recent Items menu once the record has loaded.
+  useTrackRecentItem(reseller ? {
+    type: 'partner',
+    id: resellerId,
+    title: (reseller.Name as string) || 'Partner',
+    subtitle: (reseller.Region as string) || undefined,
+    href: buildPath('reseller-detail', resellerId),
+  } : null);
 
   // Arriving straight at /partners/[id]/edit means the record is still loading,
   // so the form is filled from the loaded record rather than in a click handler.

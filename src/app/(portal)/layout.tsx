@@ -24,6 +24,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import BrandSplash from '@/components/layout/BrandSplash';
 import SessionExpiryWatcher from '@/components/layout/SessionExpiryWatcher';
 import SearchModal from '@/components/SearchModal';
+import RecentItems from '@/components/RecentItems';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
 import { UnsavedChangesProvider } from '@/components/UnsavedChangesProvider';
@@ -92,6 +93,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 </kbd>
               </button>
               <ThemeToggle />
+              <RecentItems />
               <NotificationBell />
             </div>
           </header>

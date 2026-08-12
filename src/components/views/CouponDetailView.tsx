@@ -22,6 +22,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Ticket, Loader2, ExternalLink, Percent, DollarSign, Calendar, Hash, Globe, Package, ShoppingCart, Pencil, Save, X, Search, ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useTrackRecentItem } from '@/lib/useRecentItems';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
@@ -100,6 +101,15 @@ export default function CouponDetailView({
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [couponId]);
+
+  // Feed the header's Recent Items menu once the record has loaded.
+  useTrackRecentItem(coupon ? {
+    type: 'coupon',
+    id: couponId,
+    title: (coupon.Coupon_Name as string) || (coupon.Name as string) || 'Coupon',
+    subtitle: (coupon.Name as string) || undefined,
+    href: buildPath('coupon-detail', couponId),
+  } : null);
 
   // Load resellers when partner restrictions toggled on
   useEffect(() => {

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useTrackRecentItem } from '@/lib/useRecentItems';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import { GuardedLink } from '@/components/GuardedLink';
@@ -280,6 +281,18 @@ export default function LeadDetailView({
 
   /** The record the form edits — a Leads record or the prospect's Account. */
   const editRecord = source === 'lead' ? lead : account;
+
+  // Feed the header's Recent Items menu once the record has a name.
+  useTrackRecentItem(editRecord ? {
+    type: 'lead',
+    id: leadId,
+    title: (editRecord.Company as string)
+      || (editRecord.Account_Name as string)
+      || (editRecord.Full_Name as string)
+      || 'Lead',
+    subtitle: (editRecord.Email as string) || undefined,
+    href: `${buildPath('lead-detail', leadId)}?source=${source}`,
+  } : null);
 
   /** The value a field currently holds on the record. Lookups keep their id,
    *  which is what the form edits and what the API expects back. */

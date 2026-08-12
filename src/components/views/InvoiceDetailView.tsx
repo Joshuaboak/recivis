@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useTrackRecentItem } from '@/lib/useRecentItems';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import { GuardedLink } from '@/components/GuardedLink';
@@ -242,6 +243,17 @@ export default function InvoiceDetailView({
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [invoiceId]);
+
+  // Feed the header's Recent Items menu once the record has loaded.
+  useTrackRecentItem(invoice ? {
+    type: 'order',
+    id: invoiceId,
+    title: invoice.Reference_Number
+      ? `#${invoice.Reference_Number as string}`
+      : (invoice.Subject as string) || 'Order',
+    subtitle: (invoice.Account_Name as { name?: string } | null)?.name || undefined,
+    href: buildPath('invoice-detail', invoiceId),
+  } : null);
 
   // -------------------------------------------------------------------
   // Unsaved-changes registration
