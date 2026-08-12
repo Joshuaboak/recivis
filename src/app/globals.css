@@ -76,22 +76,30 @@
 [data-theme='light'] {
   color-scheme: light;
 
-  --surface-page: var(--csa-white);
+  /* The page is a touch off-white rather than pure #FFF, so white cards lift off it
+     without needing a heavy border to separate them. Cards stay pure white — that
+     contrast is what replaces the old 4px rules. */
+  --surface-page: #F5F6F7;
   --surface-card: var(--csa-white);
-  --surface-raised: var(--csa-blue-050);
+  --surface-raised: #EDEFF2;
   --surface-overlay: var(--csa-white);
-  --surface-sunken: #F4F5F5;
+  --surface-sunken: #E9ECEE;
   --surface-accent-soft: var(--csa-blue-100);
 
-  --text-primary: var(--csa-grey-900);
-  --text-secondary: var(--csa-grey-600);
-  --text-muted: var(--csa-grey-300);
+  /* Darker than the style guide's ramp. The guide's #333 body on pure white was
+     specified for print-weight marketing copy; at UI sizes on an off-white page it
+     reads washed out, so each step is taken down one notch. */
+  --text-primary: #1C2226;
+  --text-secondary: #3C4348;
+  --text-muted: #6A7176;
   --text-heading: var(--csa-blue-dark);
   --text-on-accent: var(--csa-white);
 
-  --border-default: var(--csa-grey-100);
-  --border-subtle: #E6E9EA;
-  --border-strong: var(--csa-grey-300);
+  /* Hairlines, not rules. Lighter than the guide's #CECECF because they are now 1px
+     and doing structural work on their own rather than backing a 4px band. */
+  --border-default: #DFE3E6;
+  --border-subtle: #E9ECEE;
+  --border-strong: #C2C8CC;
 
   --accent: var(--csa-blue);
   --accent-hover: var(--csa-blue-dark);   /* guide: primary darkens on hover */
@@ -324,7 +332,7 @@ th {
   letter-spacing: .08em;
   color: var(--text-muted);
   padding: .75rem 1rem;
-  border-bottom: 4px solid var(--border-default);  /* guide: 4px rule weight */
+  border-bottom: 1px solid var(--border-default);
 }
 
 td {

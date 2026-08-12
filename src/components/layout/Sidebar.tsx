@@ -89,10 +89,10 @@ export default function Sidebar() {
       initial={false}
       animate={{ width: sidebarOpen ? 260 : 72 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
-      className="h-screen bg-csa-dark border-r-4 border-border flex flex-col relative z-20"
+      className="h-screen bg-csa-dark border-r border-border-subtle flex flex-col relative z-20"
     >
       {/* Logo */}
-      <div className="h-16 flex items-center px-4 border-b-4 border-border">
+      <div className="h-16 flex items-center px-4 border-b border-border-subtle">
         <motion.div className="flex items-center gap-3 overflow-hidden" animate={{ opacity: 1 }}>
           <img src="/logo.svg" alt="Civil Survey Applications" className="w-6 h-12 flex-shrink-0" />
           <AnimatePresence>
@@ -380,7 +380,7 @@ export default function Sidebar() {
       {/* Collapse toggle */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="absolute -right-3 top-20 w-6 h-6 bg-surface-raised border-2 border-border flex items-center justify-center text-text-muted hover:text-csa-accent hover:border-csa-accent transition-colors z-30 rounded-full cursor-pointer"
+        className="absolute -right-3 top-20 w-6 h-6 bg-surface border border-border shadow-[var(--shadow-raised)] flex items-center justify-center text-text-muted hover:text-csa-accent hover:border-csa-accent transition-colors z-30 rounded-full cursor-pointer"
       >
         {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
       </button>
@@ -402,9 +402,9 @@ function NavItem({ href, label, icon: Icon, active, onClick, open }: {
         ${active ? 'bg-csa-accent/15 text-csa-accent' : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'}
       `}
     >
-      {active && (
-        <motion.div layoutId="nav-indicator" className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent rounded-r" transition={{ duration: 0.2 }} />
-      )}
+      {/* No left rule. The tinted fill plus the accent icon and label already carry the
+          active state, and a full-height 4px bar on every item was what made the menu
+          read as blocky. */}
       <Icon size={20} className="flex-shrink-0" />
       <AnimatePresence>
         {open && (

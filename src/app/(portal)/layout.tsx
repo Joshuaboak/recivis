@@ -72,7 +72,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         <SessionExpiryWatcher />
         <Sidebar />
         <main className="flex-1 flex flex-col overflow-hidden">
-          <header className="h-16 border-b-4 border-border bg-csa-dark flex items-center justify-between px-6 flex-shrink-0">
+          <header className="h-16 border-b border-border-subtle bg-csa-dark flex items-center justify-between px-6 flex-shrink-0">
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-bold text-text-primary">
                 {getRouteTitle(pathname)}
