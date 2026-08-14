@@ -167,8 +167,10 @@ export default function SKUBuilder({ region, onSelect, onCancel }: SKUBuilderPro
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-csa-dark border-2 border-border rounded-2xl w-full max-w-md mx-4 overflow-hidden">
+    // Overlay scrolls, panel is capped — the step list can be taller than a
+    // laptop viewport and the Back/Next row must stay reachable.
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-8">
+      <div className="my-auto bg-csa-dark border-2 border-border rounded-2xl w-full max-w-md mx-4 max-h-[calc(100vh-4rem)] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
           <div className="flex items-center gap-2">

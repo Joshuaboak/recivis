@@ -345,8 +345,8 @@ export default function AccountsView({ notice }: { notice?: string }) {
 
         {/* Accounts list */}
         {!loading && paginatedAccounts.length > 0 && (
-          <div className="border border-border-subtle rounded-xl overflow-hidden">
-            <table className="w-full">
+          <div className="border border-border-subtle rounded-xl overflow-x-auto">
+            <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="bg-surface-raised">
                   <th>Account</th>

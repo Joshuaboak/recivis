@@ -313,8 +313,8 @@ export default function CreateInvoiceView() {
 
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-3">
-            <button onClick={goBack} className="w-9 h-9 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <button onClick={goBack} className="w-9 h-9 flex-shrink-0 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
               <ArrowLeft size={18} className="text-text-secondary" />
             </button>
 
@@ -339,7 +339,10 @@ export default function CreateInvoiceView() {
             </button>
           </div>
 
-          <h1 className="text-2xl font-bold text-text-primary ml-12">
+          <h1
+            className="text-2xl font-bold text-text-primary ml-12 truncate"
+            title={`${account.name} - Order - ${formatDateDisplay(invoiceDate)}`}
+          >
             {account.name} - Order - {formatDateDisplay(invoiceDate)}
           </h1>
         </div>
@@ -380,8 +383,8 @@ export default function CreateInvoiceView() {
             Line Items ({lineItems.length})
           </h2>
           {lineItems.length > 0 ? (
-            <div className="border border-border-subtle rounded-xl overflow-hidden">
-              <table className="w-full">
+            <div className="border border-border-subtle rounded-xl overflow-x-auto">
+              <table className="w-full min-w-[700px]">
                 <thead>
                   <tr className="bg-surface-raised">
                     <th>Product</th>
@@ -521,7 +524,7 @@ function InfoCard({ label, value, icon }: { label: string; value: string; icon: 
         {icon}
         {label}
       </div>
-      <p className="text-sm text-text-primary truncate">{value || '\u2014'}</p>
+      <p className="text-sm text-text-primary truncate" title={value || undefined}>{value || '\u2014'}</p>
     </div>
   );
 }

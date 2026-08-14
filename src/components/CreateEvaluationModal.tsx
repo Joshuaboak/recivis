@@ -134,13 +134,15 @@ export default function CreateEvaluationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    // The overlay scrolls and the panel is capped, so a short viewport can still
+    // reach Create at the bottom of the form.
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto py-8">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative bg-csa-dark border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        className="relative my-auto bg-csa-dark border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[calc(100vh-4rem)] overflow-y-auto"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">

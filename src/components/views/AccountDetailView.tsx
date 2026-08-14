@@ -767,14 +767,14 @@ export default function AccountDetailView({
       <div className="max-w-6xl mx-auto px-6 py-6">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
-          <button onClick={goBack} className="w-9 h-9 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
+          <button onClick={goBack} className="w-9 h-9 flex-shrink-0 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
             <ArrowLeft size={18} className="text-text-secondary" />
           </button>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-text-primary">{account.Account_Name as string}</h1>
-            <p className="text-sm text-text-muted">{account.Email_Domain as string || ''}</p>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold text-text-primary truncate" title={account.Account_Name as string}>{account.Account_Name as string}</h1>
+            <p className="text-sm text-text-muted truncate">{account.Email_Domain as string || ''}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {user?.permissions?.canExportData && (
               <button
                 onClick={() => exportFullAccount(account, contacts, invoices, activeAssets, archivedAssets, primaryContact?.id, secondaryContact?.id)}
@@ -954,18 +954,18 @@ export default function AccountDetailView({
 
           {sortedContacts.length > 0 ? (
             <>
-              <div className="border border-border-subtle rounded-xl overflow-hidden">
-                <table className="w-full">
+              <div className="border border-border-subtle rounded-xl overflow-x-auto">
+                <table className="w-full min-w-[560px]">
                   <thead><tr className="bg-surface-raised">
                     <th>Name</th><th>Email</th><th>Phone</th><th>Title</th><th>Set As</th>
                   </tr></thead>
                   <tbody>
-                    {paginatedContacts.map((c, i) => {
+                    {paginatedContacts.map((c) => {
                       const cId = c.id as string;
                       const isPrimary = primaryContact?.id && cId === primaryContact.id;
                       const isSecondary = secondaryContact?.id && cId === secondaryContact.id;
                       return (
-                        <tr key={i}>
+                        <tr key={cId}>
                           <td>
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-text-primary">{c.Full_Name as string}</span>
@@ -1057,18 +1057,18 @@ export default function AccountDetailView({
             </div>
           </div>
           {invoices.length > 0 ? (
-            <div className="border border-border-subtle rounded-xl overflow-hidden">
-              <table className="w-full">
+            <div className="border border-border-subtle rounded-xl overflow-x-auto">
+              <table className="w-full min-w-[700px]">
                 <thead><tr className="bg-surface-raised">
                   <th>Order #</th><th>Subject</th><th>Date</th><th>Type</th><th>Status</th><th>Total</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
-                  {invoices.map((inv, i) => {
+                  {invoices.map((inv) => {
                     const currency = inv.Currency as string;
                     const symbol = currency === 'AUD' ? '$' : currency === 'EUR' ? '\u20AC' : currency === 'GBP' ? '\u00A3' : '$';
                     return (
                       <tr
-                        key={i}
+                        key={inv.id as string}
                         onClick={(e) => openRow(e, buildPath('invoice-detail', inv.id as string))}
                         className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                       >
@@ -1134,8 +1134,8 @@ export default function AccountDetailView({
             )}
           </div>
           {evaluationAssets.length > 0 ? (
-            <div className="border border-border-subtle rounded-xl overflow-hidden">
-              <table className="w-full">
+            <div className="border border-border-subtle rounded-xl overflow-x-auto">
+              <table className="w-full min-w-[700px]">
                 <thead><tr className="bg-surface-raised">
                   <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Serial Key</th><th>Status</th><th className="w-10"></th>
                 </tr></thead>
@@ -1143,7 +1143,7 @@ export default function AccountDetailView({
                   {evaluationAssets.map((a, i) => {
                     const product = a.Product as { name?: string } | null;
                     return (
-                      <tr key={i}>
+                      <tr key={(a.id as string) ?? i}>
                         <td className="text-text-primary">{product?.name || a.Name as string}</td>
                         <td className="text-text-secondary">{a.Quantity as number}</td>
                         <td className="text-text-secondary">{formatDate(a.Start_Date)}</td>
@@ -1226,8 +1226,8 @@ export default function AccountDetailView({
           </div>
           {activeAssets.length > 0 ? (
             <>
-            <div className="border border-border-subtle rounded-xl overflow-hidden">
-              <table className="w-full">
+            <div className="border border-border-subtle rounded-xl overflow-x-auto">
+              <table className="w-full min-w-[800px]">
                 <thead><tr className="bg-surface-raised">
                   <th className="w-10">
                     <input
@@ -1240,14 +1240,14 @@ export default function AccountDetailView({
                   <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Serial Key</th><th>Upgraded To</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
-                  {activeAssets.slice((activeAssetPage - 1) * assetPageSize, activeAssetPage * assetPageSize).map((a, i) => {
+                  {activeAssets.slice((activeAssetPage - 1) * assetPageSize, activeAssetPage * assetPageSize).map((a) => {
                     const product = a.Product as { name?: string } | null;
                     const assetId = a.id as string;
                     const isSelected = selectedAssets.has(assetId);
                     const upgradedTo = a.Upgraded_To_Key as string | null;
                     return (
                       <tr
-                        key={i}
+                        key={assetId}
                         onClick={() => toggleAsset(assetId)}
                         className={`transition-colors cursor-pointer ${isSelected ? 'bg-csa-purple/8' : 'hover:bg-csa-accent/5'}`}
                       >
@@ -1296,8 +1296,8 @@ export default function AccountDetailView({
               <Package size={18} className="text-text-muted" />
               Archived Assets ({archivedAssets.length})
             </h2>
-            <div className="border border-border-subtle rounded-xl overflow-hidden opacity-70">
-              <table className="w-full">
+            <div className="border border-border-subtle rounded-xl overflow-x-auto opacity-70">
+              <table className="w-full min-w-[800px]">
                 <thead><tr className="bg-surface-raised">
                   <th className="w-10">
                     <input
@@ -1316,14 +1316,14 @@ export default function AccountDetailView({
                   </th><th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Status</th><th>Upgraded To</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
-                  {archivedAssets.slice((archivedAssetPage - 1) * assetPageSize, archivedAssetPage * assetPageSize).map((a, i) => {
+                  {archivedAssets.slice((archivedAssetPage - 1) * assetPageSize, archivedAssetPage * assetPageSize).map((a) => {
                     const product = a.Product as { name?: string } | null;
                     const assetId = a.id as string;
                     const upgradedTo = a.Upgraded_To_Key as string | null;
                     const isSelected = selectedAssets.has(assetId);
                     return (
                       <tr
-                        key={i}
+                        key={assetId}
                         onClick={() => toggleAsset(assetId)}
                         className={`transition-colors cursor-pointer ${isSelected ? 'bg-csa-purple/8' : 'hover:bg-csa-accent/5'}`}
                       >
@@ -1484,7 +1484,7 @@ function InfoCard({ label, value, icon }: { label: string; value: string; icon: 
         {icon}
         {label}
       </div>
-      <p className="text-sm text-text-primary truncate">{value || '—'}</p>
+      <p className="text-sm text-text-primary truncate" title={value || undefined}>{value || '—'}</p>
     </div>
   );
 }

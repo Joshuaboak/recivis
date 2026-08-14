@@ -114,6 +114,19 @@ export default function OrderActions({
     };
   }, [startPaymentPolling]);
 
+  // Escape closes whichever overlay is open. Declared here rather than beside
+  // closeDialog because that helper lives below the early returns and hooks
+  // cannot.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setSuccessPopup(null);
+      setDialog(initialDialog);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   // Only show on Draft or Sent invoices
   if (status !== 'Draft' && status !== 'Sent') return null;
   // Need at least one payment method enabled
@@ -317,13 +330,13 @@ export default function OrderActions({
       {/* Double Confirmation Dialog */}
       <AnimatePresence>
         {dialog.open && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto py-8">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeDialog} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-csa-dark border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+              className="relative my-auto bg-csa-dark border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[calc(100vh-4rem)] overflow-y-auto"
             >
               <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
                 <h2 className="text-base font-bold text-text-primary">{dialog.title}</h2>
@@ -358,13 +371,13 @@ export default function OrderActions({
       {/* Payment Success Popup */}
       <AnimatePresence>
         {successPopup && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto py-8">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSuccessPopup(null)} />
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative bg-csa-dark border border-success/30 rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+              className="relative my-auto bg-csa-dark border border-success/30 rounded-2xl shadow-2xl w-full max-w-sm mx-4 max-h-[calc(100vh-4rem)] overflow-y-auto"
             >
               <div className="flex flex-col items-center text-center px-6 py-8">
                 <motion.div

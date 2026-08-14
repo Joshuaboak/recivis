@@ -74,14 +74,16 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         <Sidebar />
         <main className="flex-1 flex flex-col overflow-hidden">
           <header className="h-16 border-b border-border-subtle bg-csa-dark flex items-center justify-between px-6 flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-bold text-text-primary">
+            {/* The strapline is the first thing to give up room: it is decoration,
+                the route title is not. */}
+            <div className="flex items-center gap-3 min-w-0">
+              <h2 className="text-lg font-bold text-text-primary whitespace-nowrap">
                 {getRouteTitle(pathname)}
               </h2>
-              <span className="h-4 w-px bg-border-subtle" />
-              <span className="text-xs text-text-muted">Civil Survey Applications Partner Portal</span>
+              <span className="h-4 w-px bg-border-subtle flex-shrink-0" />
+              <span className="text-xs text-text-muted truncate">Civil Survey Applications Partner Portal</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={() => setSearchOpen(true)}
                 className="flex items-center gap-2.5 px-4 py-2 bg-surface border border-border-subtle rounded-xl text-text-muted hover:text-text-primary hover:border-csa-accent/50 transition-colors cursor-pointer group"

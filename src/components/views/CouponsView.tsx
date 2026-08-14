@@ -140,8 +140,8 @@ export default function CouponsView() {
             <div className="mb-3">
               <Pagination currentPage={safePage} totalItems={filtered.length} pageSize={pageSize} onPageChange={setCurrentPage} />
             </div>
-            <div className="border border-border-subtle rounded-xl overflow-hidden">
-              <table className="w-full">
+            <div className="border border-border-subtle rounded-xl overflow-x-auto">
+              <table className="w-full min-w-[700px]">
                 <thead>
                   <tr className="bg-surface-raised">
                     <th>Code</th>

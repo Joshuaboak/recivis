@@ -1191,7 +1191,7 @@ function InfoCard({ label, value, icon }: { label: string; value: string; icon: 
         {icon}
         {label}
       </div>
-      <p className="text-sm text-text-primary truncate">{value || '\u2014'}</p>
+      <p className="text-sm text-text-primary truncate" title={value || undefined}>{value || '\u2014'}</p>
     </div>
   );
 }
@@ -1204,7 +1204,7 @@ function ReadOnlyField({ label, value, icon, note }: { label: string; value: str
         {icon}
         {label}
       </div>
-      <p className="text-sm text-text-primary truncate">{value || '—'}</p>
+      <p className="text-sm text-text-primary truncate" title={value || undefined}>{value || '—'}</p>
       {note ? <p className="text-[10px] text-text-muted mt-1">{note}</p> : null}
     </div>
   );

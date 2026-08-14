@@ -650,13 +650,13 @@ export default function LeadDetailView({
       <div className="h-full overflow-y-auto">
         <div className="max-w-4xl mx-auto px-6 py-6">
           <div className="flex items-center gap-4 mb-6">
-            <button onClick={goBack} className="w-9 h-9 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
+            <button onClick={goBack} className="w-9 h-9 flex-shrink-0 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
               <ArrowLeft size={18} className="text-text-secondary" />
             </button>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-text-primary">{lead.Company as string || lead.Full_Name as string}</h1>
-                <div className="relative group/badge">
+                <h1 className="text-2xl font-bold text-text-primary truncate" title={(lead.Company as string) || (lead.Full_Name as string) || ''}>{lead.Company as string || lead.Full_Name as string}</h1>
+                <div className="relative group/badge flex-shrink-0">
                   <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-csa-accent/15 text-csa-accent cursor-help">
                     Lead
                   </span>
@@ -667,9 +667,9 @@ export default function LeadDetailView({
                   </div>
                 </div>
               </div>
-              <p className="text-sm text-text-muted">{lead.Email as string || ''}</p>
+              <p className="text-sm text-text-muted truncate">{lead.Email as string || ''}</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {isAdmin && !convertResult?.success && (
                 <div className="flex flex-col items-end gap-1">
                   <button
@@ -684,7 +684,10 @@ export default function LeadDetailView({
                     )}
                     {converting ? 'Converting...' : 'Convert to Prospect'}
                   </button>
-                  <span className="text-[10px] text-text-muted">To create evaluations, convert this lead to a prospect first</span>
+                  {/* Capped to roughly the button's own width. Left uncapped this
+                      sized to its 62-char max-content (~380px), which claimed most of
+                      the header row and forced the record title to wrap. */}
+                  <span className="text-[10px] text-text-muted max-w-[200px] text-right leading-tight">To create evaluations, convert this lead to a prospect first</span>
                 </div>
               )}
               {canEditAnything && (
@@ -954,13 +957,13 @@ export default function LeadDetailView({
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-6">
         <div className="flex items-center gap-4 mb-6">
-          <button onClick={goBack} className="w-9 h-9 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
+          <button onClick={goBack} className="w-9 h-9 flex-shrink-0 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
             <ArrowLeft size={18} className="text-text-secondary" />
           </button>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-text-primary">{account.Account_Name as string}</h1>
-              <div className="relative group/badge">
+              <h1 className="text-2xl font-bold text-text-primary truncate" title={account.Account_Name as string}>{account.Account_Name as string}</h1>
+              <div className="relative group/badge flex-shrink-0">
                 <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-csa-purple/15 text-csa-purple cursor-help">
                   Prospect
                 </span>
@@ -971,18 +974,20 @@ export default function LeadDetailView({
                 </div>
               </div>
             </div>
-            <p className="text-sm text-text-muted">{account.Email_Domain as string || ''}</p>
+            <p className="text-sm text-text-muted truncate">{account.Email_Domain as string || ''}</p>
           </div>
-          {canEditAnything && (
-            <button onClick={handleEdit} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
-              <Pencil size={14} />
-              Edit
-            </button>
-          )}
-          <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
-            <ExternalLink size={14} />
-            Open in CRM
-          </a>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {canEditAnything && (
+              <button onClick={handleEdit} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+                <Pencil size={14} />
+                Edit
+              </button>
+            )}
+            <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+              <ExternalLink size={14} />
+              Open in CRM
+            </a>
+          </div>
         </div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
@@ -1011,8 +1016,8 @@ export default function LeadDetailView({
             )}
           </div>
           {evaluationAssets.length > 0 ? (
-            <div className="border border-border-subtle rounded-xl overflow-hidden">
-              <table className="w-full">
+            <div className="border border-border-subtle rounded-xl overflow-x-auto">
+              <table className="w-full min-w-[700px]">
                 <thead><tr className="bg-surface-raised">
                   <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Serial Key</th><th>Status</th><th className="w-10"></th>
                 </tr></thead>
@@ -1020,7 +1025,7 @@ export default function LeadDetailView({
                   {evaluationAssets.map((a, i) => {
                     const product = a.Product as { name?: string } | null;
                     return (
-                      <tr key={i}>
+                      <tr key={(a.id as string) ?? i}>
                         <td className="text-text-primary">{product?.name || a.Name as string}</td>
                         <td className="text-text-secondary">{a.Quantity as number}</td>
                         <td className="text-text-secondary">{formatDate(a.Start_Date)}</td>
@@ -1059,18 +1064,18 @@ export default function LeadDetailView({
           </h2>
           {sortedContacts.length > 0 ? (
             <>
-              <div className="border border-border-subtle rounded-xl overflow-hidden">
-                <table className="w-full">
+              <div className="border border-border-subtle rounded-xl overflow-x-auto">
+                <table className="w-full min-w-[560px]">
                   <thead><tr className="bg-surface-raised">
                     <th>Name</th><th>Email</th><th>Phone</th><th>Title</th>
                   </tr></thead>
                   <tbody>
-                    {paginatedContacts.map((c, i) => {
+                    {paginatedContacts.map((c) => {
                       const cId = c.id as string;
                       const isPrimary = primaryContact?.id && cId === primaryContact.id;
                       const isSecondary = secondaryContact?.id && cId === secondaryContact.id;
                       return (
-                        <tr key={i}>
+                        <tr key={cId}>
                           <td>
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-text-primary">{c.Full_Name as string}</span>
@@ -1132,18 +1137,18 @@ export default function LeadDetailView({
             </button>
           </div>
           {invoices.length > 0 ? (
-            <div className="border border-border-subtle rounded-xl overflow-hidden">
-              <table className="w-full">
+            <div className="border border-border-subtle rounded-xl overflow-x-auto">
+              <table className="w-full min-w-[700px]">
                 <thead><tr className="bg-surface-raised">
                   <th>Order #</th><th>Subject</th><th>Date</th><th>Type</th><th>Status</th><th>Total</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
-                  {invoices.map((inv, i) => {
+                  {invoices.map((inv) => {
                     const currency = inv.Currency as string;
                     const symbol = currency === 'AUD' ? '$' : currency === 'EUR' ? '\u20AC' : currency === 'GBP' ? '\u00A3' : '$';
                     return (
                       <tr
-                        key={i}
+                        key={inv.id as string}
                         onClick={(e) => openRow(e, buildPath('invoice-detail', inv.id as string))}
                         className="cursor-pointer hover:bg-csa-accent/5 transition-colors"
                       >
@@ -1209,8 +1214,8 @@ export default function LeadDetailView({
                 </div>
               )}
             </div>
-            <div className="border border-border-subtle rounded-xl overflow-hidden">
-              <table className="w-full">
+            <div className="border border-border-subtle rounded-xl overflow-x-auto">
+              <table className="w-full min-w-[800px]">
                 <thead><tr className="bg-surface-raised">
                   <th className="w-10">
                     <input
@@ -1229,12 +1234,12 @@ export default function LeadDetailView({
                   <th>Product</th><th>Qty</th><th>Start</th><th>Renewal</th><th>Serial Key</th><th>Status</th><th className="w-10"></th>
                 </tr></thead>
                 <tbody>
-                  {activeAssets.map((a, i) => {
+                  {activeAssets.map((a) => {
                     const product = a.Product as { name?: string } | null;
                     const assetId = a.id as string;
                     const isSelected = selectedAssets.has(assetId);
                     return (
-                      <tr key={i} className={isSelected ? 'bg-csa-accent/5' : ''}>
+                      <tr key={assetId} className={isSelected ? 'bg-csa-accent/5' : ''}>
                         <td>
                           <input
                             type="checkbox"
@@ -1404,7 +1409,7 @@ function InfoCard({ label, value, icon, badge }: { label: string; value: string;
         {icon}
         {label}
       </div>
-      {badge || <p className="text-sm text-text-primary truncate">{value || '\u2014'}</p>}
+      {badge || <p className="text-sm text-text-primary truncate" title={value || undefined}>{value || '\u2014'}</p>}
     </div>
   );
 }

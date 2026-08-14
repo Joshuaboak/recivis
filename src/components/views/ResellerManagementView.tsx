@@ -876,14 +876,14 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
       <div className="max-w-6xl mx-auto px-6 py-6">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
-          <button onClick={goBack} className="w-9 h-9 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
+          <button onClick={goBack} className="w-9 h-9 flex-shrink-0 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
             <ArrowLeft size={18} className="text-text-secondary" />
           </button>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-text-primary">{reseller.Name}</h1>
-            <p className="text-sm text-text-muted">{REGION_LABELS[reseller.Region] || reseller.Region} &bull; {reseller.Partner_Category}</p>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold text-text-primary truncate" title={reseller.Name}>{reseller.Name}</h1>
+            <p className="text-sm text-text-muted truncate">{REGION_LABELS[reseller.Region] || reseller.Region} &bull; {reseller.Partner_Category}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {isAdmin && dbRegistered && (
               <button onClick={async () => {
                 try {
@@ -1389,8 +1389,8 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
           </div>
           {filteredUsers.length > 0 ? (
             <>
-              <div className="border border-border-subtle rounded-xl overflow-hidden">
-                <table className="w-full">
+              <div className="border border-border-subtle rounded-xl overflow-x-auto">
+                <table className="w-full min-w-[600px]">
                   <thead><tr className="bg-surface-raised"><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
                   <tbody>
                     {paginatedUsers.map(u => (
@@ -1621,7 +1621,7 @@ function InfoCard({ label, value, icon }: { label: string; value: string; icon: 
   return (
     <div className="bg-surface border border-border-subtle rounded-xl px-4 py-3">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">{icon}{label}</div>
-      <p className="text-sm text-text-primary truncate">{value || '\u2014'}</p>
+      <p className="text-sm text-text-primary truncate" title={value || undefined}>{value || '\u2014'}</p>
     </div>
   );
 }

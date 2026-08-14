@@ -226,9 +226,9 @@ export default function ReportsDashboardView() {
     <div className="h-full overflow-y-auto">
       <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2"><BarChart3 size={24} className="text-csa-accent" /> Reports Dashboard</h1>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isAdminUser && (
               <>
                 <select value={selectedRegion} onChange={e => setSelectedRegion(e.target.value)} className="bg-surface border-2 border-border-subtle px-3 py-2 text-xs text-text-primary rounded-xl appearance-none cursor-pointer pr-8">
@@ -537,8 +537,8 @@ function DrillTable({ months, field, secondField, isCurrency, getDisplayValue, d
               </div>
             </button>
             {isDrilling && (
-              <div className="border-t border-border-subtle">
-                <table className="w-full"><thead><tr className="bg-surface-raised">{columns.map(c => <th key={c}>{c}</th>)}</tr></thead>
+              <div className="border-t border-border-subtle overflow-x-auto">
+                <table className="w-full min-w-[700px]"><thead><tr className="bg-surface-raised">{columns.map(c => <th key={c}>{c}</th>)}</tr></thead>
                   <tbody>{renderRows(m)}{renderRows(m).length === 0 && <tr><td colSpan={columns.length} className="text-xs text-text-muted text-center py-4">No records</td></tr>}</tbody>
                 </table>
               </div>

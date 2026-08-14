@@ -307,12 +307,27 @@ export function InlineEditField({
   const cursorClass =
     canEdit && !isEditing ? 'cursor-pointer hover:border-csa-accent/40' : '';
 
+  // The lookup editor floats its option list, so the editing card has to sit
+  // above its grid neighbours or the list paints underneath them.
+  const stackClass = isEditing ? 'relative z-20' : 'relative';
+
   return (
     <motion.div
       ref={wrapperRef}
       animate={controls}
       onClick={handleClick}
-      className={`border rounded-xl px-4 py-3 transition-colors duration-700 ${backgroundClass} ${cursorClass} ${className}`}
+      // Editable cards are real controls, so they take focus and answer to the
+      // keyboard. Without this the whole inline-edit system was mouse-only.
+      role={canEdit && !isEditing ? 'button' : undefined}
+      tabIndex={canEdit && !isEditing ? 0 : undefined}
+      onKeyDown={canEdit && !isEditing ? (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          requestEdit(fieldId);
+        }
+      } : undefined}
+      aria-label={canEdit && !isEditing ? `Edit ${label}` : undefined}
+      className={`border rounded-xl px-4 py-3 transition-colors duration-700 ${stackClass} ${backgroundClass} ${cursorClass} ${className}`}
     >
       <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
         {icon}
@@ -333,32 +348,35 @@ export function InlineEditField({
             })}
           </div>
 
-          {/* Tick / cross only appear when the value has changed */}
-          {isDirty && (
-            <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
-              <button
-                onMouseDown={e => e.stopPropagation()}
-                onClick={e => { e.stopPropagation(); handleConfirm(); }}
-                disabled={saving}
-                className="w-7 h-7 flex items-center justify-center rounded-lg bg-success/20 text-success hover:bg-success/30 transition-colors cursor-pointer disabled:opacity-40"
-                title="Confirm (Enter)"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-              </button>
-              <button
-                onMouseDown={e => e.stopPropagation()}
-                onClick={e => { e.stopPropagation(); handleRevert(); }}
-                disabled={saving}
-                className="w-7 h-7 flex items-center justify-center rounded-lg bg-error/20 text-error hover:bg-error/30 transition-colors cursor-pointer disabled:opacity-40"
-                title="Revert (Escape)"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
+          {/* Tick / cross are only usable once the value has changed, but they keep
+              their space either way — appearing mid-edit used to shrink the input
+              under the cursor. */}
+          <div className={`flex items-center gap-1 flex-shrink-0 pt-0.5 ${isDirty ? '' : 'invisible'}`} aria-hidden={!isDirty}>
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => { e.stopPropagation(); handleConfirm(); }}
+              disabled={saving}
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-success/20 text-success hover:bg-success/30 transition-colors cursor-pointer disabled:opacity-40"
+              title="Confirm (Enter)"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            </button>
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => { e.stopPropagation(); handleRevert(); }}
+              disabled={saving}
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-error/20 text-error hover:bg-error/30 transition-colors cursor-pointer disabled:opacity-40"
+              title="Revert (Escape)"
+            >
+              <X size={14} />
+            </button>
+          </div>
         </div>
       ) : (
-        <p className="text-sm text-text-primary truncate">
+        <p
+          className="text-sm text-text-primary truncate"
+          title={typeof displayValue === 'string' ? displayValue : (value || undefined)}
+        >
           {displayValue ?? value ?? '\u2014'}
         </p>
       )}
@@ -520,7 +538,10 @@ function LookupEditor({
     : options;
 
   return (
-    <div>
+    // The option list floats rather than sitting in flow. Inline, it grew the
+    // card by ~200px, and because these cards live in a CSS grid every other
+    // card in the row grew with it — opening one lookup shoved the whole row.
+    <div className="relative">
       <input
         ref={inputRef}
         type="text"
@@ -528,9 +549,9 @@ function LookupEditor({
         onChange={e => setSearch(e.target.value)}
         onFocus={e => e.target.select()}
         placeholder={placeholder || 'Search...'}
-        className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg mb-1.5"
+        className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg"
       />
-      <div className="max-h-[160px] overflow-y-auto space-y-0.5">
+      <div className="absolute left-0 right-0 top-full mt-1.5 z-30 max-h-[160px] overflow-y-auto space-y-0.5 bg-csa-dark border border-border rounded-lg shadow-lg p-1">
         {filtered.length === 0 ? (
           <p className="text-xs text-text-muted px-2 py-1.5">No matches</p>
         ) : (

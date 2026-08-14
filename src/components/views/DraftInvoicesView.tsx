@@ -369,8 +369,8 @@ export default function DraftInvoicesView() {
 
         {/* Invoice table */}
         {!loading && paginatedInvoices.length > 0 && (
-          <div className="border border-border-subtle rounded-xl overflow-hidden">
-            <table className="w-full">
+          <div className="border border-border-subtle rounded-xl overflow-x-auto">
+            <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="bg-surface-raised">
                   <SortHeader label="Order #" field="Reference_Number" sortField={sortField} sortDir={sortDir} onSort={handleSort} />

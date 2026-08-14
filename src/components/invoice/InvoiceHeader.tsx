@@ -80,9 +80,9 @@ export default function InvoiceHeader({
 
   return (
     <div className="mb-8">
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex flex-wrap items-center gap-3 mb-3">
         {/* Back button */}
-        <button onClick={onGoBack} className="w-9 h-9 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
+        <button onClick={onGoBack} className="w-9 h-9 flex-shrink-0 flex items-center justify-center bg-surface-raised rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer">
           <ArrowLeft size={18} className="text-text-secondary" />
         </button>
 
@@ -105,7 +105,7 @@ export default function InvoiceHeader({
         <div className="flex-1" />
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Edit button — only when not already editing and invoice is editable */}
           {canEdit && !editing ? (
             <button onClick={onEdit} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-warning bg-warning/10 border border-warning/30 rounded-xl hover:bg-warning/20 transition-colors cursor-pointer">
@@ -134,14 +134,28 @@ export default function InvoiceHeader({
             const canSend = isEditor || user?.permissions?.canSendInvoices;
             return (
               <>
+                {/* TODO: neither button is wired yet. PATCH /api/invoices/[id] already
+                    accepts { Status: 'Approved' } and { Status: 'Sent', Send_Invoice: true }
+                    and enforces the matching permission, so this needs onApprove/onSend
+                    props from InvoiceDetailView plus a confirm step on Send. Disabled
+                    until then — a live-looking button that silently does nothing is worse
+                    than one that says it is not ready. */}
                 {canApprove ? (
-                  <button className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer">
+                  <button
+                    disabled
+                    title="Not yet implemented"
+                    className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl transition-colors cursor-not-allowed opacity-40"
+                  >
                     <CheckCircle2 size={14} />
                     Approve
                   </button>
                 ) : null}
                 {canSend ? (
-                  <button className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-highlight bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+                  <button
+                    disabled
+                    title="Not yet implemented"
+                    className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-highlight bg-csa-accent/10 border border-csa-accent/30 rounded-xl transition-colors cursor-not-allowed opacity-40"
+                  >
                     <Send size={14} />
                     Send Order
                   </button>
@@ -166,8 +180,11 @@ export default function InvoiceHeader({
         </div>
       </div>
 
-      {/* Invoice subject / title */}
-      <h1 className="text-2xl font-bold text-text-primary ml-12">
+      {/* Invoice subject / title. `title` because a long subject truncates. */}
+      <h1
+        className="text-2xl font-bold text-text-primary ml-12 truncate"
+        title={(invoice.Subject as string) || `Order ${selectedInvoiceId}`}
+      >
         {invoice.Subject as string || `Order ${selectedInvoiceId}`}
       </h1>
     </div>

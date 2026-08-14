@@ -138,8 +138,8 @@ export default function EmailHistory({ module, recordId, contactIds }: EmailHist
 
         {!loading && !error && paginatedEmails.length > 0 && (
           <>
-            <div className="border border-border-subtle rounded-xl overflow-hidden">
-              <table className="w-full">
+            <div className="border border-border-subtle rounded-xl overflow-x-auto">
+              <table className="w-full min-w-[800px]">
                 <thead>
                   <tr className="bg-surface-raised">
                     <th className="w-8"></th>

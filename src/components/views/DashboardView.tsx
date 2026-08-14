@@ -109,8 +109,9 @@ export default function DashboardView() {
           transition={{ duration: 0.4 }}
           className="mb-8"
         >
+          {/* The comma only earns its place when there is a name after it. */}
           <h1 className="text-3xl font-bold text-text-primary mb-1">
-            Good {timeOfDay()}, {user?.name?.split(' ')[0]}
+            Good {timeOfDay()}{user?.name?.split(' ')[0] ? `, ${user.name.split(' ')[0]}` : ''}
           </h1>
           <p className="text-sm text-text-muted">
             What would you like to do today?

@@ -89,7 +89,7 @@ export default function Sidebar() {
       initial={false}
       animate={{ width: sidebarOpen ? 260 : 72 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
-      className="h-screen bg-csa-dark border-r border-border-subtle flex flex-col relative z-20"
+      className="h-screen flex-shrink-0 bg-csa-dark border-r border-border-subtle flex flex-col relative z-20"
     >
       {/* Logo */}
       <div className="h-16 flex items-center px-4 border-b border-border-subtle">
@@ -117,6 +117,7 @@ export default function Sidebar() {
         <div>
           <GuardedLink
             href={PATHS.leads}
+            title={sidebarOpen ? undefined : 'Leads'}
             onClick={(e) => {
               if (sidebarOpen) {
                 setLeadsMenuOpen(!leadsMenuOpen);
@@ -171,6 +172,7 @@ export default function Sidebar() {
         <div>
           <GuardedLink
             href={PATHS.accounts}
+            title={sidebarOpen ? undefined : 'Accounts'}
             onClick={(e) => {
               if (sidebarOpen) {
                 setAccountMenuOpen(!accountMenuOpen);
@@ -225,6 +227,7 @@ export default function Sidebar() {
         <div>
           <GuardedLink
             href={PATHS.orderAssistant}
+            title={sidebarOpen ? undefined : 'Orders'}
             onClick={(e) => {
               if (sidebarOpen) {
                 setInvoiceMenuOpen(!invoiceMenuOpen);
@@ -283,6 +286,7 @@ export default function Sidebar() {
             <div>
               <GuardedLink
                 href={PATHS.reportsDashboard}
+                title={sidebarOpen ? undefined : 'Reports'}
                 onClick={(e) => {
                   if (sidebarOpen) {
                     setReportsMenuOpen(!reportsMenuOpen);
@@ -325,6 +329,7 @@ export default function Sidebar() {
             <div>
               <GuardedLink
                 href={PATHS.partners}
+                title={sidebarOpen ? undefined : 'Partners'}
                 onClick={(e) => {
                   if (sidebarOpen) {
                     setPartnerMenuOpen(!partnerMenuOpen);
@@ -396,6 +401,7 @@ function NavItem({ href, label, icon: Icon, active, onClick, open }: {
     <GuardedLink
       href={href}
       onClick={onClick}
+      title={open ? undefined : label}
       className={`
         w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
         transition-all duration-150 relative group rounded-xl cursor-pointer
