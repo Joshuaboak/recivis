@@ -671,7 +671,11 @@ export default function LeadDetailView({
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               {isAdmin && !convertResult?.success && (
-                <div className="flex flex-col items-end gap-1">
+                /* The guidance is a hover tooltip rather than a caption. As a
+                   caption it sat below the button, which both pushed this control
+                   out of line with Edit and Open in CRM and sized the group to the
+                   caption's width. */
+                <div className="relative group/convert">
                   <button
                     onClick={() => setShowConvertConfirm(true)}
                     disabled={converting}
@@ -684,10 +688,11 @@ export default function LeadDetailView({
                     )}
                     {converting ? 'Converting...' : 'Convert to Prospect'}
                   </button>
-                  {/* Capped to roughly the button's own width. Left uncapped this
-                      sized to its 62-char max-content (~380px), which claimed most of
-                      the header row and forced the record title to wrap. */}
-                  <span className="text-[10px] text-text-muted max-w-[200px] text-right leading-tight">To create evaluations, convert this lead to a prospect first</span>
+                  <div className="absolute left-0 top-full mt-1.5 z-20 w-56 bg-csa-dark border border-border rounded-xl px-3 py-2 shadow-lg opacity-0 pointer-events-none group-hover/convert:opacity-100 transition-opacity">
+                    <p className="text-[11px] text-text-secondary leading-relaxed">
+                      To create evaluations, convert this lead to a prospect first.
+                    </p>
+                  </div>
                 </div>
               )}
               {canEditAnything && (
