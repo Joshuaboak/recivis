@@ -123,6 +123,10 @@ export type InlineEditFieldType =
 export interface InlineEditSelectOption {
   value: string;
   label: string;
+  /** Renders the option greyed out and unselectable (`type='select'` only). */
+  disabled?: boolean;
+  /** Hover tooltip, typically explaining why a disabled option is unavailable. */
+  title?: string;
 }
 
 export interface InlineEditFieldProps {
@@ -424,7 +428,7 @@ function renderEditor({ type, editValue, setEditValue, handleKeyDown, inputRef, 
             className="w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary outline-none focus:border-csa-accent rounded-lg appearance-none cursor-pointer pr-8"
           >
             {options?.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value} disabled={opt.disabled} title={opt.title}>{opt.label}</option>
             ))}
           </select>
           <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />

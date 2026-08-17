@@ -5,6 +5,9 @@
  * the reseller (with CSA Geo Sales Rep CC) or directly to the
  * customer (with reseller + CSA Geo Sales Rep CC).
  * Only editable while the invoice is in Draft status.
+ *
+ * The Customer option is hidden unless the reseller holds the
+ * "Allow Direct Customer Communication" permission.
  */
 'use client';
 
@@ -20,6 +23,10 @@ interface InvoiceSendToProps {
   updatingDirectPurchase: boolean;
   /** Handler to toggle the Reseller_Direct_Purchase flag */
   onToggleDirectPurchase: (value: boolean) => void;
+  /** Reseller's "Allow Direct Customer Communication" permission. When false the
+   *  Customer option is hidden — unless the order is already routed that way, in
+   *  which case it stays visible but inert so the routing isn't misrepresented. */
+  allowDirectCustomer: boolean;
 }
 
 export default function InvoiceSendTo({
@@ -27,7 +34,12 @@ export default function InvoiceSendTo({
   status,
   updatingDirectPurchase,
   onToggleDirectPurchase,
+  allowDirectCustomer,
 }: InvoiceSendToProps) {
+  const isCustomerMode = !invoice.Reseller_Direct_Purchase;
+  const showCustomerOption = allowDirectCustomer || isCustomerMode;
+  const customerSelectable = allowDirectCustomer && status === 'Draft';
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-8">
       <div className="bg-surface border border-border-subtle rounded-xl px-5 py-4">
@@ -56,23 +68,26 @@ export default function InvoiceSendTo({
             </p>
           </button>
 
-          {/* Customer option */}
-          <button
-            onClick={() => status === 'Draft' && !updatingDirectPurchase && onToggleDirectPurchase(false)}
-            disabled={updatingDirectPurchase || status !== 'Draft'}
-            className={`flex-1 px-4 py-3 rounded-xl border-2 text-left transition-all ${
-              !invoice.Reseller_Direct_Purchase
-                ? 'border-csa-accent bg-csa-accent/10'
-                : 'border-border-subtle hover:border-border'
-            } ${status !== 'Draft' ? 'cursor-default' : 'cursor-pointer'}`}
-          >
-            <div className={`text-sm font-semibold mb-0.5 ${!invoice.Reseller_Direct_Purchase ? 'text-csa-accent' : 'text-text-secondary'}`}>
-              Customer
-            </div>
-            <p className="text-xs text-text-muted">
-              Sent to the customer, CC the reseller and CSA Geo Sales Rep
-            </p>
-          </button>
+          {/* Customer option — permission-gated */}
+          {showCustomerOption ? (
+            <button
+              onClick={() => customerSelectable && !updatingDirectPurchase && onToggleDirectPurchase(false)}
+              disabled={updatingDirectPurchase || !customerSelectable}
+              title={allowDirectCustomer ? undefined : 'Direct customer communication is not enabled for this reseller.'}
+              className={`flex-1 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                isCustomerMode
+                  ? 'border-csa-accent bg-csa-accent/10'
+                  : 'border-border-subtle hover:border-border'
+              } ${customerSelectable ? 'cursor-pointer' : 'cursor-default'}`}
+            >
+              <div className={`text-sm font-semibold mb-0.5 ${isCustomerMode ? 'text-csa-accent' : 'text-text-secondary'}`}>
+                Customer
+              </div>
+              <p className="text-xs text-text-muted">
+                Sent to the customer, CC the reseller and CSA Geo Sales Rep
+              </p>
+            </button>
+          ) : null}
         </div>
 
         {/* Loading indicator */}

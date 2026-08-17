@@ -29,6 +29,9 @@ export interface UserPermissions {
   canCreateEvaluations: boolean;
   maxEvaluationsPerAccount: number; // -1 = unlimited, 0 = disabled
   canExtendEvaluations: boolean;
+  /** Org-level only (no user_role equivalent): may orders and licence keys be
+   *  sent straight to the end customer instead of via the reseller. */
+  canDirectCustomerComms: boolean;
 }
 
 // --- Organisation Model ---

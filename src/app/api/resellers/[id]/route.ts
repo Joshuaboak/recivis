@@ -63,7 +63,8 @@ export async function GET(
               can_create_invoices, can_approve_invoices, can_send_invoices,
               can_view_all_records, can_view_child_records, can_modify_prices,
               can_upload_po, can_view_reports, can_export_data,
-              can_create_evaluations, max_evaluations_per_account, can_extend_evaluations
+              can_create_evaluations, max_evaluations_per_account, can_extend_evaluations,
+              can_direct_customer_comms
        FROM reseller_roles WHERE is_system_role = false ORDER BY id`
     );
 
@@ -74,7 +75,8 @@ export async function GET(
         `SELECT perm_create_invoices, perm_approve_invoices, perm_send_invoices,
                 perm_view_all_records, perm_view_child_records, perm_modify_prices,
                 perm_upload_po, perm_view_reports, perm_export_data,
-                perm_create_evaluations, perm_max_evaluations_per_account, perm_extend_evaluations
+                perm_create_evaluations, perm_max_evaluations_per_account, perm_extend_evaluations,
+                perm_direct_customer_comms
          FROM resellers WHERE id IN (${dbPlaceholders}) LIMIT 1`,
         dbLookupIds
       );
@@ -210,13 +212,13 @@ export async function PATCH(
         'perm_create_invoices', 'perm_approve_invoices', 'perm_send_invoices',
         'perm_view_all_records', 'perm_view_child_records', 'perm_modify_prices',
         'perm_upload_po', 'perm_view_reports', 'perm_export_data',
-        'perm_create_evaluations', 'perm_extend_evaluations',
+        'perm_create_evaluations', 'perm_extend_evaluations', 'perm_direct_customer_comms',
       ];
       const permKeys = [
         'can_create_invoices', 'can_approve_invoices', 'can_send_invoices',
         'can_view_all_records', 'can_view_child_records', 'can_modify_prices',
         'can_upload_po', 'can_view_reports', 'can_export_data',
-        'can_create_evaluations', 'can_extend_evaluations',
+        'can_create_evaluations', 'can_extend_evaluations', 'can_direct_customer_comms',
       ];
       for (let i = 0; i < permCols.length; i++) {
         updates.push(`${permCols[i]} = $${paramIdx++}`);
@@ -316,8 +318,8 @@ export async function POST(
     await query(
       `INSERT INTO resellers (id, name, email, region, currency, partner_category, direct_customer_contact, distributor_id, reseller_role_id, is_active,
        perm_create_invoices, perm_approve_invoices, perm_send_invoices, perm_view_all_records, perm_view_child_records, perm_modify_prices, perm_upload_po, perm_view_reports, perm_export_data,
-       perm_create_evaluations, perm_max_evaluations_per_account, perm_extend_evaluations)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+       perm_create_evaluations, perm_max_evaluations_per_account, perm_extend_evaluations, perm_direct_customer_comms)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
       [
         id, name, email || null, region || null, currency || null, partner_category || null,
         !!direct_customer_contact, distributor_id || null, reseller_role_id,
@@ -333,6 +335,7 @@ export async function POST(
         toNullableBool(permOverrides.can_create_evaluations),
         maxEvalOverride !== undefined && maxEvalOverride !== null ? Number(maxEvalOverride) : null,
         toNullableBool(permOverrides.can_extend_evaluations),
+        toNullableBool(permOverrides.can_direct_customer_comms),
       ]
     );
 

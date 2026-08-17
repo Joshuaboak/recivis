@@ -85,7 +85,12 @@ const PERMISSION_DEFS = [
   { key: 'can_export_data', label: 'Export Data', desc: 'Export data to Excel/CSV' },
   { key: 'can_create_evaluations', label: 'Create Evaluations', desc: 'Create evaluation licences for accounts' },
   { key: 'can_extend_evaluations', label: 'Extend Evaluations', desc: 'Extend evaluation licences beyond 30 days' },
+  { key: 'can_direct_customer_comms', label: 'Allow Direct Customer Communication', desc: 'Allow orders and licence keys to be sent straight to the customer' },
 ];
+
+/** Shown wherever "Direct to Customer" is blocked by the permission above. */
+const DIRECT_COMMS_TOOLTIP =
+  'To turn this option on you must enable "Allow Direct Customer Communication" in the reseller permissions.';
 
 interface RoleWithPerms {
   id: number; name: string; display_name: string;
@@ -93,6 +98,7 @@ interface RoleWithPerms {
   can_view_all_records: boolean; can_view_child_records: boolean; can_modify_prices: boolean;
   can_upload_po: boolean; can_view_reports: boolean; can_export_data: boolean;
   can_create_evaluations: boolean; max_evaluations_per_account: number; can_extend_evaluations: boolean;
+  can_direct_customer_comms: boolean;
 }
 
 const inputCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg";
@@ -372,8 +378,16 @@ function ResellerListView() {
 // ============================================================
 // SHARED FORM FIELDS
 // ============================================================
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function PartnerFormFields({ values, onChange, allResellers }: { values: Record<string, any>; onChange: (v: Record<string, any>) => void; allResellers: ResellerItem[] }) {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function PartnerFormFields({ values, onChange, allResellers, allowDirectCustomer = true }: {
+  values: Record<string, any>;
+  onChange: (v: Record<string, any>) => void;
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  allResellers: ResellerItem[];
+  /** Effective "Allow Direct Customer Communication" permission for this partner.
+   *  When false the "Direct to Customer" preference cannot be selected. */
+  allowDirectCustomer?: boolean;
+}) {
   const set = (key: string, val: unknown) => onChange({ ...values, [key]: val });
   const [distSearch, setDistSearch] = useState('');
   const distributors = allResellers.filter(r => r.partner_category?.includes('Distributor'));
@@ -523,8 +537,10 @@ function PartnerFormFields({ values, onChange, allResellers }: { values: Record<
                 <p className="text-xs text-text-muted mt-0.5">Controls if orders and licence keys are sent directly to the customer or to the reseller</p>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => set('Direct_Customer_Contact', true)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${values.Direct_Customer_Contact ? 'bg-csa-accent/15 text-csa-accent border-csa-accent/40' : 'text-text-muted border-border-subtle hover:border-border'}`}>
+                <button onClick={() => allowDirectCustomer && set('Direct_Customer_Contact', true)}
+                  disabled={!allowDirectCustomer}
+                  title={allowDirectCustomer ? undefined : DIRECT_COMMS_TOOLTIP}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${!allowDirectCustomer ? 'opacity-40 cursor-not-allowed text-text-muted border-border-subtle' : `cursor-pointer ${values.Direct_Customer_Contact ? 'bg-csa-accent/15 text-csa-accent border-csa-accent/40' : 'text-text-muted border-border-subtle hover:border-border'}`}`}>
                   Direct to Customer
                 </button>
                 <button onClick={() => set('Direct_Customer_Contact', false)}
@@ -618,6 +634,18 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
   const [editPerms, setEditPerms] = useState<Record<string, boolean | null>>({});
   const [editMaxEvals, setEditMaxEvals] = useState<number | null>(null);
   const [savingPerms, setSavingPerms] = useState(false);
+
+  // Effective "Allow Direct Customer Communication" for the partner on screen:
+  // per-reseller override wins, else the permission preset default. Partners not
+  // yet registered in the portal have no permission record, so the preference
+  // stays open to them.
+  const allowDirectCustomer = useMemo(() => {
+    if (!dbRegistered) return true;
+    const override = permissionOverrides?.['perm_direct_customer_comms'];
+    if (override !== null && override !== undefined) return override;
+    const role = availableResellerRoles.find(r => r.name === dbRole?.name);
+    return !!role?.can_direct_customer_comms;
+  }, [dbRegistered, permissionOverrides, availableResellerRoles, dbRole]);
 
   // --- Unsaved-work scopes -------------------------------------------------
   // One scope per form that can hold user input. Prefilled forms compare against
@@ -860,7 +888,7 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
           </div>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <PartnerFormFields values={editFields} onChange={setEditFields} allResellers={allResellers} />
+            <PartnerFormFields values={editFields} onChange={setEditFields} allResellers={allResellers} allowDirectCustomer={allowDirectCustomer} />
           </motion.div>
         </div>
       </div>
@@ -1007,11 +1035,22 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
                 </select>
               </div>
               <div className="flex items-end">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={registerFields.direct_customer_contact} onChange={e => setRegisterFields(p => ({ ...p, direct_customer_contact: e.target.checked }))}
-                    className="w-4 h-4 rounded border-border-subtle accent-csa-accent cursor-pointer" />
-                  <span className="text-xs text-text-secondary">Direct Customer Contact</span>
-                </label>
+                {(() => {
+                  // Mirrors the permission being granted on this same form: the
+                  // override if one has been toggled, otherwise the preset default.
+                  const role = availableResellerRoles.find(r => String(r.id) === String(registerFields.reseller_role_id));
+                  const allowed = registerPermissions['can_direct_customer_comms']
+                    ?? (role ? !!role.can_direct_customer_comms : true);
+                  return (
+                    <label className={`flex items-center gap-2 ${allowed ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}`}
+                      title={allowed ? undefined : DIRECT_COMMS_TOOLTIP}>
+                      <input type="checkbox" checked={allowed && !!registerFields.direct_customer_contact} disabled={!allowed}
+                        onChange={e => setRegisterFields(p => ({ ...p, direct_customer_contact: e.target.checked }))}
+                        className="w-4 h-4 rounded border-border-subtle accent-csa-accent cursor-[inherit]" />
+                      <span className="text-xs text-text-secondary">Direct Customer Contact</span>
+                    </label>
+                  );
+                })()}
               </div>
             </div>
 
@@ -1066,6 +1105,12 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
                       method: 'POST', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
                         ...registerFields,
+                        // Never register a partner as direct-to-customer without
+                        // the permission that authorises it.
+                        direct_customer_contact: !!registerFields.direct_customer_contact && (
+                          registerPermissions['can_direct_customer_comms']
+                          ?? !!availableResellerRoles.find(r => String(r.id) === String(registerFields.reseller_role_id))?.can_direct_customer_comms
+                        ),
                         reseller_role_id: parseInt(registerFields.reseller_role_id),
                         distributor_id: registerFields.distributor_id || null,
                         permissions: Object.keys(permPayload).length > 0 ? permPayload : undefined,
@@ -1347,12 +1392,17 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
               placeholder="Tax ID or registration number" canEdit={isAdmin}
               onSave={v => saveFields({ Additional_Tax_Infromation: v || null })} />
 
-            <InlineEditField fieldId="customer_comm" label="Customer Communication" icon={<Mail size={14} />}
+            <InlineEditField fieldId="customer_comm" label="Customer Communication Preference" icon={<Mail size={14} />}
               value={reseller.Direct_Customer_Contact ? 'true' : 'false'}
               displayValue={reseller.Direct_Customer_Contact ? 'Direct to Customer' : 'Via Reseller'}
               type="select"
               options={[
-                { value: 'true', label: 'Direct to Customer' },
+                {
+                  value: 'true',
+                  label: 'Direct to Customer',
+                  disabled: !allowDirectCustomer,
+                  title: allowDirectCustomer ? undefined : DIRECT_COMMS_TOOLTIP,
+                },
                 { value: 'false', label: 'Via Reseller' },
               ]}
               canEdit={isAdmin}

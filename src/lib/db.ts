@@ -202,6 +202,7 @@ export async function initDB() {
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_create_evaluations BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_max_evaluations_per_account INTEGER;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_extend_evaluations BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_direct_customer_comms BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS pay_on_card BOOLEAN DEFAULT false;
 
       -- Add evaluation columns to role tables (idempotent)
@@ -210,6 +211,18 @@ export async function initDB() {
       ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_extend_evaluations BOOLEAN DEFAULT false;
       ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS can_create_evaluations BOOLEAN DEFAULT false;
       ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS can_extend_evaluations BOOLEAN DEFAULT false;
+
+      -- Direct customer communication — org-level cap only (no user_role equivalent).
+      -- Controls whether a partner may route orders/licence keys straight to the
+      -- end customer instead of via the reseller.
+      -- Added without a default so pre-existing presets land as NULL and can be
+      -- told apart from a deliberate false. They predate the permission and could
+      -- already pick "Direct to Customer", so they are granted it once rather than
+      -- having it silently withdrawn; admins revoke per preset or per partner.
+      -- The default only applies to presets created after this migration.
+      ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_direct_customer_comms BOOLEAN;
+      UPDATE reseller_roles SET can_direct_customer_comms = true WHERE can_direct_customer_comms IS NULL;
+      ALTER TABLE reseller_roles ALTER COLUMN can_direct_customer_comms SET DEFAULT false;
     `);
     dbInitialized = true;
   } finally {

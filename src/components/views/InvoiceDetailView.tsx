@@ -1059,6 +1059,7 @@ export default function InvoiceDetailView({
           status={status}
           updatingDirectPurchase={updatingDirectPurchase}
           onToggleDirectPurchase={toggleDirectPurchase}
+          allowDirectCustomer={!!user?.permissions?.canDirectCustomerComms}
         />
 
         {/* Payment Information */}
