@@ -74,6 +74,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
               rr.can_create_evaluations AS rr_eval, rr.max_evaluations_per_account AS rr_max_eval,
               rr.can_extend_evaluations AS rr_extend_eval,
               rr.can_direct_customer_comms AS rr_direct_comms,
+              rr.can_monthly_subscriptions AS rr_monthly_subs,
               r.perm_create_invoices AS ro_create, r.perm_approve_invoices AS ro_approve,
               r.perm_send_invoices AS ro_send, r.perm_view_all_records AS ro_all,
               r.perm_view_child_records AS ro_child, r.perm_modify_prices AS ro_price,
@@ -82,6 +83,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
               r.perm_create_evaluations AS ro_eval, r.perm_max_evaluations_per_account AS ro_max_eval,
               r.perm_extend_evaluations AS ro_extend_eval,
               r.perm_direct_customer_comms AS ro_direct_comms,
+              r.perm_monthly_subscriptions AS ro_monthly_subs,
               r.region AS reseller_region
        FROM users u
        LEFT JOIN user_roles ur ON ur.id = u.user_role_id
@@ -111,6 +113,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
     const rrMaxEval: number = row.ro_max_eval ?? row.rr_max_eval ?? 0;
     const rrExtendEval = row.ro_extend_eval ?? row.rr_extend_eval ?? false;
     const rrDirectComms = row.ro_direct_comms ?? row.rr_direct_comms ?? false;
+    const rrMonthlySubs = row.ro_monthly_subs ?? row.rr_monthly_subs ?? false;
 
     const permissions: UserPermissions = {
       canCreateInvoices: isSystemAdmin || ((row.ur_create ?? false) && rrCreate),
@@ -128,6 +131,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
       canExtendEvaluations: isSystemAdmin || ((row.ur_extend_eval ?? false) && rrExtendEval),
       // Org-level cap, so no user_role factor — same shape as canViewAllRecords.
       canDirectCustomerComms: isSystemAdmin || rrDirectComms,
+      canMonthlySubscriptions: isSystemAdmin || rrMonthlySubs,
     };
 
     // Compute allowed reseller IDs

@@ -38,6 +38,7 @@ import {
   Ticket,
   Users,
   UserSearch,
+  Package,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
@@ -56,7 +57,12 @@ const PATHS = {
   reportsDashboard: buildPath('reports-dashboard'),
   coupons: buildPath('coupons'),
   partners: buildPath('resellers'),
+  partnerReports: buildPath('partner-reports'),
   partnerResources: buildPath('partner-resources'),
+  assets: buildPath('assets'),
+  assetRenewals: buildPath('assets-renewals'),
+  assetsExpired: buildPath('assets-expired'),
+  assetSubscriptions: buildPath('assets-subscriptions'),
 } as const;
 
 /** True when `pathname` is `base` itself or any route nested under it. */
@@ -65,7 +71,7 @@ function inSection(pathname: string, base: string): boolean {
 }
 
 export default function Sidebar() {
-  const { sidebarOpen, setSidebarOpen, clearMessages } = useAppStore();
+  const { sidebarOpen, setSidebarOpen, clearMessages, user } = useAppStore();
   const pathname = usePathname();
 
   const isLeadActive = inSection(pathname, PATHS.leads);
@@ -76,6 +82,8 @@ export default function Sidebar() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(isAccountActive);
   const [invoiceMenuOpen, setInvoiceMenuOpen] = useState(isInvoiceActive);
   const [reportsMenuOpen, setReportsMenuOpen] = useState(inSection(pathname, PATHS.reports));
+  const isAssetsActive = inSection(pathname, PATHS.assets);
+  const [assetsMenuOpen, setAssetsMenuOpen] = useState(isAssetsActive);
   const [partnerMenuOpen, setPartnerMenuOpen] = useState(
     inSection(pathname, PATHS.partners) || inSection(pathname, PATHS.partnerResources)
   );
@@ -223,6 +231,47 @@ export default function Sidebar() {
           </AnimatePresence>
         </div>
 
+        {/* Assets (with submenu) */}
+        <div>
+          <GuardedLink
+            href={PATHS.assets}
+            title={sidebarOpen ? undefined : 'Assets'}
+            onClick={(e) => {
+              if (sidebarOpen) {
+                setAssetsMenuOpen(!assetsMenuOpen);
+                if (isAssetsActive) { e.preventDefault(); return; }
+              }
+              handleNavClick(PATHS.assets);
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold transition-all duration-150 relative group rounded-xl cursor-pointer ${
+              isAssetsActive ? 'bg-csa-accent/15 text-csa-accent' : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
+            }`}
+          >
+            {isAssetsActive && <motion.div layoutId="nav-indicator-assets" className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent rounded-r" transition={{ duration: 0.2 }} />}
+            <Package size={20} className="flex-shrink-0" />
+            <AnimatePresence>
+              {sidebarOpen && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">Assets</motion.span>}
+            </AnimatePresence>
+            {sidebarOpen && <ChevronDown size={14} className={`text-text-muted transition-transform ${assetsMenuOpen ? 'rotate-180' : ''}`} />}
+          </GuardedLink>
+          <AnimatePresence>
+            {sidebarOpen && assetsMenuOpen && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
+                <div className="ml-8 mt-1 space-y-0.5">
+                  <SubNavItem label="All Assets" href={PATHS.assets} active={pathname === PATHS.assets} onClick={() => handleNavClick(PATHS.assets)} />
+                  <SubNavItem label="Due for Renewal" href={PATHS.assetRenewals} active={pathname === PATHS.assetRenewals} onClick={() => handleNavClick(PATHS.assetRenewals)} />
+                  <SubNavItem label="Recently Expired" href={PATHS.assetsExpired} active={pathname === PATHS.assetsExpired} onClick={() => handleNavClick(PATHS.assetsExpired)} />
+                  {/* Monthly subscriptions are permission-gated, so the entry
+                      only appears for partners who can actually use them. */}
+                  {user?.permissions?.canMonthlySubscriptions && (
+                    <SubNavItem label="Monthly Subscriptions" href={PATHS.assetSubscriptions} active={pathname === PATHS.assetSubscriptions} onClick={() => handleNavClick(PATHS.assetSubscriptions)} />
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         {/* Invoices (with submenu) */}
         <div>
           <GuardedLink
@@ -352,7 +401,10 @@ export default function Sidebar() {
                 {sidebarOpen && partnerMenuOpen && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
                     <div className="ml-8 mt-1 space-y-0.5">
-                      <SubNavItem label="Manage Partners" href={PATHS.partners} active={inSection(pathname, PATHS.partners)} onClick={() => handleNavClick(PATHS.partners)} />
+                      <SubNavItem label="Manage Partners" href={PATHS.partners} active={inSection(pathname, PATHS.partners) && pathname !== PATHS.partnerReports} onClick={() => handleNavClick(PATHS.partners)} />
+                      {user?.permissions?.canViewReports && (
+                        <SubNavItem label="Partner Reports" href={PATHS.partnerReports} active={pathname === PATHS.partnerReports} onClick={() => handleNavClick(PATHS.partnerReports)} />
+                      )}
                       <SubNavItem label="Partner Resources" href={PATHS.partnerResources} active={inSection(pathname, PATHS.partnerResources)} onClick={() => handleNavClick(PATHS.partnerResources)} />
                     </div>
                   </motion.div>

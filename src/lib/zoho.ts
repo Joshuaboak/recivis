@@ -331,6 +331,19 @@ export async function executeZohoTool(
       });
     }
 
+    case 'add_tags': {
+      // Zoho tags are a record-level list, not a field, so they are added
+      // through their own endpoint rather than an update_records call.
+      // Appends by default — over_write would wipe tags set elsewhere.
+      return callMcpTool('ZohoCRM_postAddTagsWithId', {
+        path_variables: { module: args.module, id: args.record_id },
+        body: {
+          tags: (args.tags as string[]).map(name => ({ name })),
+          over_write: false,
+        },
+      });
+    }
+
     case 'get_variables': {
       return callMcpTool('ZohoCRM_getVariables', {});
     }

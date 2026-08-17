@@ -203,6 +203,7 @@ export async function initDB() {
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_max_evaluations_per_account INTEGER;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_extend_evaluations BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_direct_customer_comms BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_monthly_subscriptions BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS pay_on_card BOOLEAN DEFAULT false;
 
       -- Add evaluation columns to role tables (idempotent)
@@ -223,6 +224,11 @@ export async function initDB() {
       ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_direct_customer_comms BOOLEAN;
       UPDATE reseller_roles SET can_direct_customer_comms = true WHERE can_direct_customer_comms IS NULL;
       ALTER TABLE reseller_roles ALTER COLUMN can_direct_customer_comms SET DEFAULT false;
+
+      -- Monthly subscriptions — org-level cap only. New capability nobody had
+      -- before, so unlike the column above there is no backfill: every preset
+      -- starts false and an admin opts a partner in.
+      ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_monthly_subscriptions BOOLEAN DEFAULT false;
     `);
     dbInitialized = true;
   } finally {

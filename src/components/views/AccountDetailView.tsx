@@ -26,7 +26,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, type MouseEvent } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Save, Download, Beaker, Send, Pencil, Search, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone, MapPin, FileText, Star, Plus, X, RefreshCw, Eye, Save, Download, Beaker, Send, Pencil, Search, ChevronDown, CalendarClock } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { exportFullAccount, exportContacts, exportInvoices, exportAssets } from '@/lib/export-account';
 import { useAppStore } from '@/lib/store';
@@ -38,6 +38,9 @@ import { GuardedLink } from '@/components/GuardedLink';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
 import CreateEvaluationModal from '../CreateEvaluationModal';
+import CreateMonthlySubscriptionModal from '../CreateMonthlySubscriptionModal';
+import RenewMonthlySubscriptionsModal, { type RenewableSubscription } from '../RenewMonthlySubscriptionsModal';
+import { MONTHLY_SUBSCRIPTION_TAG, PERPETUAL_PLAN_TAG } from '@/lib/subscriptions';
 import EmailHistory from '../EmailHistory';
 import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 
@@ -86,6 +89,9 @@ export default function AccountDetailView({
   const [generatingRenewal, setGeneratingRenewal] = useState(false);
   const [viewingAsset, setViewingAsset] = useState<Record<string, unknown> | null>(null);
   const [showEvalModal, setShowEvalModal] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [renewingSubscriptions, setRenewingSubscriptions] = useState<RenewableSubscription[] | null>(null);
+  const [subscriptionNotice, setSubscriptionNotice] = useState('');
 
   // Send keys state
   const [sendKeysConfirm, setSendKeysConfirm] = useState<'customer' | 'reseller' | null>(null);
@@ -245,6 +251,24 @@ export default function AccountDetailView({
     if (productName.includes('home use') && !productName.includes('civil site design plus')) return 'Home Use assets are not eligible for renewal';
     return null;
   };
+
+  /** Zoho returns record tags as objects; only the names matter here. */
+  const assetTagNames = (a: Record<string, unknown>): string[] => {
+    const tags = a.Tag;
+    if (!Array.isArray(tags)) return [];
+    return tags.map(t => (typeof t === 'string' ? t : (t as { name?: string })?.name || ''));
+  };
+
+  /** Active assets carrying the Monthly Subscription tag, in renewal order. */
+  const monthlySubscriptions: RenewableSubscription[] = activeAssets
+    .filter(a => assetTagNames(a).includes(MONTHLY_SUBSCRIPTION_TAG))
+    .map(a => ({
+      id: a.id as string,
+      label: (a.Product as { name?: string } | null)?.name || (a.Name as string) || 'Subscription',
+      productCode: (a.Product_Code as string) || '',
+      perpetualPlan: assetTagNames(a).includes(PERPETUAL_PLAN_TAG),
+      quantity: Number(a.Quantity) || 1,
+    }));
 
   const allAssetIds = [...activeAssets, ...archivedAssets].map(a => a.id as string);
   const allAssetsMap = Object.fromEntries([...activeAssets, ...archivedAssets].map(a => [a.id as string, a]));
@@ -1186,6 +1210,26 @@ export default function AccountDetailView({
                 </button>
               ) : null}
             </div>
+            {selectedAssets.size === 0 && user?.permissions?.canMonthlySubscriptions ? (
+              <div className="flex items-center gap-2">
+                {monthlySubscriptions.length > 0 && (
+                  <button
+                    onClick={() => setRenewingSubscriptions(monthlySubscriptions)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw size={13} />
+                    Renew Monthly ({monthlySubscriptions.length})
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowSubscriptionModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
+                >
+                  <CalendarClock size={13} />
+                  Create Monthly Subscription
+                </button>
+              </div>
+            ) : null}
             {selectedAssets.size > 0 ? (
               <div className="flex items-center gap-2">
                 <div className="relative group">
@@ -1403,6 +1447,61 @@ export default function AccountDetailView({
           }}
           onClose={() => setShowEvalModal(false)}
         />
+      )}
+
+      {/* Create Monthly Subscription Modal */}
+      {showSubscriptionModal && account && (
+        <CreateMonthlySubscriptionModal
+          accountId={accountId}
+          accountName={account.Account_Name as string}
+          onSuccess={(_assetId, warning) => {
+            setShowSubscriptionModal(false);
+            setSubscriptionNotice(warning || 'Monthly subscription created.');
+            fetch(`/api/accounts/${accountId}`)
+              .then(res => res.json())
+              .then(data => {
+                setActiveAssets(data.activeAssets || []);
+                setArchivedAssets(data.archivedAssets || []);
+              })
+              .catch(() => {});
+          }}
+          onClose={() => setShowSubscriptionModal(false)}
+        />
+      )}
+
+      {/* Renew Monthly Subscriptions Modal */}
+      {renewingSubscriptions && (
+        <RenewMonthlySubscriptionsModal
+          subscriptions={renewingSubscriptions}
+          onDone={(renewedIds, failures) => {
+            setRenewingSubscriptions(null);
+            setSubscriptionNotice(
+              failures.length === 0
+                ? `Renewed ${renewedIds.length} monthly ${renewedIds.length === 1 ? 'subscription' : 'subscriptions'}.`
+                : `Renewed ${renewedIds.length}, ${failures.length} failed: ${failures.map(f => f.reason).join('; ')}`
+            );
+            fetch(`/api/accounts/${accountId}`)
+              .then(res => res.json())
+              .then(data => {
+                setActiveAssets(data.activeAssets || []);
+                setArchivedAssets(data.archivedAssets || []);
+              })
+              .catch(() => {});
+          }}
+          onClose={() => setRenewingSubscriptions(null)}
+        />
+      )}
+
+      {/* Subscription result banner */}
+      {subscriptionNotice && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm bg-csa-dark border border-csa-accent/40 rounded-xl px-4 py-3 shadow-lg">
+          <div className="flex items-start gap-3">
+            <p className="text-xs text-text-primary flex-1">{subscriptionNotice}</p>
+            <button onClick={() => setSubscriptionNotice('')} className="text-text-muted hover:text-text-primary cursor-pointer">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Send Keys Confirmation Dialog */}

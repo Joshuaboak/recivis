@@ -88,6 +88,7 @@ const USER_PROJECTION_SQL = `SELECT
        rr.can_create_evaluations AS rr_eval, rr.max_evaluations_per_account AS rr_max_eval,
        rr.can_extend_evaluations AS rr_extend_eval,
        rr.can_direct_customer_comms AS rr_direct_comms,
+       rr.can_monthly_subscriptions AS rr_monthly_subs,
        r.perm_create_invoices AS ro_create, r.perm_approve_invoices AS ro_approve,
        r.perm_send_invoices AS ro_send, r.perm_view_all_records AS ro_all,
        r.perm_view_child_records AS ro_child, r.perm_modify_prices AS ro_price,
@@ -95,7 +96,8 @@ const USER_PROJECTION_SQL = `SELECT
        r.perm_export_data AS ro_export,
        r.perm_create_evaluations AS ro_eval, r.perm_max_evaluations_per_account AS ro_max_eval,
        r.perm_extend_evaluations AS ro_extend_eval,
-       r.perm_direct_customer_comms AS ro_direct_comms
+       r.perm_direct_customer_comms AS ro_direct_comms,
+       r.perm_monthly_subscriptions AS ro_monthly_subs
      FROM users u
      LEFT JOIN user_roles ur ON ur.id = u.user_role_id
      LEFT JOIN resellers r ON r.id = u.reseller_id
@@ -174,6 +176,7 @@ async function buildUserFromRow(row: UserProjectionRow): Promise<User> {
   const rrMaxEval: number = row.ro_max_eval ?? row.rr_max_eval ?? 0;
   const rrExtendEval = row.ro_extend_eval ?? row.rr_extend_eval ?? false;
   const rrDirectComms = row.ro_direct_comms ?? row.rr_direct_comms ?? false;
+  const rrMonthlySubs = row.ro_monthly_subs ?? row.rr_monthly_subs ?? false;
 
   const permissions: UserPermissions = {
     canCreateInvoices: isSystemAdmin || ((row.ur_create ?? false) && rrCreate),
@@ -191,6 +194,7 @@ async function buildUserFromRow(row: UserProjectionRow): Promise<User> {
     canExtendEvaluations: isSystemAdmin || ((row.ur_extend_eval ?? false) && rrExtendEval),
     // Org-level cap, so no user_role factor — same shape as canViewAllRecords.
     canDirectCustomerComms: isSystemAdmin || rrDirectComms,
+    canMonthlySubscriptions: isSystemAdmin || rrMonthlySubs,
   };
 
   // Build the list of reseller IDs this user can see.
@@ -295,11 +299,11 @@ export async function seedAdminUsers() {
   const existingRR = await query('SELECT COUNT(*) FROM reseller_roles');
   if (parseInt(existingRR.rows[0].count) === 0) {
     await query(`
-      INSERT INTO reseller_roles (name, display_name, description, can_create_invoices, can_approve_invoices, can_send_invoices, can_view_all_records, can_view_child_records, can_modify_prices, can_upload_po, can_view_reports, can_export_data, can_create_evaluations, max_evaluations_per_account, can_extend_evaluations, can_direct_customer_comms, is_system_role) VALUES
-      ('internal', 'Internal (CSA Staff)', 'Full access — for CSA admin and staff accounts.', true, true, true, true, true, true, true, true, true, true, -1, true, true, true),
-      ('distributor', 'Distributor', 'Can create and send invoices for own and child reseller accounts.', true, false, true, false, true, true, true, true, true, true, 3, false, true, false),
-      ('reseller', 'Reseller', 'Can create invoices and upload POs for own accounts only.', true, false, false, false, false, false, true, true, false, true, 2, false, true, false),
-      ('restricted', 'Restricted Reseller', 'Can create invoices at list price only. Cannot modify prices or approve.', true, false, false, false, false, false, true, true, false, false, 0, false, false, false)
+      INSERT INTO reseller_roles (name, display_name, description, can_create_invoices, can_approve_invoices, can_send_invoices, can_view_all_records, can_view_child_records, can_modify_prices, can_upload_po, can_view_reports, can_export_data, can_create_evaluations, max_evaluations_per_account, can_extend_evaluations, can_direct_customer_comms, can_monthly_subscriptions, is_system_role) VALUES
+      ('internal', 'Internal (CSA Staff)', 'Full access — for CSA admin and staff accounts.', true, true, true, true, true, true, true, true, true, true, -1, true, true, true, true),
+      ('distributor', 'Distributor', 'Can create and send invoices for own and child reseller accounts.', true, false, true, false, true, true, true, true, true, true, 3, false, true, false, false),
+      ('reseller', 'Reseller', 'Can create invoices and upload POs for own accounts only.', true, false, false, false, false, false, true, true, false, true, 2, false, true, false, false),
+      ('restricted', 'Restricted Reseller', 'Can create invoices at list price only. Cannot modify prices or approve.', true, false, false, false, false, false, true, true, false, false, 0, false, false, false, false)
     `);
     console.log('Reseller roles seeded');
   }

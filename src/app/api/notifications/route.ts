@@ -19,12 +19,14 @@ import { cacheGet, cacheSet } from '@/lib/cache';
 
 interface Notification {
   key: string;
-  type: 'lead' | 'evaluation' | 'invoice';
+  type: 'lead' | 'evaluation' | 'invoice' | 'asset';
   title: string;
   message: string;
   recordId: string;
   recordModule: string;
   timestamp: string;
+  /** Expiries are shown in red; everything else takes the default treatment. */
+  severity?: 'alert';
 }
 
 /** Build reseller criteria for one or multiple reseller IDs. */
@@ -38,8 +40,8 @@ async function fetchNotificationsFromZoho(resellerIds: string[] | null): Promise
   const notifications: Notification[] = [];
   const criteria = resellerIds ? resellerCriteria(resellerIds) : null;
 
-  // Run all 3 queries in parallel
-  const [leads, prospects, invoices] = await Promise.all([
+  // Run all 4 queries in parallel
+  const [leads, prospects, invoices, assets] = await Promise.all([
     // 1. Recent leads
     (criteria
       ? searchAllPages('Leads', criteria, 'Company,Full_Name,Email,Lead_Status,Reseller,Created_Time,Converted__s,Record_Status__s', 'desc', 1)
@@ -62,6 +64,15 @@ async function fetchNotificationsFromZoho(resellerIds: string[] | null): Promise
         ? `(((Status:equals:Approved)or(Status:equals:Sent))and${criteria})`
         : '((Status:equals:Approved)or(Status:equals:Sent))',
       'Subject,Reference_Number,Account_Name,Status,Payment_Status,Reseller,Modified_Time,Record_Status__s',
+      'desc',
+      1
+    ).catch(() => [] as Record<string, unknown>[]),
+
+    // 4. Assets whose renewal date has passed — the expiry alerts
+    searchAllPages(
+      'Assets1',
+      criteria ? `((Status:equals:Active)and${criteria})` : '(Status:equals:Active)',
+      'Name,Account,Product,Renewal_Date,Status,Reseller,Record_Status__s',
       'desc',
       1
     ).catch(() => [] as Record<string, unknown>[]),
@@ -150,6 +161,33 @@ async function fetchNotificationsFromZoho(resellerIds: string[] | null): Promise
         timestamp: inv.Modified_Time as string,
       });
     }
+  }
+
+  // Process expired assets. Anything still marked Active whose renewal date
+  // has passed is a licence the customer has lost access to, so it is raised
+  // as an alert. Bounded to the last 30 days like every other notification —
+  // a licence that lapsed a year ago is history, not news.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  for (const asset of assets) {
+    if (asset.Record_Status__s === 'Trash') continue;
+    const renewal = asset.Renewal_Date as string | null;
+    if (!renewal || renewal >= todayIso) continue;
+    const expiredAt = new Date(`${renewal}T00:00:00Z`).getTime();
+    if (expiredAt < thirtyDaysAgo) continue;
+
+    const accountName = (asset.Account as { name?: string } | null)?.name || '';
+    const productName = (asset.Product as { name?: string } | null)?.name || (asset.Name as string) || 'Licence';
+
+    notifications.push({
+      key: `asset-expired-${asset.id}`,
+      type: 'asset',
+      title: 'Licence Expired',
+      message: `${productName}${accountName ? ` — ${accountName}` : ''}`,
+      recordId: asset.id as string,
+      recordModule: 'Assets1',
+      timestamp: `${renewal}T00:00:00Z`,
+      severity: 'alert',
+    });
   }
 
   // Sort by timestamp descending, cap at 50

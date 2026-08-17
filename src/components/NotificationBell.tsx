@@ -2,24 +2,27 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, UserSearch, Beaker, FileText, X, Trash2, ExternalLink } from 'lucide-react';
+import { Bell, UserSearch, Beaker, FileText, X, Trash2, ExternalLink, PackageX } from 'lucide-react';
 import { buildPath } from '@/lib/routes';
 import { GuardedLink } from '@/components/GuardedLink';
 
 interface Notification {
   key: string;
-  type: 'lead' | 'evaluation' | 'invoice';
+  type: 'lead' | 'evaluation' | 'invoice' | 'asset';
   title: string;
   message: string;
   recordId: string;
   recordModule: string;
   timestamp: string;
+  severity?: 'alert';
 }
 
 const TYPE_CONFIG: Record<string, { icon: typeof Bell; color: string; bgColor: string }> = {
   lead:       { icon: UserSearch, color: 'text-csa-accent',  bgColor: 'bg-csa-accent/15' },
   evaluation: { icon: Beaker,     color: 'text-success',     bgColor: 'bg-success/15' },
   invoice:    { icon: FileText,   color: 'text-csa-purple',  bgColor: 'bg-csa-purple/15' },
+  // An expired licence is a customer locked out right now, so it reads red.
+  asset:      { icon: PackageX,   color: 'text-error',       bgColor: 'bg-error/15' },
 };
 
 /** The record a notification points at, or null when it has no portal page. */
@@ -31,6 +34,10 @@ function notificationHref(n: Notification): string | null {
       return `${buildPath('lead-detail', n.recordId)}?source=prospect`;
     case 'Invoices':
       return buildPath('invoice-detail', n.recordId);
+    case 'Assets1':
+      // Assets have no detail page of their own, so an expiry lands on the
+      // list that already filters to recently expired licences.
+      return buildPath('assets-expired');
     default:
       return null;
   }

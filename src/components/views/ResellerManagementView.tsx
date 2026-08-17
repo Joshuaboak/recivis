@@ -86,6 +86,7 @@ const PERMISSION_DEFS = [
   { key: 'can_create_evaluations', label: 'Create Evaluations', desc: 'Create evaluation licences for accounts' },
   { key: 'can_extend_evaluations', label: 'Extend Evaluations', desc: 'Extend evaluation licences beyond 30 days' },
   { key: 'can_direct_customer_comms', label: 'Allow Direct Customer Communication', desc: 'Allow orders and licence keys to be sent straight to the customer' },
+  { key: 'can_monthly_subscriptions', label: 'Allow Monthly Subscriptions', desc: 'Create and renew 30-day monthly subscription licences' },
 ];
 
 /** Shown wherever "Direct to Customer" is blocked by the permission above. */
@@ -99,6 +100,7 @@ interface RoleWithPerms {
   can_upload_po: boolean; can_view_reports: boolean; can_export_data: boolean;
   can_create_evaluations: boolean; max_evaluations_per_account: number; can_extend_evaluations: boolean;
   can_direct_customer_comms: boolean;
+  can_monthly_subscriptions: boolean;
 }
 
 const inputCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg";

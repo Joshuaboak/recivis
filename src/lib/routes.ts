@@ -36,6 +36,10 @@ export const ROUTES = [
   { path: '/accounts/new', legacyViewId: 'create-account', title: 'Create Account', needsId: false },
   { path: '/accounts/[id]', legacyViewId: 'account-detail', title: 'Account', needsId: true },
   { path: '/accounts/[id]/edit', legacyViewId: 'account-edit', title: 'Edit Account', needsId: true },
+  { path: '/assets', legacyViewId: 'assets', title: 'Assets', needsId: false },
+  { path: '/assets/renewals', legacyViewId: 'assets-renewals', title: 'Due for Renewal', needsId: false },
+  { path: '/assets/expired', legacyViewId: 'assets-expired', title: 'Recently Expired', needsId: false },
+  { path: '/assets/subscriptions', legacyViewId: 'assets-subscriptions', title: 'Monthly Subscriptions', needsId: false },
   { path: '/orders', legacyViewId: 'draft-invoices', title: 'Existing Orders', needsId: false },
   { path: '/orders/new', legacyViewId: 'create-invoice', title: 'New Order', needsId: false },
   { path: '/orders/[id]', legacyViewId: 'invoice-detail', title: 'Order', needsId: true },
@@ -50,6 +54,7 @@ export const ROUTES = [
   { path: '/partners', legacyViewId: 'resellers', title: 'Partners', needsId: false },
   { path: '/partners/[id]', legacyViewId: 'reseller-detail', title: 'Partner', needsId: true },
   { path: '/partners/[id]/edit', legacyViewId: 'reseller-edit-route', title: 'Edit Partner', needsId: true },
+  { path: '/partners/reports', legacyViewId: 'partner-reports', title: 'Partner Reports', needsId: false },
   { path: '/partner-resources', legacyViewId: 'partner-resources', title: 'Partner Resources', needsId: false },
 ] as const satisfies readonly RouteDef[];
 

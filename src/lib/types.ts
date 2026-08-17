@@ -32,6 +32,9 @@ export interface UserPermissions {
   /** Org-level only (no user_role equivalent): may orders and licence keys be
    *  sent straight to the end customer instead of via the reseller. */
   canDirectCustomerComms: boolean;
+  /** Org-level only: may this partner create and renew 30-day monthly
+   *  subscription licences. */
+  canMonthlySubscriptions: boolean;
 }
 
 // --- Organisation Model ---
