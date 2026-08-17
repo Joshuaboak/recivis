@@ -73,10 +73,21 @@ async function loadResellerContext(user: AuthUser): Promise<ResellerContext> {
 }
 
 /**
+ * The currency a partner is quoted in alongside USD.
+ *
+ * New Zealand partners buy on the ANZ price list, so they are shown AUD — the
+ * same reason skuRegion folds NZ into ANZ. Currencies Zoho has no rate for
+ * (GBP) fall through and end up quoted in USD only, which is better than a
+ * made-up number.
+ */
+function displayCurrency(currency: string): string {
+  return currency === 'NZD' ? 'AUD' : currency;
+}
+
+/**
  * USD -> target currency using Zoho's org rates, which are quoted as units of
- * the currency per 1 AUD (the base). Returns null when either leg is missing —
- * NZD and GBP resellers exist in the portal but are not configured in Zoho, and
- * a wrong number here is worse than no number.
+ * the currency per 1 AUD (the base). Returns null when either leg is missing,
+ * because a wrong number here is worse than no number.
  */
 async function usdConverter(targetCurrency: string): Promise<((usd: number) => number) | null> {
   if (targetCurrency === 'USD') return (usd: number) => usd;
@@ -142,7 +153,8 @@ export async function GET(request: NextRequest) {
   }
 
   const context = await loadResellerContext(user);
-  const convert = await usdConverter(context.currency);
+  const quoteCurrency = displayCurrency(context.currency);
+  const convert = await usdConverter(quoteCurrency);
 
   const products = await Promise.all(
     MONTHLY_PRODUCTS.map(async product => {
@@ -174,7 +186,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     products: products.filter(Boolean),
-    currency: convert ? context.currency : 'USD',
+    currency: convert ? quoteCurrency : 'USD',
     resellerPercentage: context.percentage,
     billedBy: context.billedBy,
     termDays: SUBSCRIPTION_TERM_DAYS,
