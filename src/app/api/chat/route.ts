@@ -4,6 +4,7 @@ import { toolDefinitions, getSystemPrompt } from '@/lib/ai-tools';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
 import type { AuthUser } from '@/lib/api-auth';
+import { MODULE_SCOPES, recordInScope } from '@/lib/tenant-scope';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -17,37 +18,119 @@ interface ToolCall {
 }
 
 /**
- * Server-side RBAC enforcement on AI tool calls (pre-execution).
- * Returns an error string if the call should be blocked, null if allowed.
- * Also modifies args in-place to ensure Reseller field is in Account search results.
+ * The tenant boundary itself lives in lib/tenant-scope.ts so it can be tested
+ * and so the support assistant enforces the identical rules. What stays here
+ * is only how those rules apply to this route's tools.
  */
-function enforceToolRBAC(user: AuthUser, toolName: string, args: Record<string, unknown>): string | null {
+
+/** The only module the assistant may write to. It is the invoice assistant. */
+const WRITABLE_MODULES = new Set(['Invoices']);
+
+const READ_TOOLS = new Set(['search_records', 'get_record']);
+const WRITE_TOOLS = new Set(['create_records', 'update_records']);
+
+/** Fetch one record and decide whether the caller may see it. */
+async function recordIsVisible(user: AuthUser, moduleName: string, recordId: string): Promise<boolean> {
+  const scope = MODULE_SCOPES[moduleName];
+  if (!scope) return false;
+  if (scope.kind === 'catalogue') return true;
+  try {
+    const result = await executeZohoTool('get_record', { module: moduleName, record_id: recordId });
+    const res = result as { content?: Array<{ text?: string }> };
+    for (const item of res?.content || []) {
+      if (!item.text) continue;
+      const parsed = JSON.parse(item.text);
+      const record = parsed.data?.[0];
+      if (record) return recordInScope(user, scope, record as Record<string, unknown>);
+    }
+    return false;
+  } catch {
+    // A check that could not complete is not a check that passed.
+    return false;
+  }
+}
+
+/**
+ * Server-side RBAC on AI tool calls, before execution.
+ *
+ * Returns an error string to block the call, or null to allow it. Also edits
+ * `args` in place so scoped searches always fetch the Reseller field the
+ * post-filter needs.
+ */
+async function enforceToolRBAC(
+  user: AuthUser,
+  toolName: string,
+  args: Record<string, unknown>
+): Promise<string | null> {
+  const moduleName = String(args.module || '');
   const records = args.records as Array<Record<string, unknown>> | undefined;
 
-  // Ensure Reseller field is included in Account search results so post-filter can work
-  if (toolName === 'search_records' && args.module === 'Accounts') {
+  // Scoped to no resellers means there is nothing this user may read.
+  if (user.allowedResellerIds.length === 0) {
+    return 'Your account is not linked to a partner, so CRM records are not available.';
+  }
+
+  if ((READ_TOOLS.has(toolName) || WRITE_TOOLS.has(toolName)) && !MODULE_SCOPES[moduleName]) {
+    return `The ${moduleName || 'requested'} module is not available through the assistant.`;
+  }
+
+  // The post-filter reads record.Reseller, so it has to come back in the results.
+  if (READ_TOOLS.has(toolName) && MODULE_SCOPES[moduleName]?.kind === 'reseller-lookup') {
     const fields = String(args.fields || '');
     if (fields && !fields.includes('Reseller')) {
       args.fields = fields + ',Reseller';
     }
   }
 
-  if (toolName === 'create_records' && args.module === 'Invoices' && records) {
-    for (const rec of records) {
+  // Related records are scoped by proving the caller may see the parent.
+  if (toolName === 'get_related_records') {
+    const parentModule = String(args.parent_module || '');
+    const parentId = String(args.parent_id || '');
+    if (!parentModule || !parentId) {
+      return 'A parent module and record id are required to fetch related records.';
+    }
+    if (!(await recordIsVisible(user, parentModule, parentId))) {
+      return 'That record belongs to another reseller.';
+    }
+    return null;
+  }
+
+  if (WRITE_TOOLS.has(toolName)) {
+    if (!WRITABLE_MODULES.has(moduleName)) {
+      return `The assistant cannot create or change ${moduleName} records.`;
+    }
+    for (const rec of records || []) {
       const resellerId = (rec.Reseller as { id?: string })?.id || rec.Reseller;
       if (typeof resellerId === 'string' && !user.allowedResellerIds.includes(resellerId)) {
         return 'You cannot create invoices for accounts assigned to another reseller.';
       }
-    }
-  }
-
-  if (toolName === 'update_records' && args.module === 'Invoices' && records) {
-    for (const rec of records) {
       if (rec.Status === 'Approved' && !user.permissions.canApproveInvoices) {
         return 'You do not have permission to approve invoices.';
       }
       if (rec.Send_Invoice === true && !user.permissions.canSendInvoices) {
         return 'You do not have permission to send invoices.';
+      }
+      // Contract_Term_Years of 0 is this codebase's marker for a hand-set price
+      // (see CreateInvoiceView and the subscription routes), so it is the exact
+      // signal that a line is being priced away from the catalogue.
+      if (!user.permissions.canModifyPrices) {
+        const lineItems = rec.Invoiced_Items as Array<Record<string, unknown>> | undefined;
+        if (lineItems?.some(li => Number(li.Contract_Term_Years) === 0)) {
+          return 'You do not have permission to set custom prices on line items.';
+        }
+      }
+    }
+  }
+
+  // Renewal generation creates real invoices from asset ids, so every asset
+  // must be shown to belong to the caller before the function runs.
+  if (toolName === 'call_renewal_function') {
+    const assetIds = (args.asset_ids as string[] | undefined) || [];
+    if (assetIds.length === 0) return 'No assets were given to renew.';
+    if (assetIds.length > 20) return 'Too many assets in one renewal. Please do 20 or fewer at a time.';
+    for (const assetId of assetIds) {
+      if (!(await recordIsVisible(user, 'Assets1', assetId))) {
+        return 'One or more of those assets belongs to another reseller.';
       }
     }
   }
@@ -67,10 +150,12 @@ function filterResultsForRBAC(
   result: unknown
 ): unknown {
   const moduleName = String(args.module || '');
+  const scope = MODULE_SCOPES[moduleName];
 
-  // Only filter Account operations (search_records, get_record)
-  if (moduleName !== 'Accounts') return result;
-  if (toolName !== 'search_records' && toolName !== 'get_record') return result;
+  if (!READ_TOOLS.has(toolName)) return result;
+  // An unknown module never reaches here — enforceToolRBAC blocks it — and a
+  // catalogue module holds no partner data to separate.
+  if (!scope || scope.kind === 'catalogue') return result;
 
   try {
     const res = result as { content?: Array<{ text?: string }> };
@@ -83,16 +168,13 @@ function filterResultsForRBAC(
         if (!parsed.data || !Array.isArray(parsed.data)) continue;
 
         const originalCount = parsed.data.length;
-        parsed.data = parsed.data.filter((record: Record<string, unknown>) => {
-          const reseller = record.Reseller as { id?: string } | null | undefined;
-          // No reseller set = not accessible to non-admin users
-          if (!reseller?.id) return false;
-          return user.allowedResellerIds.includes(reseller.id);
-        });
+        parsed.data = parsed.data.filter((record: Record<string, unknown>) =>
+          recordInScope(user, scope, record)
+        );
 
         if (parsed.data.length === 0 && originalCount > 0) {
           // All results were filtered — tell the AI why
-          parsed.message = 'The accounts matching this search are assigned to other resellers. This user does not have access to them.';
+          parsed.message = `The ${moduleName} records matching this search belong to other resellers. This user does not have access to them.`;
         }
 
         item.text = JSON.stringify(parsed);
@@ -274,7 +356,7 @@ export async function POST(request: NextRequest) {
 
               // RBAC enforcement on tool calls for non-admin users
               if (!isAdmin(authUser)) {
-                const rbacError = enforceToolRBAC(authUser, toolCall.function.name, args);
+                const rbacError = await enforceToolRBAC(authUser, toolCall.function.name, args);
                 if (rbacError) {
                   log('warn', 'tool', `RBAC blocked: ${toolCall.function.name}`, { reason: rbacError });
                   return {
@@ -313,8 +395,11 @@ export async function POST(request: NextRequest) {
                 }
               }
 
-              // Post-execution: filter Account results for non-admin users
-              if (!isAdmin(authUser) && authUser.allowedResellerIds.length > 0) {
+              // Post-execution: drop records belonging to other partners.
+              // No allowedResellerIds guard here — a non-admin scoped to
+              // nothing is refused upstream, and skipping the filter for one
+              // would have returned every record unscoped.
+              if (!isAdmin(authUser)) {
                 result = filterResultsForRBAC(authUser, toolCall.function.name, args, result);
               }
 

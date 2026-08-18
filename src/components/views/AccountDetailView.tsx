@@ -91,7 +91,8 @@ export default function AccountDetailView({
   const [showEvalModal, setShowEvalModal] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [renewingSubscriptions, setRenewingSubscriptions] = useState<RenewableSubscription[] | null>(null);
-  const [subscriptionNotice, setSubscriptionNotice] = useState('');
+  /** Result banner for asset actions — subscriptions, renewals, key sends. */
+  const [actionNotice, setActionNotice] = useState('');
 
   // Send keys state
   const [sendKeysConfirm, setSendKeysConfirm] = useState<'customer' | 'reseller' | null>(null);
@@ -298,7 +299,12 @@ export default function AccountDetailView({
         body: JSON.stringify({ asset_ids: Array.from(selectedAssets) }),
       });
       const data = await res.json();
-      if (data.invoiceId) {
+      // Renewals need canCreateInvoices, which is enforced on the server and
+      // not on this button. Without this branch a partner who lacks it saw the
+      // spinner stop and nothing else — the failure was invisible.
+      if (!res.ok) {
+        setActionNotice(data.error || 'Could not generate the renewal.');
+      } else if (data.invoiceId) {
         router.push(buildPath('invoice-detail', data.invoiceId));
       } else {
         // Reload account to see the new invoice in the list
@@ -310,7 +316,9 @@ export default function AccountDetailView({
         setActiveAssets(reloadData.activeAssets || []);
         setSelectedAssets(new Set());
       }
-    } catch { /* handled by UI */ }
+    } catch {
+      setActionNotice('Could not generate the renewal. Please try again.');
+    }
     setGeneratingRenewal(false);
   };
 
@@ -1456,7 +1464,7 @@ export default function AccountDetailView({
           accountName={account.Account_Name as string}
           onSuccess={(_assetId, warning) => {
             setShowSubscriptionModal(false);
-            setSubscriptionNotice(warning || 'Monthly subscription created.');
+            setActionNotice(warning || 'Monthly subscription created.');
             fetch(`/api/accounts/${accountId}`)
               .then(res => res.json())
               .then(data => {
@@ -1475,7 +1483,7 @@ export default function AccountDetailView({
           subscriptions={renewingSubscriptions}
           onDone={(renewedIds, failures) => {
             setRenewingSubscriptions(null);
-            setSubscriptionNotice(
+            setActionNotice(
               failures.length === 0
                 ? `Renewed ${renewedIds.length} monthly ${renewedIds.length === 1 ? 'subscription' : 'subscriptions'}.`
                 : `Renewed ${renewedIds.length}, ${failures.length} failed: ${failures.map(f => f.reason).join('; ')}`
@@ -1493,11 +1501,11 @@ export default function AccountDetailView({
       )}
 
       {/* Subscription result banner */}
-      {subscriptionNotice && (
+      {actionNotice && (
         <div className="fixed bottom-6 right-6 z-50 max-w-sm bg-csa-dark border border-csa-accent/40 rounded-xl px-4 py-3 shadow-lg">
           <div className="flex items-start gap-3">
-            <p className="text-xs text-text-primary flex-1">{subscriptionNotice}</p>
-            <button onClick={() => setSubscriptionNotice('')} className="text-text-muted hover:text-text-primary cursor-pointer">
+            <p className="text-xs text-text-primary flex-1">{actionNotice}</p>
+            <button onClick={() => setActionNotice('')} className="text-text-muted hover:text-text-primary cursor-pointer">
               <X size={14} />
             </button>
           </div>

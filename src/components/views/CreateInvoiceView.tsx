@@ -133,6 +133,8 @@ export default function CreateInvoiceView() {
       .catch(() => {});
   }, [resellerData?.id]);
   const [saving, setSaving] = useState(false);
+  /** Why the last Create Order attempt failed, shown beside the button. */
+  const [createError, setCreateError] = useState('');
   const [skuBuilderIndex, setSkuBuilderIndex] = useState<number | null>(null);
 
   // The account context only ever lives in the store, so a cold deep link to
@@ -267,10 +269,14 @@ export default function CreateInvoiceView() {
         // Navigate to the created invoice
         router.push(buildPath('invoice-detail', data.id));
       } else {
-        // Stay on page
+        // Creating an order needs canCreateInvoices, which is enforced on the
+        // server and not on this button. Saying so beats the spinner simply
+        // stopping, which is what used to happen.
+        setCreateError(data.error || 'The order could not be created.');
         setSaving(false);
       }
     } catch {
+      setCreateError('The order could not be created. Please try again.');
       setSaving(false);
     }
   };
@@ -330,7 +336,7 @@ export default function CreateInvoiceView() {
             <div className="flex-1" />
 
             <button
-              onClick={createInvoice}
+              onClick={() => { setCreateError(''); createInvoice(); }}
               disabled={saving || lineItems.length === 0 || lineItems.some(li => !li.Product_Name)}
               className="flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -338,6 +344,10 @@ export default function CreateInvoiceView() {
               {saving ? 'Creating...' : 'Create Order'}
             </button>
           </div>
+
+          {createError ? (
+            <p className="ml-12 mt-2 text-xs text-error">{createError}</p>
+          ) : null}
 
           <h1
             className="text-2xl font-bold text-text-primary ml-12 truncate"
