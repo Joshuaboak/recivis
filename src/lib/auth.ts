@@ -20,6 +20,7 @@ import { google } from 'googleapis';
 import { query, initDB } from './db';
 import { LOGIN_PATH } from './routes';
 import type { User, UserPermissions } from './types';
+import { getUserPreferences } from './preferences';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'recivis-dev-secret-change-in-production';
 const SALT_ROUNDS = 12;
@@ -213,6 +214,10 @@ async function buildUserFromRow(row: UserProjectionRow): Promise<User> {
     }
   }
 
+  // Rides along with the session the portal already refreshes on every load,
+  // so no view has to fetch preferences separately.
+  const preferences = await getUserPreferences(row.id);
+
   const user: User = {
     email: row.email,
     name: row.name,
@@ -220,6 +225,7 @@ async function buildUserFromRow(row: UserProjectionRow): Promise<User> {
     userRoleDisplayName: row.user_role_display,
     resellerRoleName: row.reseller_role_name,
     permissions,
+    preferences,
     allowedResellerIds,
     // Legacy compat for the AI system prompt
     role: row.user_role_name || 'reseller',

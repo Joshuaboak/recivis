@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Users,
   Building2,
+  GraduationCap,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { LOGIN_PATH } from '@/lib/routes';
@@ -38,6 +39,8 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
   const { user, setUser } = useAppStore();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  /** Mirrors the saved preference so the toggle can move before the save lands. */
+  const [tutorialOn, setTutorialOn] = useState(user?.preferences?.guidedTutorial ?? true);
   const [showAddUser, setShowAddUser] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -85,6 +88,49 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
                 )}
               </div>
             )}
+
+            {/* Guided tutorial — a setting belonging to this person, not to
+                their partner, so it lives here rather than in the permission
+                model. Optimistic: the toggle moves immediately and rolls back
+                if the save fails. */}
+            <div className="py-1 border-b border-border-subtle">
+              <button
+                onClick={async () => {
+                  const next = !tutorialOn;
+                  setTutorialOn(next);
+                  try {
+                    const res = await fetch('/api/users/me/preferences', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ guidedTutorial: next }),
+                    });
+                    if (!res.ok) throw new Error('save failed');
+                    const data = await res.json();
+                    // Keep the session object in step so the tour controller
+                    // and this menu never disagree.
+                    if (user) setUser({ ...user, preferences: data.preferences });
+                  } catch {
+                    setTutorialOn(!next);
+                  }
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-raised hover:text-text-primary transition-colors cursor-pointer"
+                aria-pressed={tutorialOn}
+              >
+                <GraduationCap size={16} />
+                <span className="flex-1 text-left">Guided tutorial</span>
+                <span
+                  className={`w-8 h-4 rounded-full relative transition-colors flex-shrink-0 ${
+                    tutorialOn ? 'bg-csa-accent' : 'bg-border'
+                  }`}
+                >
+                  <span
+                    className={`w-3 h-3 rounded-full bg-white absolute top-0.5 transition-transform ${
+                      tutorialOn ? 'translate-x-4' : 'translate-x-0.5'
+                    }`}
+                  />
+                </span>
+              </button>
+            </div>
 
             {/* Sign out redirects with `replace` — Back must not land on an authenticated screen. */}
             <div className="py-1">

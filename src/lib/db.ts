@@ -187,6 +187,26 @@ export async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_notif_dismiss_created ON notification_dismissals(created_at);
 
       -- ============================================================
+      -- USER PREFERENCES — settings belonging to a person, not to their
+      -- organisation. Permissions say what a partner is allowed to do;
+      -- these say how one of their staff likes the portal to behave, so
+      -- they deliberately sit outside the permission model.
+      --
+      -- Key/value rather than a column per preference: these come and go
+      -- with UI features and are read as a set, never queried across.
+      -- ============================================================
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) NOT NULL,
+        pref_key VARCHAR(100) NOT NULL,
+        pref_value TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, pref_key)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_user_prefs_user ON user_preferences(user_id);
+
+      -- ============================================================
       -- PERMISSION OVERRIDES on resellers table
       -- NULL = use reseller_role default, true/false = override
       -- ============================================================

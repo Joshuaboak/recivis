@@ -8,6 +8,10 @@
  * - Invoice workflow context
  */
 
+import type { UserPreferences } from './preferences';
+
+export type { UserPreferences };
+
 // --- Permission Model ---
 
 /**
@@ -66,6 +70,8 @@ export interface User {
   resellerRoleName?: string;
   allowedResellerIds?: string[];
   permissions?: UserPermissions;
+  /** This person's own settings, as opposed to what their partner may do. */
+  preferences?: UserPreferences;
   // Legacy compat fields used by the AI system prompt
   role?: string;
   resellerId?: string;
