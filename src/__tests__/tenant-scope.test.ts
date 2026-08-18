@@ -6,7 +6,13 @@
  * it ever flips.
  */
 import { describe, it, expect } from 'vitest';
-import { MODULE_SCOPES, scopeForModule, recordInScope } from '@/lib/tenant-scope';
+import {
+  MODULE_SCOPES,
+  WRITABLE_MODULES,
+  scopeForModule,
+  scopingAccountId,
+  recordInScope,
+} from '@/lib/tenant-scope';
 
 const user = { allowedResellerIds: ['res-1', 'res-2'] };
 
@@ -15,7 +21,12 @@ describe('scopeForModule', () => {
     expect(scopeForModule('Accounts')).toEqual({ kind: 'reseller-lookup' });
     expect(scopeForModule('Invoices')).toEqual({ kind: 'reseller-lookup' });
     expect(scopeForModule('Assets1')).toEqual({ kind: 'reseller-lookup' });
+    expect(scopeForModule('Leads')).toEqual({ kind: 'reseller-lookup' });
     expect(scopeForModule('Products')).toEqual({ kind: 'catalogue' });
+  });
+
+  it('scopes Contacts through the account they belong to', () => {
+    expect(scopeForModule('Contacts')).toEqual({ kind: 'via-account', accountField: 'Account_Name' });
   });
 
   it('refuses modules nobody has decided how to scope', () => {
@@ -24,9 +35,26 @@ describe('scopeForModule', () => {
     expect(scopeForModule('Quotes')).toBeUndefined();
     expect(scopeForModule('')).toBeUndefined();
   });
+});
 
-  it('refuses Contacts, which carry no Reseller field to scope on', () => {
-    expect(scopeForModule('Contacts')).toBeUndefined();
+describe('WRITABLE_MODULES', () => {
+  it('lets the assistant author the records a partner works with', () => {
+    for (const moduleName of ['Accounts', 'Contacts', 'Leads', 'Invoices']) {
+      expect(WRITABLE_MODULES.has(moduleName)).toBe(true);
+    }
+  });
+
+  it('keeps partner records and issued licences read-only', () => {
+    // Resellers are administered by CSA; assets come from the licensing system.
+    expect(WRITABLE_MODULES.has('Resellers')).toBe(false);
+    expect(WRITABLE_MODULES.has('Assets1')).toBe(false);
+    expect(WRITABLE_MODULES.has('Products')).toBe(false);
+  });
+
+  it('never lets a writable module escape the scope map', () => {
+    for (const moduleName of WRITABLE_MODULES) {
+      expect(scopeForModule(moduleName)).toBeDefined();
+    }
   });
 });
 
@@ -69,6 +97,34 @@ describe('recordInScope — the Resellers module scopes on its own id', () => {
   it('does not fall through to a Reseller field on this module', () => {
     // A Resellers record carrying a Reseller lookup must not be admitted by it.
     expect(recordInScope(user, scope, { id: 'res-9', Reseller: { id: 'res-1' } })).toBe(false);
+  });
+});
+
+describe('recordInScope — Contacts scope through their account', () => {
+  const scope = MODULE_SCOPES.Contacts;
+  const allowedAccounts = new Set(['acc-1']);
+
+  it('reads the account id off the configured field', () => {
+    expect(scopingAccountId(scope, { Account_Name: { id: 'acc-1' } })).toBe('acc-1');
+    expect(scopingAccountId(scope, { Account_Name: null })).toBeNull();
+  });
+
+  it('admits a contact on an account the caller may see', () => {
+    expect(recordInScope(user, scope, { Account_Name: { id: 'acc-1' } }, allowedAccounts)).toBe(true);
+  });
+
+  it('rejects a contact on someone else account', () => {
+    expect(recordInScope(user, scope, { Account_Name: { id: 'acc-9' } }, allowedAccounts)).toBe(false);
+  });
+
+  it('rejects a contact attached to no account at all', () => {
+    expect(recordInScope(user, scope, {}, allowedAccounts)).toBe(false);
+  });
+
+  it('fails closed when the caller forgot to resolve accounts', () => {
+    // Omitting the resolved set must deny, never admit — a caller that skips
+    // the lookup must not accidentally get everything.
+    expect(recordInScope(user, scope, { Account_Name: { id: 'acc-1' } })).toBe(false);
   });
 });
 

@@ -4,7 +4,7 @@ import { toolDefinitions, getSystemPrompt } from '@/lib/ai-tools';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
 import type { AuthUser } from '@/lib/api-auth';
-import { MODULE_SCOPES, recordInScope } from '@/lib/tenant-scope';
+import { MODULE_SCOPES, WRITABLE_MODULES, recordInScope, scopingAccountId } from '@/lib/tenant-scope';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -23,17 +23,11 @@ interface ToolCall {
  * is only how those rules apply to this route's tools.
  */
 
-/** The only module the assistant may write to. It is the invoice assistant. */
-const WRITABLE_MODULES = new Set(['Invoices']);
-
 const READ_TOOLS = new Set(['search_records', 'get_record']);
 const WRITE_TOOLS = new Set(['create_records', 'update_records']);
 
-/** Fetch one record and decide whether the caller may see it. */
-async function recordIsVisible(user: AuthUser, moduleName: string, recordId: string): Promise<boolean> {
-  const scope = MODULE_SCOPES[moduleName];
-  if (!scope) return false;
-  if (scope.kind === 'catalogue') return true;
+/** Read one record from Zoho, or null if it isn't there. */
+async function fetchRecord(moduleName: string, recordId: string): Promise<Record<string, unknown> | null> {
   try {
     const result = await executeZohoTool('get_record', { module: moduleName, record_id: recordId });
     const res = result as { content?: Array<{ text?: string }> };
@@ -41,13 +35,60 @@ async function recordIsVisible(user: AuthUser, moduleName: string, recordId: str
       if (!item.text) continue;
       const parsed = JSON.parse(item.text);
       const record = parsed.data?.[0];
-      if (record) return recordInScope(user, scope, record as Record<string, unknown>);
+      if (record) return record as Record<string, unknown>;
     }
-    return false;
+    return null;
   } catch {
-    // A check that could not complete is not a check that passed.
-    return false;
+    return null;
   }
+}
+
+/**
+ * Whether the caller may see one record, fetching it to find out.
+ *
+ * Contacts and anything else scoped through an account cost a second lookup,
+ * since the contact itself names no partner.
+ */
+async function recordIsVisible(user: AuthUser, moduleName: string, recordId: string): Promise<boolean> {
+  const scope = MODULE_SCOPES[moduleName];
+  if (!scope) return false;
+  if (scope.kind === 'catalogue') return true;
+
+  const record = await fetchRecord(moduleName, recordId);
+  if (!record) return false;
+
+  if (scope.kind === 'via-account') {
+    const accountId = scopingAccountId(scope, record);
+    // A contact attached to nothing has no partner to inherit, so it stays
+    // unproven rather than becoming everyone's.
+    if (!accountId) return false;
+    return accountIsVisible(user, accountId);
+  }
+
+  return recordInScope(user, scope, record);
+}
+
+/** Whether the caller may see one account. */
+async function accountIsVisible(user: AuthUser, accountId: string): Promise<boolean> {
+  const account = await fetchRecord('Accounts', accountId);
+  if (!account) return false;
+  return recordInScope(user, MODULE_SCOPES.Accounts, account);
+}
+
+/**
+ * Resolve which of a set of accounts the caller may see.
+ *
+ * Contact searches return many contacts across few accounts, so the distinct
+ * accounts are resolved once each rather than once per contact.
+ */
+async function visibleAccountIds(user: AuthUser, accountIds: Iterable<string>): Promise<Set<string>> {
+  const allowed = new Set<string>();
+  await Promise.all(
+    Array.from(new Set(accountIds)).map(async id => {
+      if (await accountIsVisible(user, id)) allowed.add(id);
+    })
+  );
+  return allowed;
 }
 
 /**
@@ -97,26 +138,52 @@ async function enforceToolRBAC(
 
   if (WRITE_TOOLS.has(toolName)) {
     if (!WRITABLE_MODULES.has(moduleName)) {
-      return `The assistant cannot create or change ${moduleName} records.`;
+      // Partner records are administered by CSA and assets are issued by the
+      // licensing system, so neither is authored from here.
+      return `The assistant can create and update accounts, contacts, leads and orders, but not ${moduleName} records.`;
     }
+
     for (const rec of records || []) {
+      // Changing an existing record means proving it is the caller's first —
+      // otherwise any id would do.
+      if (toolName === 'update_records') {
+        const recordId = typeof rec.id === 'string' ? rec.id : '';
+        if (!recordId) return 'An id is required to update a record.';
+        if (!(await recordIsVisible(user, moduleName, recordId))) {
+          return 'That record belongs to another reseller.';
+        }
+      }
+
+      // A record cannot be filed under a partner the caller may not see.
       const resellerId = (rec.Reseller as { id?: string })?.id || rec.Reseller;
       if (typeof resellerId === 'string' && !user.allowedResellerIds.includes(resellerId)) {
-        return 'You cannot create invoices for accounts assigned to another reseller.';
+        return 'You cannot assign records to another reseller.';
       }
-      if (rec.Status === 'Approved' && !user.permissions.canApproveInvoices) {
-        return 'You do not have permission to approve invoices.';
+
+      // Contacts inherit their partner from their account, so the account has
+      // to be one the caller may see.
+      if (moduleName === 'Contacts') {
+        const accountId = (rec.Account_Name as { id?: string })?.id;
+        if (accountId && !(await accountIsVisible(user, accountId))) {
+          return 'That account belongs to another reseller.';
+        }
       }
-      if (rec.Send_Invoice === true && !user.permissions.canSendInvoices) {
-        return 'You do not have permission to send invoices.';
-      }
-      // Contract_Term_Years of 0 is this codebase's marker for a hand-set price
-      // (see CreateInvoiceView and the subscription routes), so it is the exact
-      // signal that a line is being priced away from the catalogue.
-      if (!user.permissions.canModifyPrices) {
-        const lineItems = rec.Invoiced_Items as Array<Record<string, unknown>> | undefined;
-        if (lineItems?.some(li => Number(li.Contract_Term_Years) === 0)) {
-          return 'You do not have permission to set custom prices on line items.';
+
+      if (moduleName === 'Invoices') {
+        if (rec.Status === 'Approved' && !user.permissions.canApproveInvoices) {
+          return 'You do not have permission to approve invoices.';
+        }
+        if (rec.Send_Invoice === true && !user.permissions.canSendInvoices) {
+          return 'You do not have permission to send invoices.';
+        }
+        // Contract_Term_Years of 0 is this codebase's marker for a hand-set
+        // price (see CreateInvoiceView and the subscription routes), so it is
+        // the exact signal that a line is being priced away from the catalogue.
+        if (!user.permissions.canModifyPrices) {
+          const lineItems = rec.Invoiced_Items as Array<Record<string, unknown>> | undefined;
+          if (lineItems?.some(li => Number(li.Contract_Term_Years) === 0)) {
+            return 'You do not have permission to set custom prices on line items.';
+          }
         }
       }
     }
@@ -143,12 +210,12 @@ async function enforceToolRBAC(
  * This is the critical enforcement for the AI chat — it prevents the AI from ever
  * seeing accounts belonging to other resellers, blocking the entire invoice flow.
  */
-function filterResultsForRBAC(
+async function filterResultsForRBAC(
   user: AuthUser,
   toolName: string,
   args: Record<string, unknown>,
   result: unknown
-): unknown {
+): Promise<unknown> {
   const moduleName = String(args.module || '');
   const scope = MODULE_SCOPES[moduleName];
 
@@ -167,9 +234,19 @@ function filterResultsForRBAC(
         const parsed = JSON.parse(item.text);
         if (!parsed.data || !Array.isArray(parsed.data)) continue;
 
+        // Records scoped through an account need those accounts resolved
+        // before anything can be judged. Done once for the whole page.
+        let allowedAccounts: Set<string> | undefined;
+        if (scope.kind === 'via-account') {
+          const accountIds = (parsed.data as Record<string, unknown>[])
+            .map(record => scopingAccountId(scope, record))
+            .filter((id): id is string => !!id);
+          allowedAccounts = await visibleAccountIds(user, accountIds);
+        }
+
         const originalCount = parsed.data.length;
         parsed.data = parsed.data.filter((record: Record<string, unknown>) =>
-          recordInScope(user, scope, record)
+          recordInScope(user, scope, record, allowedAccounts)
         );
 
         if (parsed.data.length === 0 && originalCount > 0) {
@@ -400,7 +477,7 @@ export async function POST(request: NextRequest) {
               // nothing is refused upstream, and skipping the filter for one
               // would have returned every record unscoped.
               if (!isAdmin(authUser)) {
-                result = filterResultsForRBAC(authUser, toolCall.function.name, args, result);
+                result = await filterResultsForRBAC(authUser, toolCall.function.name, args, result);
               }
 
               return {
