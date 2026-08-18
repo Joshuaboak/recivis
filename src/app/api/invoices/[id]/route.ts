@@ -12,6 +12,9 @@ import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin, canManageReseller } from '@/lib/api-auth';
 
+/** Statuses past which an order is committed and stops accepting portal edits. */
+const LOCKED_STATUSES = ['Approved', 'Sent'];
+
 /**
  * GET /api/invoices/[id] — get invoice detail with line items
  * Line items are embedded in the invoice record as Product_Details.
@@ -86,15 +89,28 @@ export async function PATCH(
   const { id } = await params;
 
   try {
-    // RBAC: Fetch invoice first to check ownership
+    // The current record drives both the ownership check and the lock below,
+    // so it is fetched for everyone rather than only for non-admins.
+    const checkResult = await executeZohoTool('get_record', { module: 'Invoices', record_id: id });
+    const existing = parseMcpResult(checkResult).data[0] as Record<string, unknown> | undefined;
+
     if (!isAdmin(user)) {
-      const checkResult = await executeZohoTool('get_record', { module: 'Invoices', record_id: id });
-      const checkData = parseMcpResult(checkResult);
-      const existing = checkData.data[0] as Record<string, unknown> | undefined;
       const resId = (existing?.Reseller as { id?: string })?.id;
       if (!resId || !canManageReseller(user, resId)) {
         return NextResponse.json({ error: 'This invoice belongs to another reseller' }, { status: 403 });
       }
+    }
+
+    // An approved order is locked: it has been committed, licence keys may
+    // already exist against it, and the money is settled off its totals.
+    // CSA staff keep a way in for corrections, everyone else goes through the
+    // CRM. LOCKED_STATUSES also covers Sent, which is only reachable via
+    // approval.
+    const currentStatus = (existing?.Status as string) || '';
+    if (LOCKED_STATUSES.includes(currentStatus) && !isAdmin(user)) {
+      return NextResponse.json({
+        error: `This order is ${currentStatus.toLowerCase()} and can no longer be changed.`,
+      }, { status: 409 });
     }
 
     const body = await request.json();

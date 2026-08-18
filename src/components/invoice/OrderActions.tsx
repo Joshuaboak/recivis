@@ -186,13 +186,12 @@ export default function OrderActions({
         closeDialog();
         setLoading(true);
         try {
-          const res = await fetch(`/api/invoices/${selectedInvoiceId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ Send_Invoice: true }),
-          });
+          // Goes through the CSA send function rather than writing
+          // Send_Invoice directly, so the order is validated against its
+          // reseller first and a second press resends instead of no-opping.
+          const res = await fetch(`/api/invoices/${selectedInvoiceId}/send`, { method: 'POST' });
+          const data = await res.json();
           if (!res.ok) {
-            const data = await res.json();
             setError(data.error || 'Failed to send order');
           } else {
             onRefresh();

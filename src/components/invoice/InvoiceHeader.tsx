@@ -43,6 +43,14 @@ interface InvoiceHeaderProps {
   onCancelEdit: () => void;
   /** Save all pending changes */
   onSave: () => void;
+  /** Approve the order — sets Status to Approved and fires the CRM workflows. */
+  onApprove: () => void;
+  /** Send the order to its recipient via the CSA send function. */
+  onSend: () => void;
+  /** An approve request is in flight. */
+  approving: boolean;
+  /** A send request is in flight. */
+  sending: boolean;
 }
 
 /** Colour class for invoice status badges */
@@ -74,6 +82,10 @@ export default function InvoiceHeader({
   onEdit,
   onCancelEdit,
   onSave,
+  onApprove,
+  onSend,
+  approving,
+  sending,
 }: InvoiceHeaderProps) {
   const crmLink = `https://crm.zoho.com.au/crm/org7002802215/tab/Invoices/${selectedInvoiceId}`;
   const isEditor = user?.role === 'admin' || user?.role === 'ibm';
@@ -134,30 +146,26 @@ export default function InvoiceHeader({
             const canSend = isEditor || user?.permissions?.canSendInvoices;
             return (
               <>
-                {/* TODO: neither button is wired yet. PATCH /api/invoices/[id] already
-                    accepts { Status: 'Approved' } and { Status: 'Sent', Send_Invoice: true }
-                    and enforces the matching permission, so this needs onApprove/onSend
-                    props from InvoiceDetailView plus a confirm step on Send. Disabled
-                    until then — a live-looking button that silently does nothing is worse
-                    than one that says it is not ready. */}
                 {canApprove ? (
                   <button
-                    disabled
-                    title="Not yet implemented"
-                    className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl transition-colors cursor-not-allowed opacity-40"
+                    onClick={onApprove}
+                    disabled={approving || sending}
+                    title="Approve this order and generate licence keys"
+                    className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <CheckCircle2 size={14} />
-                    Approve
+                    {approving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    {approving ? 'Approving...' : 'Approve'}
                   </button>
                 ) : null}
                 {canSend ? (
                   <button
-                    disabled
-                    title="Not yet implemented"
-                    className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-highlight bg-csa-accent/10 border border-csa-accent/30 rounded-xl transition-colors cursor-not-allowed opacity-40"
+                    onClick={onSend}
+                    disabled={approving || sending}
+                    title="Send this order to its recipient"
+                    className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-highlight bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <Send size={14} />
-                    Send Order
+                    {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    {sending ? 'Sending...' : 'Send Order'}
                   </button>
                 ) : null}
               </>
