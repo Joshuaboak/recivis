@@ -275,6 +275,7 @@ export default function LeadsView() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                data-tour="leads-search"
                 placeholder="Search leads by name, email, or company..."
                 className="w-full bg-surface border-2 border-border-subtle pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
               />
@@ -385,7 +386,7 @@ export default function LeadsView() {
         {/* Leads list */}
         {!loading && paginatedLeads.length > 0 && (
           <div className="border border-border-subtle rounded-xl overflow-x-auto">
-            <table className="w-full min-w-[900px]">
+            <table data-tour="leads-results" className="w-full min-w-[900px]">
               <thead>
                 <tr className="bg-surface-raised">
                   <th>Name</th>

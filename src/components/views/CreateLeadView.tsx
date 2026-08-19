@@ -304,7 +304,7 @@ export default function CreateLeadView() {
           <h1 className="text-2xl font-bold text-text-primary mb-6">Create Lead</h1>
 
           {/* Contact Information */}
-          <div className="bg-surface border border-border-subtle rounded-xl p-5 mb-5">
+          <div data-tour="lead-form" className="bg-surface border border-border-subtle rounded-xl p-5 mb-5">
             <h2 className="text-sm font-bold text-text-primary mb-4 flex items-center gap-2">
               <User size={15} className="text-csa-accent" /> Contact Information
             </h2>
@@ -482,7 +482,7 @@ export default function CreateLeadView() {
               className="px-4 py-2.5 text-sm font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl hover:text-text-primary transition-colors cursor-pointer">
               Cancel
             </button>
-            <button onClick={handleSubmit} disabled={saving || !canSubmit}
+            <button data-tour="lead-create-submit" onClick={handleSubmit} disabled={saving || !canSubmit}
               className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-40">
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               Create Lead

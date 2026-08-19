@@ -205,7 +205,7 @@ export default function PartnerReportsView() {
 
         {/* Controls */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
-          <div className="flex gap-1 p-1 bg-surface border border-border-subtle rounded-xl">
+          <div data-tour="partner-report-tabs" className="flex gap-1 p-1 bg-surface border border-border-subtle rounded-xl">
             {([
               { key: 'statement', label: 'Monthly Statement' },
               { key: 'schedule', label: 'Billing Schedule' },

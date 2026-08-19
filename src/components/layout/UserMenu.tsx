@@ -166,6 +166,7 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
       </AnimatePresence>
 
       <button
+        data-tour="user-menu"
         onClick={() => setMenuOpen(!menuOpen)}
         className="w-full flex items-center gap-3 px-3 py-3 hover:bg-surface-raised rounded-xl transition-colors cursor-pointer group"
       >

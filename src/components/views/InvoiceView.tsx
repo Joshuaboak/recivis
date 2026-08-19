@@ -141,7 +141,7 @@ export default function InvoiceView() {
       </div>
 
       {/* Chat with quick actions */}
-      <div className="flex-1 overflow-hidden">
+      <div data-tour="order-assistant-chat" className="flex-1 overflow-hidden">
         <ChatInterface
           initialMessage="New product or renewal? Give me an email address, contact name or account name and I'll get started."
           placeholder="Enter an email, contact name, or account name..."

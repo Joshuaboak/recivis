@@ -677,6 +677,7 @@ export default function LeadDetailView({
                    caption's width. */
                 <div className="relative group/convert">
                   <button
+                    data-tour="lead-convert"
                     onClick={() => setShowConvertConfirm(true)}
                     disabled={converting}
                     className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-50"
@@ -1004,7 +1005,7 @@ export default function LeadDetailView({
           <InfoCard label="Email Domain" value={account.Email_Domain as string || '\u2014'} icon={<Mail size={14} />} />
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-8">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-8" data-tour="lead-evaluations">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
               <Beaker size={18} className="text-success" />

@@ -267,6 +267,7 @@ export default function DraftInvoicesView() {
                 type="text"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
+                data-tour="orders-search"
                 placeholder="Search by order #, subject, or account..."
                 className="w-full bg-surface border-2 border-border-subtle pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
               />
@@ -370,7 +371,7 @@ export default function DraftInvoicesView() {
         {/* Invoice table */}
         {!loading && paginatedInvoices.length > 0 && (
           <div className="border border-border-subtle rounded-xl overflow-x-auto">
-            <table className="w-full min-w-[700px]">
+            <table data-tour="orders-results" className="w-full min-w-[700px]">
               <thead>
                 <tr className="bg-surface-raised">
                   <SortHeader label="Order #" field="Reference_Number" sortField={sortField} sortDir={sortDir} onSort={handleSort} />

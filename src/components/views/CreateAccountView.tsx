@@ -383,6 +383,7 @@ export default function CreateAccountView() {
             <p className="text-sm text-text-muted mt-1">Create a new customer account with a primary contact</p>
           </div>
           <button
+            data-tour="account-create-submit"
             onClick={handleSave}
             disabled={saving || !isValid}
             className="flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -410,7 +411,7 @@ export default function CreateAccountView() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <AlertTriangle size={16} className="text-warning" />
-                <span className="text-sm font-semibold text-warning">Possible duplicates found</span>
+                <span data-tour="account-duplicates" className="text-sm font-semibold text-warning">Possible duplicates found</span>
               </div>
               <button onClick={() => setShowDuplicateWarning(false)} className="p-1 text-text-muted hover:text-text-primary transition-colors cursor-pointer">
                 <X size={14} />

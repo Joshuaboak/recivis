@@ -425,3 +425,49 @@ tr:hover td { background: var(--row-hover); }
 .driver-popover.recivis-tour .driver-popover-arrow {
   border-color: var(--surface-card);
 }
+
+/* --- Guided tutorial overlay -------------------------------------------
+   driver.js dims the page; this blurs it as well, so the highlighted control
+   is the only thing the eye can read. The hole is cut with two mask layers
+   (whole screen XOR the target rect) rather than by stacking a second element
+   on top, so the target is genuinely untouched rather than covered by
+   something pretending to be transparent.
+   Sits under driver's popover (z-index 10000) and over the app. */
+.recivis-tour-blur {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background: rgb(0 0 0 / 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.recivis-tour-blur--hole {
+  --tour-hole-x: 0px;
+  --tour-hole-y: 0px;
+  --tour-hole-w: 0px;
+  --tour-hole-h: 0px;
+  -webkit-mask-image: linear-gradient(#000, #000), linear-gradient(#000, #000);
+  mask-image: linear-gradient(#000, #000), linear-gradient(#000, #000);
+  -webkit-mask-position: 0 0, var(--tour-hole-x) var(--tour-hole-y);
+  mask-position: 0 0, var(--tour-hole-x) var(--tour-hole-y);
+  -webkit-mask-size: 100% 100%, var(--tour-hole-w) var(--tour-hole-h);
+  mask-size: 100% 100%, var(--tour-hole-w) var(--tour-hole-h);
+  -webkit-mask-repeat: no-repeat, no-repeat;
+  mask-repeat: no-repeat, no-repeat;
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* The ring around the target. Separate element so it can sit above the blur
+   without being masked out with it. */
+.recivis-tour-ring {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent), 0 0 18px rgb(0 0 0 / 0.35);
+  transition: left 120ms ease, top 120ms ease, width 120ms ease, height 120ms ease;
+}

@@ -296,7 +296,7 @@ export default function ReportsDashboardView() {
         {/* OVERVIEW */}
         {tab === 'overview' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div data-tour="reports-cards" className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <ClickCard label="New Accounts" value={aggregated.accounts} icon={Building2} color="text-csa-accent"
                 prev={prev?.accounts} curr={curr?.accounts} onClick={() => setTab('accounts')} />
               <ClickCard label="New Leads" value={aggregated.leads + aggregated.prospects} icon={UserSearch} color="text-success"

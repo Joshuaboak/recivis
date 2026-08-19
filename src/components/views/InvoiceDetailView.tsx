@@ -1112,6 +1112,7 @@ export default function InvoiceDetailView({
         </InlineEditFieldProvider>
 
         {/* Purchase Order */}
+        <div data-tour="order-po">
         <InvoicePurchaseOrder
           invoice={invoice}
           status={status}
@@ -1126,8 +1127,10 @@ export default function InvoiceDetailView({
           onSavePO={savePO}
           onFileUpload={handleFileUpload}
         />
+        </div>
 
         {/* Send To toggle */}
+        <div data-tour="order-send-to">
         <InvoiceSendTo
           invoice={invoice}
           status={status}
@@ -1135,6 +1138,7 @@ export default function InvoiceDetailView({
           onToggleDirectPurchase={toggleDirectPurchase}
           allowDirectCustomer={!!user?.permissions?.canDirectCustomerComms}
         />
+        </div>
 
         {/* Payment Information */}
         <InvoicePayment
@@ -1170,6 +1174,7 @@ export default function InvoiceDetailView({
 
         {/* Order Action Buttons (Pay Now / Pay Later / Place Order) */}
         {!editing && (
+          <div data-tour="order-actions">
           <OrderActions
             invoice={invoice}
             status={status}
@@ -1188,9 +1193,11 @@ export default function InvoiceDetailView({
                 .catch(() => {});
             }}
           />
+          </div>
         )}
 
         {/* Coupon */}
+        <div data-tour="order-coupon">
         <InvoiceCoupon
           canApply={!!canApplyCoupon}
           couponCode={couponCode}
@@ -1200,6 +1207,7 @@ export default function InvoiceDetailView({
           onChangeCouponCode={(v) => { setCouponCode(v); setCouponError(null); }}
           onApplyCoupon={applyCoupon}
         />
+        </div>
 
         {/* Totals */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-8">

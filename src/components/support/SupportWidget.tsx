@@ -89,6 +89,7 @@ export default function SupportWidget() {
     <>
       {/* Launcher */}
       <button
+        data-tour="support-launcher"
         onClick={() => setOpen(o => !o)}
         aria-label={open ? 'Close the support assistant' : 'Open the support assistant'}
         className="fixed bottom-6 right-6 z-40 w-12 h-12 flex items-center justify-center bg-csa-accent text-white rounded-full shadow-lg hover:opacity-90 transition-opacity cursor-pointer"
