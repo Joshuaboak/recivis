@@ -18,6 +18,9 @@
 import { getMcpEndpoint } from './zoho-mcp-auth';
 import { log } from './logger';
 import { MAX_ZOHO_PAGES } from './constants';
+import { callZohoFunction } from './zoho-functions';
+import { DemoWriteBlockedError, isMutatingTool } from './demo/guard';
+import { currentRequestIsDemo } from './request-context';
 
 // --- MCP Session State ---
 // These are module-level singletons — one active MCP session per server process.
@@ -138,6 +141,15 @@ export async function callMcpTool(
   toolName: string,
   args: Record<string, unknown>
 ): Promise<unknown> {
+  // The demo backstop. Every MCP write in the app funnels through here, so a
+  // practice session is stopped at the transport rather than relying on each
+  // route to remember. Throws rather than no-ops: silently discarding a write
+  // would leave the caller believing it succeeded.
+  if (isMutatingTool(toolName) && currentRequestIsDemo()) {
+    log('warn', 'mcp', `Blocked ${toolName} from a demo session`);
+    throw new DemoWriteBlockedError(toolName);
+  }
+
   try {
     await ensureInitialized();
     return await mcpRequest('tools/call', {
@@ -353,13 +365,11 @@ export async function executeZohoTool(
       // Passes asset IDs as a triple-pipe-delimited string — Deluge convention.
       const assetIds = args.asset_ids as string[];
       const assetIDString = assetIds.join('|||');
-      const zapikey = process.env.ZOHO_API_KEY;
-      if (!zapikey) throw new Error('ZOHO_API_KEY not set');
-      const url = `https://www.zohoapis.com.au/crm/v2/functions/generaterenewalinvoicesforassets/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${encodeURIComponent(
-        JSON.stringify({ buttonPusher: 'claude', assetIDString })
-      )}`;
-      const res = await fetch(url, { method: 'POST' });
-      return res.json();
+      return callZohoFunction(
+        'generaterenewalinvoicesforassets',
+        { buttonPusher: 'claude', assetIDString },
+        { version: 'v2' }
+      );
     }
 
     default:

@@ -19,19 +19,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin, canManageReseller } from '@/lib/api-auth';
+import { callZohoFunction, functionOutput } from '@/lib/zoho-functions';
 
 /** The only string the Deluge function returns on success. */
 const SUCCESS_MARKER = 'has been successfully marked to be sent';
-
-/**
- * Pull the function's return string out of the REST wrapper.
- * Shape is { details: { output: "..." }, code, message }.
- */
-function functionOutput(result: unknown): string {
-  const output = (result as { details?: { output?: unknown } })?.details?.output;
-  if (typeof output === 'string') return output;
-  return JSON.stringify(result ?? '');
-}
 
 export async function POST(
   request: NextRequest,
@@ -64,16 +55,7 @@ export async function POST(
       }
     }
 
-    const zapikey = process.env.ZOHO_API_KEY;
-    if (!zapikey) {
-      return NextResponse.json({ error: 'ZOHO_API_KEY not configured' }, { status: 500 });
-    }
-
-    const args = encodeURIComponent(JSON.stringify({ invoiceID: id }));
-    const url = `https://www.zohoapis.com.au/crm/v7/functions/markSendInvoiceCheckbox/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${args}`;
-
-    const res = await fetch(url, { method: 'POST' });
-    const result = await res.json();
+    const result = await callZohoFunction('markSendInvoiceCheckbox', { invoiceID: id });
     const output = functionOutput(result);
 
     // Failures come back as prose: "ERROR ...", or a validation message passed

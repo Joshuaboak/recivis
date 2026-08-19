@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { query, initDB } from './db';
+import { setRequestContext } from './request-context';
 import type { UserPermissions } from './types';
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -35,6 +36,12 @@ export interface AuthUser {
   resellerRegion: string | null;
   permissions: UserPermissions;
   allowedResellerIds: string[];
+  /**
+   * A practice account. Reads its partner's real data; every write is served
+   * from fixtures and blocked before it can reach Zoho. Server-derived only —
+   * see lib/demo/guard.ts.
+   */
+  isDemo: boolean;
 }
 
 /**
@@ -59,7 +66,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
     await initDB();
 
     const result = await query(
-      `SELECT u.id, u.email, u.name, u.reseller_id, u.is_active,
+      `SELECT u.id, u.email, u.name, u.reseller_id, u.is_active, u.is_demo,
               ur.name AS user_role_name,
               ur.can_create_invoices AS ur_create, ur.can_approve_invoices AS ur_approve,
               ur.can_send_invoices AS ur_send, ur.can_modify_prices AS ur_price,
@@ -158,6 +165,10 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
       resellerRegion: row.reseller_region || null,
       permissions,
       allowedResellerIds,
+      // Never from the request. A client-supplied demo flag would let anyone
+      // claim it to dodge permission checks, or clear it to make a practice
+      // account write for real.
+      isDemo: row.is_demo === true,
     };
   } catch {
     return null;
@@ -172,6 +183,9 @@ export async function requireAuth(request: NextRequest): Promise<AuthUser | Next
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
+  // Seed the async-local context so the Zoho transport can refuse writes from
+  // a demo session without every route having to pass an actor down.
+  setRequestContext({ userId: user.userId, email: user.email, isDemo: user.isDemo });
   return user;
 }
 

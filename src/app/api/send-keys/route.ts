@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
 import { log } from '@/lib/logger';
+import { callZohoFunction } from '@/lib/zoho-functions';
 
 export async function POST(request: NextRequest) {
   const authResult = await requireAuth(request);
@@ -34,24 +35,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'sendToCustomer boolean is required' }, { status: 400 });
     }
 
-    const zapikey = process.env.ZOHO_API_KEY;
-    if (!zapikey) {
-      return NextResponse.json({ error: 'ZOHO_API_KEY not configured' }, { status: 500 });
-    }
-
     const assetIDString = assetIds.join('|||');
 
-    const url = `https://www.zohoapis.com.au/crm/v7/functions/sendkeyemail/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${encodeURIComponent(
-      JSON.stringify({
-        crmAPIRequest: '',
-        invoiceID: '',
-        assetIDString,
-        sendToCustomer,
-      })
-    )}`;
-
-    const res = await fetch(url, { method: 'POST' });
-    const result = await res.json();
+    const result = await callZohoFunction('sendkeyemail', {
+      crmAPIRequest: '',
+      invoiceID: '',
+      assetIDString,
+      sendToCustomer,
+    });
 
     log('info', 'api', 'Send keys email triggered', {
       assetCount: assetIds.length,

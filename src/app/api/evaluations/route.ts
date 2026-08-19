@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
 import { executeZohoTool, parseMcpResult, callMcpTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { callZohoFunction } from '@/lib/zoho-functions';
 
 export async function POST(request: NextRequest) {
   const authResult = await requireAuth(request);
@@ -125,18 +126,11 @@ export async function POST(request: NextRequest) {
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     // Step 2: Call QLM function to generate the real licence
-    const zapikey = process.env.ZOHO_API_KEY;
-    if (!zapikey) {
-      return NextResponse.json({ error: 'ZOHO_API_KEY not configured' }, { status: 500 });
-    }
+    log('info', 'api', 'Calling QLM function', { assetID: placeholderAssetId });
 
-    const qlmArgs = JSON.stringify({ assetID: placeholderAssetId });
-    const qlmUrl = `https://www.zohoapis.com.au/crm/v7/functions/qlminterfacemasspushkeydetails/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${encodeURIComponent(qlmArgs)}`;
-
-    log('info', 'api', 'Calling QLM function', { assetID: placeholderAssetId, args: qlmArgs });
-
-    const qlmRes = await fetch(qlmUrl, { method: 'POST' });
-    const qlmResult = await qlmRes.json();
+    const qlmResult = await callZohoFunction('qlminterfacemasspushkeydetails', {
+      assetID: placeholderAssetId,
+    });
 
     log('info', 'api', 'QLM evaluation licence generated', {
       placeholderId: placeholderAssetId,

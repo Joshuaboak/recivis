@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin, type AuthUser } from '@/lib/api-auth';
+import { assertNotDemo } from '@/lib/demo/guard';
 import { cacheInvalidatePattern } from '@/lib/cache';
 
 /** Check if a non-admin user is allowed to view this coupon based on restrictions. */
@@ -97,6 +98,9 @@ export async function PATCH(
   if (!isAdmin(user)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+
+  // Written over plain REST, so the MCP backstop never sees it.
+  assertNotDemo(user, 'update coupon');
 
   const { id } = await params;
   try {

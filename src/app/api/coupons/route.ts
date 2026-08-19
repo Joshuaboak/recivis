@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllRecordPages } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin, type AuthUser } from '@/lib/api-auth';
+import { assertNotDemo } from '@/lib/demo/guard';
 import { cacheGet, cacheSet, cacheInvalidatePattern } from '@/lib/cache';
 
 /** Filter coupons by region and partner restrictions for non-admin users. */
@@ -109,6 +110,10 @@ export async function POST(request: NextRequest) {
   if (!isAdmin(user)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+
+  // Coupons are written over plain REST rather than MCP, so the transport
+  // backstop in callMcpTool never sees them and the guard is stated here.
+  assertNotDemo(user, 'create coupon');
 
   try {
     const body = await request.json();

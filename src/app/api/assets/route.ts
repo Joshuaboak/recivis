@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { callZohoFunction } from '@/lib/zoho-functions';
 import { requireAuth } from '@/lib/api-auth';
 
 /**
@@ -159,15 +160,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'assetId required' }, { status: 400 });
     }
 
-    const zapikey = process.env.ZOHO_API_KEY;
-    if (!zapikey) return NextResponse.json({ error: 'ZOHO_API_KEY not configured' }, { status: 500 });
-
-    const url = `https://www.zohoapis.com.au/crm/v7/functions/qlminterfacereleaselicense/actions/execute?auth_type=apikey&zapikey=${zapikey}&arguments=${encodeURIComponent(
-      JSON.stringify({ assetID: assetId })
-    )}`;
-
-    const res = await fetch(url, { method: 'POST' });
-    const result = await res.json();
+    const result = await callZohoFunction('qlminterfacereleaselicense', { assetID: assetId });
 
     let message = 'Licence released';
     if (result?.details?.output) {

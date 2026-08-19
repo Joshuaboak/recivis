@@ -206,6 +206,12 @@ export async function initDB() {
 
       CREATE INDEX IF NOT EXISTS idx_user_prefs_user ON user_preferences(user_id);
 
+      -- Demo accounts practise against fixtures and never write to the live
+      -- CRM. Deliberately a property of the user row rather than a session
+      -- toggle: a real partner must not be one flag away from a demo session,
+      -- or a demo one flag away from writing for real.
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT false;
+
       -- ============================================================
       -- PERMISSION OVERRIDES on resellers table
       -- NULL = use reseller_role default, true/false = override
