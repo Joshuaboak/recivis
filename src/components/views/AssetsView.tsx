@@ -8,8 +8,12 @@
  *
  * Assets are individual records in Zoho but partners think in customers, so
  * every scope renders as a list of accounts with their assets nested inside.
- * Read-only throughout: the only action is renewing a monthly subscription,
- * and everything else links out to the account or the asset detail modal.
+ *
+ * Two actions live here. Renewing a monthly subscription, and — on the two
+ * renewal views — raising a renewal order for selected licences, the same
+ * call the customer page makes. Selection is per customer rather than across
+ * the page: a renewal order belongs to one customer, so letting somebody tick
+ * licences from three of them would only produce a failure further down.
  */
 
 'use client';
@@ -18,10 +22,11 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Package, Loader2, Search, ChevronDown, ChevronRight, RefreshCw,
-  AlertTriangle, CalendarClock, Building2, Eye,
+  AlertTriangle, CalendarClock, Building2, Eye, FileText,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { GuardedLink } from '@/components/GuardedLink';
 import AssetDetailModal from '../AssetDetailModal';
 import RenewMonthlySubscriptionsModal, { type RenewableSubscription } from '../RenewMonthlySubscriptionsModal';
@@ -45,6 +50,8 @@ interface AssetRow {
   isMonthlySubscription: boolean;
   isPerpetualPlan: boolean;
   isEvaluation: boolean;
+  /** Why this licence cannot be renewed, or null when it can. */
+  renewalBlockedReason: string | null;
 }
 
 interface AccountGroup {
@@ -104,8 +111,12 @@ function relativeDays(days: number | null): string {
   return `${past} day${past === 1 ? '' : 's'} ago`;
 }
 
+/** Shared empty set, so an unticked group does not allocate one per render. */
+const EMPTY_SELECTION: Set<string> = new Set();
+
 export default function AssetsView({ scope }: { scope: AssetScope }) {
   const { user } = useAppStore();
+  const router = useGuardedRouter();
   const meta = SCOPE_META[scope];
 
   const [groups, setGroups] = useState<AccountGroup[]>([]);
@@ -118,6 +129,10 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
   const [viewingAsset, setViewingAsset] = useState<Record<string, unknown> | null>(null);
   const [renewing, setRenewing] = useState<RenewableSubscription[] | null>(null);
   const [notice, setNotice] = useState('');
+  /** Ticked licences, by customer. Cleared whenever the list reloads. */
+  const [selected, setSelected] = useState<Record<string, Set<string>>>({});
+  /** The customer whose renewal is being generated, so only its button spins. */
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -127,6 +142,7 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
       .then(data => {
         if (data.error) { setError(data.error); return; }
         setGroups(data.groups || []);
+        setSelected({});
       })
       .catch(() => setError('Failed to load assets'))
       .finally(() => setLoading(false));
@@ -178,6 +194,74 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
 
   const canRenew = !!user?.permissions?.canMonthlySubscriptions;
 
+  /**
+   * Renewal orders are only offered on the two renewal views. On All Assets
+   * the list is the whole estate and mostly not due, so a column of ticks
+   * there is noise; the customer page is the place for a one-off.
+   */
+  const canGenerateRenewals =
+    (scope === 'renewals' || scope === 'expired') && !!user?.permissions?.canCreateInvoices;
+
+  const selectedIn = (accountId: string): Set<string> => selected[accountId] ?? EMPTY_SELECTION;
+
+  const toggleAsset = (accountId: string, assetId: string) => {
+    setSelected(prev => {
+      const current = new Set(prev[accountId] ?? []);
+      if (current.has(assetId)) current.delete(assetId);
+      else current.add(assetId);
+      return { ...prev, [accountId]: current };
+    });
+  };
+
+  /** Tick or clear every renewable licence in one customer's group. */
+  const toggleGroupSelection = (group: AccountGroup) => {
+    const renewable = group.assets.filter(a => !a.renewalBlockedReason).map(a => a.id);
+    setSelected(prev => {
+      const current = prev[group.accountId] ?? EMPTY_SELECTION;
+      const allOn = renewable.length > 0 && renewable.every(id => current.has(id));
+      return { ...prev, [group.accountId]: new Set(allOn ? [] : renewable) };
+    });
+  };
+
+  /**
+   * Raise the renewal order and open it.
+   *
+   * Same endpoint the customer page uses, so the pricing, dates and order type
+   * are whatever CSA's renewal function decides — this is a second way in, not
+   * a second implementation.
+   */
+  const generateRenewal = async (accountId: string) => {
+    const assetIds = Array.from(selectedIn(accountId));
+    if (assetIds.length === 0 || generatingFor) return;
+
+    setGeneratingFor(accountId);
+    setNotice('');
+    try {
+      const res = await fetch('/api/renewals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asset_ids: assetIds }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setNotice(data.error || 'Could not generate the renewal.');
+      } else if (data.invoiceId) {
+        router.push(buildPath('invoice-detail', data.invoiceId));
+        return;
+      } else {
+        // The renewal function reported success without an order id. It may
+        // still have created one, so say so plainly rather than implying
+        // nothing happened.
+        setNotice('The renewal was submitted but no order came back. Check the customer before trying again.');
+        setSelected(prev => ({ ...prev, [accountId]: new Set() }));
+        load();
+      }
+    } catch {
+      setNotice('Could not generate the renewal. Please try again.');
+    }
+    setGeneratingFor(null);
+  };
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-6">
@@ -198,6 +282,7 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
+              data-tour="assets-search"
               placeholder="Search account, product or key..."
               className="w-full bg-surface border-2 border-border-subtle pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-xl"
             />
@@ -255,10 +340,14 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
             <p className="text-sm text-text-muted">{meta.empty}</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div data-tour="assets-groups" className="space-y-3">
             {filtered.map((group, i) => {
               const isCollapsed = collapsed.has(group.accountId);
               const renewables = group.assets.filter(a => a.isMonthlySubscription).map(toRenewable);
+              const groupSelection = selectedIn(group.accountId);
+              const renewableIds = group.assets.filter(a => !a.renewalBlockedReason).map(a => a.id);
+              const allSelected =
+                renewableIds.length > 0 && renewableIds.every(id => groupSelection.has(id));
 
               return (
                 <motion.div
@@ -292,10 +381,24 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
                         &bull; next renewal {formatDate(group.nextRenewal)}
                       </span>
                     )}
+                    {canGenerateRenewals && groupSelection.size > 0 && (
+                      <button
+                        onClick={() => generateRenewal(group.accountId)}
+                        disabled={generatingFor !== null}
+                        className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-success bg-success/10 border border-success/30 rounded-lg hover:bg-success/20 transition-colors cursor-pointer flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {generatingFor === group.accountId
+                          ? <Loader2 size={12} className="animate-spin" />
+                          : <FileText size={12} />}
+                        {generatingFor === group.accountId
+                          ? 'Generating...'
+                          : `Generate Renewal (${groupSelection.size})`}
+                      </button>
+                    )}
                     {canRenew && renewables.length > 0 && (
                       <button
                         onClick={() => setRenewing(renewables)}
-                        className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-lg hover:bg-csa-accent/20 transition-colors cursor-pointer flex-shrink-0"
+                        className={`${canGenerateRenewals && groupSelection.size > 0 ? '' : 'ml-auto '}flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-lg hover:bg-csa-accent/20 transition-colors cursor-pointer flex-shrink-0`}
                       >
                         <RefreshCw size={12} /> Renew all ({renewables.length})
                       </button>
@@ -308,6 +411,18 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
                       <table className="w-full min-w-[720px]">
                         <thead>
                           <tr className="bg-surface text-left">
+                            {canGenerateRenewals && (
+                              <th className="pl-4 pr-1 py-2 w-8">
+                                <input
+                                  type="checkbox"
+                                  checked={allSelected}
+                                  onChange={() => toggleGroupSelection(group)}
+                                  disabled={renewableIds.length === 0}
+                                  aria-label={`Select all renewable licences for ${group.accountName}`}
+                                  className="accent-csa-accent cursor-pointer disabled:cursor-not-allowed"
+                                />
+                              </th>
+                            )}
                             <th className="px-4 py-2 text-[10px] font-bold text-text-muted uppercase tracking-wider">Product</th>
                             <th className="px-4 py-2 text-[10px] font-bold text-text-muted uppercase tracking-wider">Qty</th>
                             <th className="px-4 py-2 text-[10px] font-bold text-text-muted uppercase tracking-wider">Status</th>
@@ -322,6 +437,19 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
                             const soon = asset.daysToRenewal !== null && asset.daysToRenewal >= 0 && asset.daysToRenewal <= 14;
                             return (
                               <tr key={asset.id} className="border-t border-border-subtle hover:bg-csa-accent/5 transition-colors">
+                                {canGenerateRenewals && (
+                                  <td className="pl-4 pr-1 py-2.5">
+                                    <input
+                                      type="checkbox"
+                                      checked={groupSelection.has(asset.id)}
+                                      onChange={() => toggleAsset(group.accountId, asset.id)}
+                                      disabled={!!asset.renewalBlockedReason}
+                                      title={asset.renewalBlockedReason || 'Select for renewal'}
+                                      aria-label={`Select ${asset.productName || asset.name} for renewal`}
+                                      className="accent-csa-accent cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                                    />
+                                  </td>
+                                )}
                                 <td className="px-4 py-2.5 text-sm text-text-primary">
                                   {asset.productName || asset.name}
                                   {asset.isMonthlySubscription && (

@@ -40,6 +40,7 @@ import AssetDetailModal from '../AssetDetailModal';
 import CreateEvaluationModal from '../CreateEvaluationModal';
 import CreateMonthlySubscriptionModal from '../CreateMonthlySubscriptionModal';
 import RenewMonthlySubscriptionsModal, { type RenewableSubscription } from '../RenewMonthlySubscriptionsModal';
+import { isRenewable, renewalBlockReason, renewabilityOf } from '@/lib/renewal-eligibility';
 import { MONTHLY_SUBSCRIPTION_TAG, PERPETUAL_PLAN_TAG } from '@/lib/subscriptions';
 import EmailHistory from '../EmailHistory';
 import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
@@ -231,27 +232,10 @@ export default function AccountDetailView({
     });
   };
 
-  const isEligibleForRenewal = (a: Record<string, unknown>) => {
-    if (a.Upgraded_To_Key) return false;
-    if (a.Revoked) return false;
-    const productName = ((a.Product as { name?: string })?.name || a.Name as string || '').toLowerCase();
-    if (a.Evaluation_License || productName.includes('evaluation')) return false;
-    if (a.Educational_License || productName.includes('educational')) return false;
-    if (productName.includes('nfr')) return false;
-    if (productName.includes('home use') && !productName.includes('civil site design plus')) return false;
-    return true;
-  };
+  const isEligibleForRenewal = (a: Record<string, unknown>) => isRenewable(renewabilityOf(a));
 
-  const getIneligibleReason = (a: Record<string, unknown>): string | null => {
-    if (a.Upgraded_To_Key) return 'Upgraded assets are not eligible for renewal';
-    if (a.Revoked) return `Revoked: ${(a.Revoked_Reason as string) || 'No reason provided'}`;
-    const productName = ((a.Product as { name?: string })?.name || a.Name as string || '').toLowerCase();
-    if (a.Evaluation_License || productName.includes('evaluation')) return 'Evaluation assets are not eligible for renewal';
-    if (a.Educational_License || productName.includes('educational')) return 'Educational assets are not eligible for renewal';
-    if (productName.includes('nfr')) return 'NFR assets are not eligible for renewal';
-    if (productName.includes('home use') && !productName.includes('civil site design plus')) return 'Home Use assets are not eligible for renewal';
-    return null;
-  };
+  const getIneligibleReason = (a: Record<string, unknown>): string | null =>
+    renewalBlockReason(renewabilityOf(a));
 
   /** Zoho returns record tags as objects; only the names matter here. */
   const assetTagNames = (a: Record<string, unknown>): string[] => {
@@ -910,7 +894,7 @@ export default function AccountDetailView({
         </InlineEditFieldProvider>
 
         {/* Contacts */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
+        <motion.div data-tour="account-contacts" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
               <User size={18} className="text-csa-accent" />
@@ -924,6 +908,7 @@ export default function AccountDetailView({
               ) : null}
               {!showAddContact ? (
                 <button
+                  data-tour="account-add-contact"
                   onClick={() => setShowAddContact(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
                 >
@@ -1150,7 +1135,7 @@ export default function AccountDetailView({
         </motion.div>
 
         {/* Evaluations */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="mb-8">
+        <motion.div data-tour="account-evaluations" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
               <Beaker size={18} className="text-success" />
@@ -1230,6 +1215,7 @@ export default function AccountDetailView({
                   </button>
                 )}
                 <button
+                  data-tour="account-new-subscription"
                   onClick={() => setShowSubscriptionModal(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
                 >
@@ -1260,6 +1246,7 @@ export default function AccountDetailView({
                   )}
                 </div>
                 <button
+                  data-tour="account-send-keys"
                   onClick={() => setSendKeysConfirm('reseller')}
                   disabled={sendingKeys || generatingRenewal}
                   className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer disabled:opacity-50"
@@ -1462,14 +1449,26 @@ export default function AccountDetailView({
         <CreateMonthlySubscriptionModal
           accountId={accountId}
           accountName={account.Account_Name as string}
-          onSuccess={(_assetId, warning) => {
+          onSuccess={(assetIds, warning) => {
             setShowSubscriptionModal(false);
-            setActionNotice(warning || 'Monthly subscription created.');
+            setActionNotice(
+              warning ||
+                `${assetIds.length} monthly ${assetIds.length === 1 ? 'subscription' : 'subscriptions'} created.`
+            );
+            // Reload before scrolling: the new licences are what they are being
+            // sent to look at, and scrolling to a stale table is worse than not
+            // scrolling at all.
             fetch(`/api/accounts/${accountId}`)
               .then(res => res.json())
               .then(data => {
                 setActiveAssets(data.activeAssets || []);
                 setArchivedAssets(data.archivedAssets || []);
+                // A frame for the table to render its new rows.
+                requestAnimationFrame(() => {
+                  document
+                    .querySelector('[data-tour="account-assets"]')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
               })
               .catch(() => {});
           }}

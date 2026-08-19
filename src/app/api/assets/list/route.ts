@@ -22,6 +22,7 @@ import { log } from '@/lib/logger';
 import { isDemoSession } from '@/lib/demo/guard';
 import { DEMO_ASSETS } from '@/lib/demo/fixtures';
 import { MONTHLY_SUBSCRIPTION_TAG, PERPETUAL_PLAN_TAG } from '@/lib/subscriptions';
+import { renewalBlockReason, renewabilityOf } from '@/lib/renewal-eligibility';
 
 /** How far ahead "due for renewal" looks, and how far back "recently expired" reaches. */
 const WINDOW_DAYS = 60;
@@ -29,7 +30,8 @@ const WINDOW_DAYS = 60;
 const ASSET_FIELDS = [
   'id', 'Name', 'Account', 'Product', 'Product_Code', 'Status', 'Quantity',
   'Serial_Key', 'Start_Date', 'Renewal_Date', 'Days_to_Renewal', 'Reseller',
-  'Evaluation_License', 'Tag', 'Asset_Type', 'Record_Status__s',
+  'Evaluation_License', 'Educational_License', 'Upgraded_To_Key', 'Revoked',
+  'Revoked_Reason', 'Tag', 'Asset_Type', 'Record_Status__s',
 ].join(',');
 
 export type AssetScope = 'all' | 'renewals' | 'expired' | 'subscriptions';
@@ -51,6 +53,8 @@ interface AssetRow {
   isMonthlySubscription: boolean;
   isPerpetualPlan: boolean;
   isEvaluation: boolean;
+  /** Why this licence cannot be renewed, or null when it can. */
+  renewalBlockedReason: string | null;
 }
 
 interface AccountGroup {
@@ -99,6 +103,10 @@ function toRow(asset: Record<string, unknown>, todayMs: number): AssetRow {
     isMonthlySubscription: tags.includes(MONTHLY_SUBSCRIPTION_TAG),
     isPerpetualPlan: tags.includes(PERPETUAL_PLAN_TAG),
     isEvaluation: asset.Evaluation_License === true,
+    // Worked out here rather than in the view: the renewal views and the
+    // customer page must agree on what is renewable, and the fields the rules
+    // read are not all sent to the browser.
+    renewalBlockedReason: renewalBlockReason(renewabilityOf(asset)),
   };
 }
 
