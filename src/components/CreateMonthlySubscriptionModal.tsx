@@ -8,6 +8,11 @@
  * has to acknowledge who is billing them and for how much before it will
  * create anything.
  *
+ * Creating takes a while — each licence is minted on the licensing server one
+ * at a time — so the confirm step hands over to a progress panel rather than
+ * leaving a spinner on a button. A partner watching a dead dialog for ninety
+ * seconds presses it again, and every press is a licence.
+ *
  * Permission-gated upstream on canMonthlySubscriptions.
  */
 
@@ -15,7 +20,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Loader2, Hash, CalendarClock, Infinity as InfinityIcon } from 'lucide-react';
+import { X, Loader2, Hash, CalendarClock, KeyRound, Infinity as InfinityIcon } from 'lucide-react';
 
 interface PriceSet {
   usdList: number;
@@ -37,7 +42,7 @@ interface MonthlyProductOption {
 interface CreateMonthlySubscriptionModalProps {
   accountId: string;
   accountName: string;
-  onSuccess: (assetId: string, warning?: string) => void;
+  onSuccess: (assetIds: string[], warning?: string) => void;
   onClose: () => void;
 }
 
@@ -121,12 +126,49 @@ export default function CreateMonthlySubscriptionModal({
         setCreating(false);
         return;
       }
-      onSuccess(data.id, data.warning);
+      onSuccess(data.ids || [], data.warning);
     } catch {
       setError('Failed to create monthly subscription');
       setCreating(false);
     }
   };
+
+  /**
+   * While it runs. The dialog cannot be closed from here on purpose: the work
+   * is happening on the licensing server whether this window is open or not,
+   * and closing it would leave somebody guessing whether it took.
+   */
+  if (creating) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="relative bg-csa-dark border border-border rounded-2xl shadow-2xl w-full max-w-sm mx-4 px-6 py-8 text-center"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="relative w-14 h-14 mx-auto mb-4">
+            <Loader2 size={56} className="text-csa-accent animate-spin absolute inset-0" />
+            <KeyRound size={20} className="text-csa-accent absolute inset-0 m-auto" />
+          </div>
+          <h2 className="text-base font-bold text-text-primary mb-1">
+            {quantity > 1 ? 'Licences being created' : 'Licence being created'}
+          </h2>
+          <p className="text-xs text-text-secondary leading-relaxed">
+            {quantity > 1
+              ? `Creating ${quantity} ${selected?.label || ''} licences for ${accountName}, one at a time.`
+              : `Creating a ${selected?.label || ''} licence for ${accountName}.`}
+          </p>
+          <p className="text-[11px] text-text-muted mt-3 leading-relaxed">
+            Each licence key is minted individually, so this can take a minute.
+            Please do not close this window or press the button again.
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto py-8">

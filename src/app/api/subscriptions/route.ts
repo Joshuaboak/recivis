@@ -6,10 +6,16 @@
  *       Zoho product for that reseller's region — Corridor EZ has no ANZ cloud
  *       SKU, for instance, so ANZ partners never see it offered.
  *
- * POST: Create the licence. Same path as an evaluation (placeholder asset ->
- *       QLM function) plus the three things that make it a subscription: the
- *       Monthly Subscription tag, the perpetual-plan tag when asked for, and
- *       Last_Renewal_Transaction stamped with today.
+ * POST: Create the licences. One placeholder asset per licence, each pushed
+ *       to QLM on its own, then the three things that make each one a
+ *       subscription: the Monthly Subscription tag, the perpetual-plan tag
+ *       when asked for, and Last_Renewal_Transaction stamped with today.
+ *
+ *       Per licence rather than in bulk because that is what the licensing
+ *       side does anyway — the mass function is a loop over the single one
+ *       with a four-and-a-half minute budget, so a batch that runs long is
+ *       silently cut short. Driving the loop here means every licence is
+ *       accounted for and a failure names which one.
  *
  * Both are gated on the Allow Monthly Subscriptions partner permission.
  */
@@ -18,7 +24,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, isAdmin, type AuthUser } from '@/lib/api-auth';
 import { executeZohoTool, parseMcpResult, callMcpTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
-import { callZohoFunction } from '@/lib/zoho-functions';
+import { callZohoFunction, functionOutput } from '@/lib/zoho-functions';
 import { cacheGet, cacheSet } from '@/lib/cache';
 import { CSA_INTERNAL_ID, CSA_ZOHO_ID } from '@/lib/constants';
 import {
@@ -256,85 +262,153 @@ export async function POST(request: NextRequest) {
     const startDate = todayIso();
     const renewalDate = addDays(startDate, SUBSCRIPTION_TERM_DAYS);
 
-    // Step 1 — placeholder asset. QLM replaces it with the real licence.
-    const createResult = await executeZohoTool('create_records', {
-      module: 'Assets1',
-      records: [{
-        Name: 'placeholder',
-        Account: { id: accountId },
-        Product: { id: resolved.id },
-        Serial_Key: String(Date.now()),
-        Quantity: qty,
-        Status: 'Active',
-        Start_Date: startDate,
-        Renewal_Date: renewalDate,
-      }],
-      trigger: [],
-    });
+    // The account's assets before any of this, so the licences QLM creates can
+    // be told apart from the ones that were already there. QLM does not return
+    // the ids of what it made when it is called this way, and it deletes the
+    // placeholder it was given, so there is nothing to follow through.
+    const assetsBefore = await accountAssetIds(accountId);
 
-    const created = (parseMcpResult(createResult).data as Record<string, unknown>[])?.[0];
-    if (!created || created.code !== 'SUCCESS') {
-      const detail = JSON.stringify(parseMcpResult(createResult).data).slice(0, 500);
-      log('error', 'api', 'Monthly subscription asset creation failed', { data: detail });
-      return NextResponse.json({ error: (created?.message as string) || detail || 'Failed to create subscription asset' }, { status: 500 });
+    // Step 1 — one placeholder per licence. Serial_Key "create" is what tells
+    // the QLM function to mint a key rather than push an existing one, and a
+    // quantity of 1 is what makes each licence its own record.
+    const placeholders: string[] = [];
+    for (let i = 0; i < qty; i++) {
+      const createResult = await executeZohoTool('create_records', {
+        module: 'Assets1',
+        records: [{
+          Name: 'placeholder',
+          Account: { id: accountId },
+          Product: { id: resolved.id },
+          Serial_Key: 'create',
+          Quantity: 1,
+          Status: 'Active',
+          Start_Date: startDate,
+          Renewal_Date: renewalDate,
+        }],
+        trigger: [],
+      });
+
+      const created = (parseMcpResult(createResult).data as Record<string, unknown>[])?.[0];
+      if (!created || created.code !== 'SUCCESS') {
+        const detail = JSON.stringify(parseMcpResult(createResult).data).slice(0, 500);
+        log('error', 'api', 'Monthly subscription placeholder creation failed', {
+          data: detail,
+          madeSoFar: placeholders.length,
+        });
+        // Placeholders already made carry no licence and would sit on the
+        // customer looking like real assets, so they go before we return.
+        await retirePlaceholders(placeholders);
+        return NextResponse.json(
+          { error: (created?.message as string) || detail || 'Failed to create subscription asset' },
+          { status: 500 }
+        );
+      }
+      placeholders.push((created.details as Record<string, unknown>)?.id as string);
     }
 
-    const placeholderAssetId = (created.details as Record<string, unknown>)?.id as string;
-    log('info', 'api', 'Placeholder monthly subscription asset created', { id: placeholderAssetId, by: user.email });
-
-    // Let Zoho commit before the Deluge function reads the record back.
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Step 2 — QLM generates the real licence and swaps out the placeholder.
-    const qlmResult = await callZohoFunction('qlminterfacemasspushkeydetails', {
-      assetID: placeholderAssetId,
-    });
-
-    log('info', 'api', 'QLM monthly subscription licence generated', {
-      placeholderId: placeholderAssetId,
-      result: JSON.stringify(qlmResult).slice(0, 300),
+    log('info', 'api', 'Monthly subscription placeholders created', {
+      count: placeholders.length,
       by: user.email,
     });
 
-    const finalAssetId = await resolveFinalAssetId(qlmResult, placeholderAssetId, accountId, resolved.id);
+    // Let Zoho commit before the Deluge function reads the records back.
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Step 3 — the three things that make this a subscription rather than a
-    // plain licence. Tagging and the transaction date are what every later
-    // subscription view and the billing reports key off, so a failure here is
-    // reported rather than swallowed: the licence exists but is not tracked.
+    // Step 2 — push each placeholder to QLM on its own. One failure does not
+    // stop the rest: the licences that did work are real and have to be
+    // tagged, and the partner needs to be told the count either way.
+    const failures: string[] = [];
+    for (const placeholderId of placeholders) {
+      try {
+        const pushResult = await callZohoFunction('QLMInterfacePushKeyDetails', {
+          assetID: placeholderId,
+        });
+        const output = functionOutput(pushResult);
+        // The function reports failure in its return string, not in the HTTP
+        // status, so the string is the only thing worth reading.
+        if (output.toLowerCase().includes('error')) {
+          failures.push(output.slice(0, 200));
+          log('error', 'api', 'QLM push failed for monthly subscription', {
+            placeholderId,
+            output: output.slice(0, 300),
+          });
+        }
+      } catch (err) {
+        failures.push(err instanceof Error ? err.message : String(err));
+      }
+    }
+
+    // Step 3 — whatever QLM created on the account since the snapshot is what
+    // was just bought. Placeholders that failed are still there, so they are
+    // excluded explicitly rather than assumed gone.
+    const assetsAfter = await accountAssetIds(accountId);
+    const newAssetIds = assetsAfter.filter(
+      id => !assetsBefore.includes(id) && !placeholders.includes(id)
+    );
+
+    // Anything left of the placeholders is a licence that never got made.
+    const strandedPlaceholders = placeholders.filter(id => assetsAfter.includes(id));
+    await retirePlaceholders(strandedPlaceholders);
+
+    log('info', 'api', 'Monthly subscription licences generated', {
+      requested: qty,
+      created: newAssetIds.length,
+      failed: failures.length,
+      by: user.email,
+    });
+
+    if (newAssetIds.length === 0) {
+      return NextResponse.json(
+        { error: failures[0] || 'The licences could not be created. Nothing has been charged.' },
+        { status: 502 }
+      );
+    }
+
+    // Step 4 — the three things that make these subscriptions rather than
+    // plain licences. Every later subscription view and the billing report
+    // keys off them, so a failure here is reported rather than swallowed: the
+    // licence exists but is not tracked.
     const tags = [MONTHLY_SUBSCRIPTION_TAG];
     if (perpetualPlan) tags.push(PERPETUAL_PLAN_TAG);
 
     let markingError: string | null = null;
-    try {
-      await executeZohoTool('add_tags', {
-        module: 'Assets1',
-        record_id: finalAssetId,
-        tags,
-      });
-      await executeZohoTool('update_records', {
-        module: 'Assets1',
-        records: [{ id: finalAssetId, Last_Renewal_Transaction: startDate }],
-        trigger: [],
-      });
-    } catch (err) {
-      markingError = err instanceof Error ? err.message : String(err);
-      log('error', 'api', 'Monthly subscription created but not marked', {
-        assetId: finalAssetId,
-        error: markingError,
-      });
+    for (const assetId of newAssetIds) {
+      try {
+        await executeZohoTool('add_tags', {
+          module: 'Assets1',
+          record_id: assetId,
+          tags,
+        });
+        await executeZohoTool('update_records', {
+          module: 'Assets1',
+          records: [{ id: assetId, Last_Renewal_Transaction: startDate }],
+          trigger: [],
+        });
+      } catch (err) {
+        markingError = err instanceof Error ? err.message : String(err);
+        log('error', 'api', 'Monthly subscription created but not marked', {
+          assetId,
+          error: markingError,
+        });
+      }
     }
+
+    const shortfall = qty - newAssetIds.length;
 
     return NextResponse.json({
       success: true,
-      id: finalAssetId,
+      ids: newAssetIds,
+      created: newAssetIds.length,
+      requested: qty,
       sku,
       listPrice,
       resellerPrice: resellerPrice(listPrice, context.percentage),
       renewalDate,
       warning: markingError
-        ? 'The licence was created but could not be tagged as a monthly subscription. Contact CSA before renewing it.'
-        : undefined,
+        ? 'The licences were created but could not all be tagged as monthly subscriptions. Contact CSA before renewing them.'
+        : shortfall > 0
+          ? `Only ${newAssetIds.length} of ${qty} licences were created. Contact CSA about the rest before trying again.`
+          : undefined,
     });
   } catch (error) {
     log('error', 'api', 'Monthly subscription creation failed', {
@@ -345,39 +419,56 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Work out which asset the QLM function ended up creating.
+ * Every asset id currently on an account.
  *
- * QLM deletes the placeholder and writes a fresh record, and it does not
- * reliably report the new id. When the output does not carry one, the newest
- * matching asset on the account is the licence just made — without this the
- * tag and transaction date would land on a record that no longer exists.
+ * Used either side of the QLM push to work out what it created: the function
+ * deletes the placeholder it was handed and writes a fresh record, and when it
+ * is called with named arguments rather than a request body it returns a
+ * human-readable string rather than the ids.
  */
-async function resolveFinalAssetId(
-  qlmResult: unknown,
-  placeholderAssetId: string,
-  accountId: string,
-  productId: string
-): Promise<string> {
-  const output = (qlmResult as { details?: { output?: unknown } })?.details?.output;
-  if (typeof output === 'string') {
-    try {
-      const parsed = JSON.parse(output);
-      if (parsed?.assetId) return parsed.assetId as string;
-      if (parsed?.id) return parsed.id as string;
-    } catch { /* QLM output is not always JSON */ }
-  }
-
+async function accountAssetIds(accountId: string): Promise<string[]> {
   try {
     const result = await callMcpTool('ZohoCRM_getRelatedRecords', {
       path_variables: { parentRecordModule: 'Accounts', parentRecord: accountId, relatedList: 'Assets' },
-      query_params: { fields: 'id,Product,Created_Time', page: 1, per_page: 200 },
+      query_params: { fields: 'id', page: 1, per_page: 200 },
     });
-    const assets = parseMcpResult(result).data as Record<string, unknown>[];
-    const mine = assets
-      .filter(a => (a.Product as { id?: string })?.id === productId)
-      .sort((a, b) => String(b.Created_Time || '').localeCompare(String(a.Created_Time || '')));
-    if (mine[0]?.id) return mine[0].id as string;
-  } catch { /* fall through to the placeholder id */ }
+    return (parseMcpResult(result).data as Record<string, unknown>[])
+      .map(a => a.id as string)
+      .filter(Boolean);
+  } catch (error) {
+    log('error', 'api', 'Could not list account assets for subscription reconciliation', {
+      accountId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+}
 
-  return placeholderAssetId;
+/**
+ * Retire placeholders that never became licences.
+ *
+ * A placeholder is an asset with no key on it, and left as-is it sits on the
+ * customer's licence list looking like something they own. It is marked rather
+ * than deleted: the portal has no delete path into the CRM by design, and a
+ * cancelled record named for what it is can be cleaned up by CSA without
+ * anybody having to work out what it was.
+ */
+async function retirePlaceholders(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  try {
+    await executeZohoTool('update_records', {
+      module: 'Assets1',
+      records: ids.map(id => ({
+        id,
+        Name: 'Failed subscription placeholder',
+        Status: 'Cancelled',
+      })),
+      trigger: [],
+    });
+  } catch (error) {
+    log('error', 'api', 'Could not retire unused subscription placeholders', {
+      ids,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
