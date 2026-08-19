@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "driver.js": "^1.8.0",
     "framer-motion": "^12.36.0",
     "googleapis": "^171.4.0",
     "ioredis": "^5.10.0",

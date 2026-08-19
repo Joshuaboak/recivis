@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { LOGIN_PATH } from '@/lib/routes';
+import { startTour } from '@/lib/tour/progress';
 
 interface RoleOption {
   value: string;
@@ -118,6 +119,24 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
               >
                 <GraduationCap size={16} />
                 <span className="flex-1 text-left">Guided tutorial</span>
+                {tutorialOn && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={e => { e.stopPropagation(); setMenuOpen(false); startTour(); }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        startTour();
+                      }
+                    }}
+                    className="text-[10px] font-semibold text-csa-accent hover:underline cursor-pointer"
+                  >
+                    Replay
+                  </span>
+                )}
                 <span
                   className={`w-8 h-4 rounded-full relative transition-colors flex-shrink-0 ${
                     tutorialOn ? 'bg-csa-accent' : 'bg-border'

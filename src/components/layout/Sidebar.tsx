@@ -97,6 +97,7 @@ export default function Sidebar() {
       initial={false}
       animate={{ width: sidebarOpen ? 260 : 72 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
+      data-tour="sidebar"
       className="h-screen flex-shrink-0 bg-csa-dark border-r border-border-subtle flex flex-col relative z-20"
     >
       {/* Logo */}

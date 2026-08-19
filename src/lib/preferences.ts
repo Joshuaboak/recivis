@@ -17,6 +17,12 @@ import { query } from './db';
 export interface UserPreferences {
   /** Whether the guided tutorial offers itself and its launcher is shown. */
   guidedTutorial: boolean;
+  /**
+   * Whether this person has finished the tour once. Separate from the toggle
+   * above so that turning the tutorial back on does not re-run it unbidden,
+   * and finishing it does not disable the launcher.
+   */
+  tutorialCompleted: boolean;
 }
 
 /** What a user gets before they have expressed any preference. */
@@ -24,11 +30,13 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   // On by default: someone who has never seen the portal is exactly who the
   // tutorial is for, and it is one click to turn off.
   guidedTutorial: true,
+  tutorialCompleted: false,
 };
 
 /** The stored key for each preference. */
 const PREFERENCE_KEYS: Record<keyof UserPreferences, string> = {
   guidedTutorial: 'guided_tutorial',
+  tutorialCompleted: 'tutorial_completed',
 };
 
 /** Stored keys back to preference names, for reading rows. */

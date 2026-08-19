@@ -23,6 +23,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { startTour } from '@/lib/tour/progress';
 import { buildPath } from '@/lib/routes';
 
 const featureCards = [
@@ -123,6 +124,7 @@ export default function DashboardView() {
           variants={container}
           initial="hidden"
           animate="show"
+          data-tour="dashboard-cards"
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10"
         >
           {featureCards.map((card) => (
@@ -152,7 +154,7 @@ export default function DashboardView() {
 
               <div className="mt-4 pt-3 border-t border-border-subtle">
                 <button
-                  onClick={() => {/* TODO: navigate to guide */}}
+                  onClick={startTour}
                   className="flex items-center gap-1.5 text-[11px] font-semibold text-text-muted hover:text-csa-accent transition-colors cursor-pointer"
                 >
                   <BookOpen size={12} />

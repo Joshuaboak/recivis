@@ -1056,7 +1056,7 @@ export default function AccountDetailView({
         </motion.div>
 
         {/* Invoices */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} data-tour="account-orders" className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
               <FileText size={18} className="text-csa-purple" />
@@ -1081,6 +1081,7 @@ export default function AccountDetailView({
                 });
                 router.push(buildPath('create-invoice'));
               }}
+              data-tour="new-order-button"
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
             >
               <Plus size={13} />
@@ -1203,9 +1204,8 @@ export default function AccountDetailView({
             <p className="text-sm text-text-muted py-4">No evaluations</p>
           )}
         </motion.div>
-
         {/* Active Assets */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="mb-8">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} data-tour="account-assets" className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">

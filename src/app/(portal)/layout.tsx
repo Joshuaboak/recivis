@@ -24,6 +24,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import BrandSplash from '@/components/layout/BrandSplash';
 import SessionExpiryWatcher from '@/components/layout/SessionExpiryWatcher';
 import SearchModal from '@/components/SearchModal';
+import TourController from '@/components/tour/TourController';
 import RecentItems from '@/components/RecentItems';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -108,6 +109,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
         </AnimatePresence>
       </div>
+      {/* Outside the shell div, which is overflow-hidden, but inside the
+          provider so the tour can route through the unsaved-changes guard. */}
+      <TourController />
     </UnsavedChangesProvider>
   );
 }

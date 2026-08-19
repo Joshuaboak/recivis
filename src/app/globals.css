@@ -361,3 +361,67 @@ tr:hover td { background: var(--row-hover); }
 
 /* Optional 4px blue top rule for card emphasis */
 .card-accent-top { border-top: 4px solid var(--accent); }
+
+/* ============================================================
+   GUIDED TOUR (driver.js)
+   Token-driven so the popover follows the light/dark toggle
+   rather than assuming the dark palette. Radii and motion match
+   the rest of the app: 4px corners, no blur, no glow.
+   ============================================================ */
+.driver-popover.recivis-tour {
+  background-color: var(--surface-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: var(--shadow-raised, 0 4px 12px rgb(0 0 0 / 0.18));
+  font-family: inherit;
+  max-width: 22rem;
+}
+
+.driver-popover.recivis-tour .driver-popover-title {
+  color: var(--text-heading);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.driver-popover.recivis-tour .driver-popover-description {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.driver-popover.recivis-tour .driver-popover-progress-text {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.driver-popover.recivis-tour .driver-popover-navigation-btns button {
+  background-color: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-shadow: none;
+  transition: opacity 120ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.driver-popover.recivis-tour .driver-popover-navigation-btns button:hover {
+  opacity: 0.9;
+}
+
+/* Back is secondary — same shape, quieter. */
+.driver-popover.recivis-tour .driver-popover-prev-btn {
+  background-color: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.driver-popover.recivis-tour .driver-popover-close-btn {
+  color: var(--text-muted);
+}
+
+.driver-popover.recivis-tour .driver-popover-arrow {
+  border-color: var(--surface-card);
+}
