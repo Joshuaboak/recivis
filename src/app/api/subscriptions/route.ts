@@ -314,91 +314,95 @@ export async function POST(request: NextRequest) {
     // Let Zoho commit before the Deluge function reads the records back.
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Step 2 — push each placeholder to QLM on its own. One failure does not
-    // stop the rest: the licences that did work are real and have to be
-    // tagged, and the partner needs to be told the count either way.
+    // Step 2 — push each placeholder to QLM, then find and mark the licence
+    // that push created before moving on to the next one.
+    //
+    // Finding it is the whole difficulty. QLM writes a brand new record and
+    // deletes the placeholder it was given, and when the function is called
+    // with named arguments rather than a request body it answers with a
+    // sentence rather than an id. Marking the placeholder instead is the
+    // failure this is written to prevent: the tag lands on a record that is
+    // then deleted, and the licence the customer actually holds is untagged,
+    // so it never appears as a subscription anywhere.
+    //
+    // Done per licence rather than all at the end so that a push that creates
+    // nothing cannot make the next one's licence look like its own.
+    const known = new Set<string>([...assetsBefore, ...placeholders]);
+    const createdAssetIds: string[] = [];
     const failures: string[] = [];
+
+    const tags = [MONTHLY_SUBSCRIPTION_TAG];
+    if (perpetualPlan) tags.push(PERPETUAL_PLAN_TAG);
+    let markingError: string | null = null;
+
     for (const placeholderId of placeholders) {
+      let output = '';
       try {
         const pushResult = await callZohoFunction('QLMInterfacePushKeyDetails', {
           assetID: placeholderId,
         });
-        const output = functionOutput(pushResult);
-        // The function reports failure in its return string, not in the HTTP
-        // status, so the string is the only thing worth reading.
-        if (output.toLowerCase().includes('error')) {
-          failures.push(output.slice(0, 200));
-          log('error', 'api', 'QLM push failed for monthly subscription', {
-            placeholderId,
-            output: output.slice(0, 300),
-          });
-        }
+        output = functionOutput(pushResult);
       } catch (err) {
         failures.push(err instanceof Error ? err.message : String(err));
+        continue;
+      }
+
+      // The function reports failure in its return string, not in the HTTP
+      // status, so the string is the only thing worth reading.
+      if (output.toLowerCase().includes('error')) {
+        failures.push(output.slice(0, 200));
+        log('error', 'api', 'QLM push failed for monthly subscription', {
+          placeholderId,
+          output: output.slice(0, 300),
+        });
+        continue;
+      }
+
+      const licenceIds = await findNewLicences(accountId, known);
+      if (licenceIds.length === 0) {
+        // The push reported success but nothing new turned up. The licence may
+        // well exist, so this is reported rather than retried — pushing again
+        // would mint a second key.
+        failures.push('A licence was created but could not be found to tag. Contact CSA.');
+        log('error', 'api', 'QLM push succeeded but no new asset appeared', {
+          placeholderId,
+          output: output.slice(0, 300),
+        });
+        continue;
+      }
+
+      for (const assetId of licenceIds) {
+        known.add(assetId);
+        createdAssetIds.push(assetId);
+        const error = await markAsSubscription(assetId, tags, startDate);
+        if (error) markingError = error;
       }
     }
 
-    // Step 3 — whatever QLM created on the account since the snapshot is what
-    // was just bought. Placeholders that failed are still there, so they are
-    // excluded explicitly rather than assumed gone.
-    const assetsAfter = await accountAssetIds(accountId);
-    const newAssetIds = assetsAfter.filter(
-      id => !assetsBefore.includes(id) && !placeholders.includes(id)
-    );
-
     // Anything left of the placeholders is a licence that never got made.
-    const strandedPlaceholders = placeholders.filter(id => assetsAfter.includes(id));
-    await retirePlaceholders(strandedPlaceholders);
+    const remaining = await accountAssetIds(accountId);
+    await retirePlaceholders(placeholders.filter(id => remaining.includes(id)));
 
     log('info', 'api', 'Monthly subscription licences generated', {
       requested: qty,
-      created: newAssetIds.length,
+      created: createdAssetIds.length,
       failed: failures.length,
       by: user.email,
     });
 
-    if (newAssetIds.length === 0) {
+    if (createdAssetIds.length === 0) {
       return NextResponse.json(
         { error: failures[0] || 'The licences could not be created. Nothing has been charged.' },
         { status: 502 }
       );
     }
 
-    // Step 4 — the three things that make these subscriptions rather than
-    // plain licences. Every later subscription view and the billing report
-    // keys off them, so a failure here is reported rather than swallowed: the
-    // licence exists but is not tracked.
-    const tags = [MONTHLY_SUBSCRIPTION_TAG];
-    if (perpetualPlan) tags.push(PERPETUAL_PLAN_TAG);
-
-    let markingError: string | null = null;
-    for (const assetId of newAssetIds) {
-      try {
-        await executeZohoTool('add_tags', {
-          module: 'Assets1',
-          record_id: assetId,
-          tags,
-        });
-        await executeZohoTool('update_records', {
-          module: 'Assets1',
-          records: [{ id: assetId, Last_Renewal_Transaction: startDate }],
-          trigger: [],
-        });
-      } catch (err) {
-        markingError = err instanceof Error ? err.message : String(err);
-        log('error', 'api', 'Monthly subscription created but not marked', {
-          assetId,
-          error: markingError,
-        });
-      }
-    }
-
-    const shortfall = qty - newAssetIds.length;
+    const shortfall = qty - createdAssetIds.length;
 
     return NextResponse.json({
       success: true,
-      ids: newAssetIds,
-      created: newAssetIds.length,
+      ids: createdAssetIds,
+      created: createdAssetIds.length,
       requested: qty,
       sku,
       listPrice,
@@ -407,7 +411,7 @@ export async function POST(request: NextRequest) {
       warning: markingError
         ? 'The licences were created but could not all be tagged as monthly subscriptions. Contact CSA before renewing them.'
         : shortfall > 0
-          ? `Only ${newAssetIds.length} of ${qty} licences were created. Contact CSA about the rest before trying again.`
+          ? `Only ${createdAssetIds.length} of ${qty} licences were created. Contact CSA about the rest before trying again.`
           : undefined,
     });
   } catch (error) {
@@ -418,29 +422,121 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * Every asset id currently on an account.
- *
- * Used either side of the QLM push to work out what it created: the function
- * deletes the placeholder it was handed and writes a fresh record, and when it
- * is called with named arguments rather than a request body it returns a
- * human-readable string rather than the ids.
- */
-async function accountAssetIds(accountId: string): Promise<string[]> {
+/** How long to keep looking for the licence a push has just created. */
+const LICENCE_LOOKUP_ATTEMPTS = 6;
+const LICENCE_LOOKUP_DELAY_MS = 1500;
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/** The assets on an account, newest first. */
+async function accountAssets(accountId: string): Promise<Record<string, unknown>[]> {
   try {
     const result = await callMcpTool('ZohoCRM_getRelatedRecords', {
       path_variables: { parentRecordModule: 'Accounts', parentRecord: accountId, relatedList: 'Assets' },
-      query_params: { fields: 'id', page: 1, per_page: 200 },
+      query_params: { fields: 'id,Name,Serial_Key,Created_Time', page: 1, per_page: 200 },
     });
     return (parseMcpResult(result).data as Record<string, unknown>[])
-      .map(a => a.id as string)
-      .filter(Boolean);
+      .filter(a => a?.id)
+      .sort((a, b) => String(b.Created_Time || '').localeCompare(String(a.Created_Time || '')));
   } catch (error) {
     log('error', 'api', 'Could not list account assets for subscription reconciliation', {
       accountId,
       error: error instanceof Error ? error.message : String(error),
     });
     return [];
+  }
+}
+
+/** Every asset id currently on an account. */
+async function accountAssetIds(accountId: string): Promise<string[]> {
+  return (await accountAssets(accountId)).map(a => a.id as string);
+}
+
+/** A record still waiting to be turned into a licence, rather than one. */
+function isPlaceholder(asset: Record<string, unknown>): boolean {
+  const name = String(asset.Name || '').toLowerCase();
+  const key = String(asset.Serial_Key || '').toLowerCase();
+  return name === 'placeholder' || key === 'create' || key === '';
+}
+
+/**
+ * The licences that have appeared on an account since `known` was taken.
+ *
+ * Polled because the record is written by a Deluge function on Zoho's side and
+ * does not always show up on the account's related list the instant the
+ * function returns. Placeholders are excluded by shape as well as by id: a
+ * record with no serial key is not a licence, whoever made it, and tagging one
+ * as a subscription is exactly the mistake this is here to avoid.
+ */
+async function findNewLicences(accountId: string, known: Set<string>): Promise<string[]> {
+  for (let attempt = 0; attempt < LICENCE_LOOKUP_ATTEMPTS; attempt++) {
+    const found = (await accountAssets(accountId))
+      .filter(a => !known.has(a.id as string) && !isPlaceholder(a))
+      .map(a => a.id as string);
+    if (found.length > 0) return found;
+    await sleep(LICENCE_LOOKUP_DELAY_MS);
+  }
+  return [];
+}
+
+/**
+ * Tag a licence as a monthly subscription and stamp its billing date.
+ *
+ * Read back afterwards rather than trusting the write. Every subscription view
+ * and the billing report keys off this tag, so a licence that is charged
+ * monthly but not tagged is invisible to the thing that bills for it — and the
+ * partner has no way of noticing until a renewal is missed.
+ *
+ * Returns an error to report, or null.
+ */
+async function markAsSubscription(
+  assetId: string,
+  tags: string[],
+  startDate: string
+): Promise<string | null> {
+  try {
+    await executeZohoTool('add_tags', { module: 'Assets1', record_id: assetId, tags });
+    await executeZohoTool('update_records', {
+      module: 'Assets1',
+      records: [{ id: assetId, Last_Renewal_Transaction: startDate }],
+      trigger: [],
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log('error', 'api', 'Monthly subscription created but not marked', { assetId, error: message });
+    return message;
+  }
+
+  if (await hasSubscriptionTag(assetId)) return null;
+
+  // One retry: tagging goes through its own endpoint and can lose a race with
+  // the record being written.
+  try {
+    await executeZohoTool('add_tags', { module: 'Assets1', record_id: assetId, tags });
+  } catch { /* the check below is what decides */ }
+
+  if (await hasSubscriptionTag(assetId)) return null;
+
+  log('error', 'api', 'Monthly subscription tag did not stick', { assetId });
+  return `Licence ${assetId} was created but is not tagged as a monthly subscription.`;
+}
+
+/** Whether the subscription tag is actually on the record now. */
+async function hasSubscriptionTag(assetId: string): Promise<boolean> {
+  try {
+    const result = await callMcpTool('ZohoCRM_getRecord', {
+      path_variables: { module: 'Assets1', recordId: assetId },
+      query_params: { fields: 'Tag' },
+    });
+    const record = parseMcpResult(result).data[0] as Record<string, unknown> | undefined;
+    const recordTags = Array.isArray(record?.Tag) ? record.Tag : [];
+    return recordTags.some(t =>
+      (typeof t === 'string' ? t : (t as { name?: string })?.name) === MONTHLY_SUBSCRIPTION_TAG
+    );
+  } catch {
+    // Unverifiable is not the same as untagged, and claiming a failure would
+    // send the partner to CSA over nothing.
+    return true;
   }
 }
 
