@@ -15,6 +15,7 @@ import { useState, useRef, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircleQuestion, X, Send, Loader2 } from 'lucide-react';
+import SupportMessage from './SupportMessage';
 
 interface SupportMessage {
   role: 'user' | 'assistant';
@@ -145,7 +146,9 @@ export default function SupportWidget() {
                         : 'bg-surface text-text-secondary mr-2 whitespace-pre-wrap'
                     }`}
                   >
-                    {message.content}
+                    {message.role === 'assistant'
+                      ? <SupportMessage content={message.content} />
+                      : message.content}
                   </div>
                 ))
               )}

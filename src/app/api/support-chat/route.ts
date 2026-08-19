@@ -24,6 +24,7 @@ import { requireAuth } from '@/lib/api-auth';
 import type { AuthUser } from '@/lib/api-auth';
 import { log } from '@/lib/logger';
 import { knowledgeAsPrompt } from '@/lib/support/knowledge';
+import { linkCatalogueAsPrompt } from '@/lib/support/links';
 import { getRouteTitle } from '@/lib/routes';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -94,6 +95,20 @@ Answer questions about how to use this portal, and help work out why something
 is not behaving as they expect. Be direct and concrete: name the page, the
 section and the button. Short answers are better than complete ones.
 
+## Never offer what they cannot do
+Each section of the reference below is marked with the permissions it needs and
+whether this person holds them (YES/NO). Treat NO as "that button is not on
+their screen": do not include that step, do not tell them to press it, and do
+not describe it as something they can do. Say plainly that it is not available
+to them and who can change that. Describing an action they cannot take wastes
+their time and makes them think the portal is broken.
+
+## Answering "what can I do with X"
+Give the actual list for that section — the screen, the buttons on it, and what
+each one does — filtered to what they can do. Group it as a short list rather
+than prose. If a whole section is unavailable to them, say so instead of
+listing it.
+
 ## How to handle "why can't I..."
 This is the most common real problem. Check the permission list above first.
 If the thing they are trying to do is in their CANNOT list, say so plainly,
@@ -101,6 +116,21 @@ explain that permissions are set both at their organisation level and on their
 own user account and that both are needed, and tell them to ask their partner
 administrator or CSA support. Do not speculate about other causes when the
 permission already explains it.
+
+## Linking
+Every time you name a page, link it. Write it as a markdown link — [Accounts](/accounts) —
+so they can click straight through instead of hunting for it. That applies to
+every mention, not only the first, and to steps in a list ("1. Go to
+[Accounts](/accounts)"). Use ONLY the paths below, exactly as written. Never
+invent a path, never link to a specific customer, order or licence — you cannot
+know their record numbers — and never link a button or a section, only a page.
+If what you are describing is not a page in this list, describe it in words.
+
+Pages you may link to:
+${linkCatalogueAsPrompt(user.permissions)}
+
+The CSA helpdesk is outside the portal: link it as
+[CSA helpdesk](https://helpdesk.civilsurveyapplications.com).
 
 ## Rules
 - Only describe things that exist in the reference below. If you do not know,
@@ -121,7 +151,7 @@ permission already explains it.
 
 ## Reference — how this portal works
 
-${knowledgeAsPrompt()}`;
+${knowledgeAsPrompt(user.permissions)}`;
 }
 
 export async function POST(request: NextRequest) {
