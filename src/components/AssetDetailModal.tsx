@@ -21,6 +21,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Package, Loader2, Key, AlertCircle, Calendar, User, Shield, Monitor, Pencil, Save, ShieldOff } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { AssetSubscriptionBadges } from '@/components/SubscriptionBadges';
 
 interface AssetDetailModalProps {
   assetId: string;
@@ -160,7 +161,10 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
           <div className="flex items-center gap-3">
             <Package size={20} className="text-success" />
             <div>
-              <h3 className="text-base font-bold text-text-primary">{product?.name || record.Name as string || 'Asset'}</h3>
+              <h3 className="text-base font-bold text-text-primary">
+                {product?.name || record.Name as string || 'Asset'}
+                <AssetSubscriptionBadges asset={record} />
+              </h3>
               {record.Serial_Key ? (
                 <p className="text-xs text-text-muted font-mono mt-0.5">{record.Serial_Key as string}</p>
               ) : null}

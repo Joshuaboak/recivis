@@ -30,6 +30,7 @@ import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { GuardedLink } from '@/components/GuardedLink';
 import AssetDetailModal from '../AssetDetailModal';
 import RenewMonthlySubscriptionsModal, { type RenewableSubscription } from '../RenewMonthlySubscriptionsModal';
+import SubscriptionBadges from '../SubscriptionBadges';
 
 export type AssetScope = 'all' | 'renewals' | 'expired' | 'subscriptions';
 
@@ -452,12 +453,11 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
                                 )}
                                 <td className="px-4 py-2.5 text-sm text-text-primary">
                                   {asset.productName || asset.name}
-                                  {asset.isMonthlySubscription && (
-                                    <span className="ml-2 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-csa-accent/15 text-csa-accent">Monthly</span>
-                                  )}
-                                  {asset.isPerpetualPlan && (
-                                    <span className="ml-1 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-success/15 text-success">Perpetual plan</span>
-                                  )}
+                                  <SubscriptionBadges
+                                    monthly={asset.isMonthlySubscription}
+                                    perpetual={asset.isPerpetualPlan}
+                                    size="xs"
+                                  />
                                 </td>
                                 <td className="px-4 py-2.5 text-sm text-text-secondary">{asset.quantity}</td>
                                 <td className="px-4 py-2.5 text-sm text-text-secondary">{asset.status}</td>

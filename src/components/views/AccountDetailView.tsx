@@ -41,6 +41,7 @@ import CreateEvaluationModal from '../CreateEvaluationModal';
 import CreateMonthlySubscriptionModal from '../CreateMonthlySubscriptionModal';
 import RenewMonthlySubscriptionsModal, { type RenewableSubscription } from '../RenewMonthlySubscriptionsModal';
 import { isRenewable, renewalBlockReason, renewabilityOf } from '@/lib/renewal-eligibility';
+import { AssetSubscriptionBadges } from '@/components/SubscriptionBadges';
 import { MONTHLY_SUBSCRIPTION_TAG, PERPETUAL_PLAN_TAG } from '@/lib/subscriptions';
 import EmailHistory from '../EmailHistory';
 import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
@@ -1162,7 +1163,10 @@ export default function AccountDetailView({
                     const product = a.Product as { name?: string } | null;
                     return (
                       <tr key={(a.id as string) ?? i}>
-                        <td className="text-text-primary">{product?.name || a.Name as string}</td>
+                        <td className="text-text-primary">
+                          {product?.name || a.Name as string}
+                          <AssetSubscriptionBadges asset={a} />
+                        </td>
                         <td className="text-text-secondary">{a.Quantity as number}</td>
                         <td className="text-text-secondary">{formatDate(a.Start_Date)}</td>
                         <td className="text-text-secondary">{formatDate(a.Renewal_Date)}</td>
@@ -1299,7 +1303,10 @@ export default function AccountDetailView({
                             className="w-4 h-4 rounded border-border-subtle accent-csa-purple cursor-pointer"
                           />
                         </td>
-                        <td className="text-text-primary">{product?.name || a.Name as string}</td>
+                        <td className="text-text-primary">
+                          {product?.name || a.Name as string}
+                          <AssetSubscriptionBadges asset={a} />
+                        </td>
                         <td className="text-text-secondary">{a.Quantity as number}</td>
                         <td className="text-text-secondary">{formatDate(a.Start_Date)}</td>
                         <td className="text-text-secondary">{formatDate(a.Renewal_Date)}</td>
