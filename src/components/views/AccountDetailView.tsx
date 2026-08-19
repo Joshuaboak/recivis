@@ -1502,7 +1502,7 @@ export default function AccountDetailView({
 
       {/* Subscription result banner */}
       {actionNotice && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-sm bg-csa-dark border border-csa-accent/40 rounded-xl px-4 py-3 shadow-lg">
+        <div className="fixed bottom-6 right-20 z-50 max-w-sm bg-csa-dark border border-csa-accent/40 rounded-xl px-4 py-3 shadow-lg">
           <div className="flex items-start gap-3">
             <p className="text-xs text-text-primary flex-1">{actionNotice}</p>
             <button onClick={() => setActionNotice('')} className="text-text-muted hover:text-text-primary cursor-pointer">
@@ -1570,7 +1570,7 @@ export default function AccountDetailView({
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl border shadow-lg text-sm font-semibold ${
+            className={`fixed bottom-6 right-20 z-50 px-4 py-3 rounded-xl border shadow-lg text-sm font-semibold ${
               sendKeysResult.success
                 ? 'bg-success/15 border-success/30 text-success'
                 : 'bg-error/15 border-error/30 text-error'

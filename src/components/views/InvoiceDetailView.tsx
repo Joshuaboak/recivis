@@ -1299,7 +1299,7 @@ export default function InvoiceDetailView({
       {/* Result banner. Refusals from the send function are shown as written —
           they name the exact problem with the order. */}
       {(actionError || actionNotice) && (
-        <div className={`fixed bottom-6 right-6 z-50 max-w-md border rounded-xl px-4 py-3 shadow-lg ${
+        <div className={`fixed bottom-6 right-20 z-50 max-w-md border rounded-xl px-4 py-3 shadow-lg ${
           actionError ? 'bg-csa-dark border-error/40' : 'bg-csa-dark border-success/40'
         }`}>
           <div className="flex items-start gap-3">

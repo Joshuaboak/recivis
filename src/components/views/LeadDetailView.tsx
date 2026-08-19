@@ -1393,7 +1393,7 @@ export default function LeadDetailView({
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl border shadow-lg text-sm font-semibold ${
+            className={`fixed bottom-6 right-20 z-50 px-4 py-3 rounded-xl border shadow-lg text-sm font-semibold ${
               sendKeysResult.success
                 ? 'bg-success/15 border-success/30 text-success'
                 : 'bg-error/15 border-error/30 text-error'

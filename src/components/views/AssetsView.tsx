@@ -408,7 +408,7 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
       )}
 
       {notice && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-sm bg-csa-dark border border-csa-accent/40 rounded-xl px-4 py-3 shadow-lg">
+        <div className="fixed bottom-6 right-20 z-50 max-w-sm bg-csa-dark border border-csa-accent/40 rounded-xl px-4 py-3 shadow-lg">
           <div className="flex items-start gap-3">
             <AlertTriangle size={14} className="text-csa-accent mt-0.5 flex-shrink-0" />
             <p className="text-xs text-text-primary flex-1">{notice}</p>

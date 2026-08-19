@@ -16,14 +16,14 @@ describe('step definitions', () => {
   });
 
   it('points every step at a route that exists', () => {
-    const patterns = new Set(ROUTES.map(r => r.path));
+    const patterns = new Set<string>(ROUTES.map(r => r.path));
     for (const step of TOUR_STEPS) {
       expect(patterns.has(step.path)).toBe(true);
     }
   });
 
   it('points every nextPath at a route that exists', () => {
-    const patterns = new Set(ROUTES.map(r => r.path));
+    const patterns = new Set<string>(ROUTES.map(r => r.path));
     for (const step of TOUR_STEPS) {
       if (step.nextPath) expect(patterns.has(step.nextPath)).toBe(true);
     }
