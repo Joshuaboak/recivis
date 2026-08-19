@@ -12,6 +12,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { isDemoSession } from '@/lib/demo/guard';
+import { demoAccountDetail } from '@/lib/demo/fixtures';
 import { requireAuth, isAdmin, canManageReseller } from '@/lib/api-auth';
 
 /**
@@ -26,6 +28,16 @@ export async function GET(
   const user = authResult;
 
   const { id } = await params;
+
+  // A practice session reads the demo world instead of the CRM, so the
+  // tutorial walks the same screens without touching a real customer.
+  if (isDemoSession(user)) {
+    const detail = demoAccountDetail(id);
+    if (!detail.account) {
+      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    }
+    return NextResponse.json(detail);
+  }
 
   try {
     // Fetch account, contacts, assets, and invoices in parallel

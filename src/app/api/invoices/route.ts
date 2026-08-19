@@ -11,6 +11,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchAllPages, executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { isDemoSession } from '@/lib/demo/guard';
+import { DEMO_INVOICES, createDemoOrder } from '@/lib/demo/fixtures';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
 
 /**
@@ -27,6 +29,13 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status') || 'Draft';
   const resellerId = searchParams.get('resellerId');
   const resellerIds = searchParams.get('resellerIds');
+
+  // A practice session lists the demo orders, filtered by the same status the
+  // real view defaults to.
+  if (isDemoSession(user)) {
+    const invoices = DEMO_INVOICES.filter(i => !status || i.Status === status);
+    return NextResponse.json({ invoices });
+  }
 
   try {
     const fields = 'Subject,Reference_Number,Account_Name,Invoice_Date,Due_Date,Status,Grand_Total,Currency,Invoice_Type,Reseller,Record_Status__s';
@@ -92,6 +101,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+
+    // A practice session gets a believable order back without anything
+    // reaching Zoho — no invoice number burned, no workflow fired, no Stripe
+    // link minted. The tutorial carries straight on to the order detail step.
+    if (isDemoSession(user)) {
+      const order = createDemoOrder(body);
+      log('info', 'api', 'Demo order created', { id: order.id, by: user.email });
+      return NextResponse.json({ success: true, id: order.id, demo: true });
+    }
 
     // RBAC: Non-admin users can only create invoices for their allowed resellers
     if (!isAdmin(user)) {

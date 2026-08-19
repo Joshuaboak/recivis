@@ -13,6 +13,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchAllPages, getAllRecordPages, parseMcpResult, callMcpTool, executeZohoTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { isDemoSession } from '@/lib/demo/guard';
+import { DEMO_ACCOUNTS } from '@/lib/demo/fixtures';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
 
 /**
@@ -29,6 +31,19 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search') || '';
   const resellerId = searchParams.get('resellerId');
   const resellerIds = searchParams.get('resellerIds');
+
+  // A practice session browses the demo world. Search still works over it, so
+  // the tutorial's "type the account name" step behaves the same way.
+  if (isDemoSession(user)) {
+    const term = search.toLowerCase().trim();
+    const accounts = term
+      ? DEMO_ACCOUNTS.filter(a =>
+          String(a.Account_Name || '').toLowerCase().includes(term) ||
+          String(a.Email_Domain || '').toLowerCase().includes(term)
+        )
+      : DEMO_ACCOUNTS;
+    return NextResponse.json({ accounts });
+  }
 
   try {
     const fields = 'Account_Name,Billing_Country,Reseller,Email_Domain,Owner,Account_Type,Created_Time,Record_Status__s';

@@ -10,6 +10,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { isDemoSession } from '@/lib/demo/guard';
+import { findDemoRecord } from '@/lib/demo/fixtures';
 import { requireAuth, isAdmin, canManageReseller } from '@/lib/api-auth';
 
 /** Statuses past which an order is committed and stops accepting portal edits. */
@@ -28,6 +30,19 @@ export async function GET(
   const user = authResult;
 
   const { id } = await params;
+
+  // A practice session reads the demo order it just created, or one of the
+  // fixtures it started with.
+  if (isDemoSession(user)) {
+    const invoice = findDemoRecord(id);
+    if (!invoice) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    }
+    return NextResponse.json({
+      invoice,
+      lineItems: (invoice.Invoiced_Items as Record<string, unknown>[]) || [],
+    });
+  }
 
   try {
     const invoiceResult = await executeZohoTool('get_record', {

@@ -19,6 +19,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
 import { searchAllPages, getAllRecordPages } from '@/lib/zoho';
 import { log } from '@/lib/logger';
+import { isDemoSession } from '@/lib/demo/guard';
+import { DEMO_ASSETS } from '@/lib/demo/fixtures';
 import { MONTHLY_SUBSCRIPTION_TAG, PERPETUAL_PLAN_TAG } from '@/lib/subscriptions';
 
 /** How far ahead "due for renewal" looks, and how far back "recently expired" reaches. */
@@ -122,6 +124,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Practice sessions group and filter the demo assets through the same
+    // scope logic below, so every Assets view behaves identically.
+    if (isDemoSession(user)) {
+      return NextResponse.json(groupAssets(DEMO_ASSETS, scope, statusFilter, search));
+    }
+
     const criteria = isAdmin(user) ? null : resellerCriteria(user.allowedResellerIds);
 
     // A non-admin with no reseller has nothing to show — returning early
@@ -134,6 +142,27 @@ export async function GET(request: NextRequest) {
       ? await searchAllPages('Assets1', criteria, ASSET_FIELDS, 'desc')
       : await getAllRecordPages('Assets1', ASSET_FIELDS, 'Modified_Time', 'desc');
 
+    return NextResponse.json(groupAssets(raw, scope, statusFilter, search));
+  } catch (error) {
+    log('error', 'api', 'Asset list failed', {
+      scope,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({ error: 'Failed to load assets' }, { status: 500 });
+  }
+}
+
+/**
+ * Turn raw Zoho assets into the scoped, sorted, account-grouped shape the
+ * Assets views render. Shared by the live and demo paths so a practice run
+ * exercises exactly the filtering and ordering a real one does.
+ */
+function groupAssets(
+  raw: Record<string, unknown>[],
+  scope: AssetScope,
+  statusFilter: string,
+  search: string
+): { groups: AccountGroup[]; total: number; scope: AssetScope } {
     const todayMs = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z').getTime();
 
     let rows = raw
@@ -192,12 +221,5 @@ export async function GET(request: NextRequest) {
       groups.sort((a, b) => (a.nextRenewal || '9999').localeCompare(b.nextRenewal || '9999'));
     }
 
-    return NextResponse.json({ groups, total: rows.length, scope });
-  } catch (error) {
-    log('error', 'api', 'Asset list failed', {
-      scope,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json({ error: 'Failed to load assets' }, { status: 500 });
-  }
+    return { groups, total: rows.length, scope };
 }
