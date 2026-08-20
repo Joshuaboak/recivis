@@ -278,7 +278,6 @@ export default function TourController() {
           back.type = 'button';
           back.className = 'driver-popover-prev-btn driver-popover-footer-btn';
           back.textContent = 'Back';
-          back.addEventListener('click', () => travelTo(stepIndex - 1));
           buttons.appendChild(back);
         }
 
@@ -286,7 +285,6 @@ export default function TourController() {
         next.type = 'button';
         next.className = 'driver-popover-next-btn driver-popover-footer-btn';
         next.textContent = isLast ? 'Finish' : 'Next';
-        next.addEventListener('click', advance);
         buttons.appendChild(next);
 
         footer.appendChild(buttons);
@@ -301,7 +299,30 @@ export default function TourController() {
     driverRef.current = instance;
     instance.drive();
 
+    /**
+     * Drive the footer from one delegated listener.
+     *
+     * The buttons are ours but the listeners cannot be: driver rewrites the
+     * footer's contents when it repositions, which drops anything bound to a
+     * node. Taking the click on the document in the capture phase survives
+     * that, and stopping propagation there keeps driver's own handler — which
+     * treats an unrecognised click as "close the tour" — from firing after it.
+     */
+    const onFooterClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const back = target?.closest?.('.driver-popover-prev-btn');
+      const next = target?.closest?.('.driver-popover-next-btn');
+      if (!back && !next) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (back) travelTo(stepIndex - 1);
+      else advance();
+    };
+    document.addEventListener('click', onFooterClick, true);
+
     return () => {
+      document.removeEventListener('click', onFooterClick, true);
       instance.destroy();
       driverRef.current = null;
     };
