@@ -45,8 +45,9 @@ export const HELP_TOPICS: HelpTopic[] = [
     where: 'The sidebar',
     path: '/dashboard',
     body:
-      'Dashboard is the landing page and links to the sections you use most. Leads are ' +
-      'enquiries that have not bought yet. Accounts are your customers. Assets are the ' +
+      'Dashboard is the landing page and links to the sections you use most. Leads ' +
+      'holds both enquiries who have not tried the software and prospects who have ' +
+      'downloaded the trial but not bought. Accounts are your customers. Assets are the ' +
       'licences those customers hold. Orders are what you raise to sell them something. ' +
       'Order Assistant drafts an order for you from a conversation. Coupons are discount ' +
       'codes. Reports cover your own sales; Partners covers your organisation, what is ' +
@@ -73,14 +74,20 @@ export const HELP_TOPICS: HelpTopic[] = [
     path: '/leads',
     requires: ['canExportData'],
     body:
-      'A lead is an enquiry that has not become a customer yet. On the Leads list you ' +
+      'A lead is an enquiry who has not tried the software yet — somebody who filled ' +
+      'in a form on the website or came in through marketing. A prospect has ' +
+      'downloaded a free trial and is evaluating it, but has not bought. Both live ' +
+      'under Leads, in the same list, and the Has Evaluation filter is what tells them ' +
+      'apart. The stage decides what you can do: a lead is edited and worked, a ' +
+      'prospect holds trial licences and can be ordered against. Convert to Prospect ' +
+      'is the step between the two and CSA does it — ask support or your administrator ' +
+      'when one of yours takes the trial. On the Leads list you ' +
       'can: search by name, company or email; filter by status, region, country, product ' +
       'of interest, and whether they have an evaluation licence; sort the table; open any ' +
       'lead; create a new one with New Lead; and export the filtered list to a ' +
       'spreadsheet if you have the export permission. Distributors also get a partner ' +
-      'filter so they can look at one of their resellers at a time. Leads are separate ' +
-      'from customers — until a lead is converted it has no customer record and cannot ' +
-      'be ordered against.',
+      'filter so they can look at one of their resellers at a time. Neither a lead nor ' +
+      'a prospect is a customer: they become one when they buy.',
   },
   {
     id: 'leads-create',
@@ -101,14 +108,14 @@ export const HELP_TOPICS: HelpTopic[] = [
     path: '/leads',
     requires: ['canCreateEvaluations'],
     body:
-      'The lead record has three parts. The details panel is editable in place — change ' +
-      'the contact details, status, industry or products of interest and press Save ' +
-      'Changes. Convert to Prospect turns the lead into a customer record so you can ' +
-      'order against it; the contact details come across and you land on the new ' +
-      'customer. The panels underneath show any contacts, orders and evaluation licences ' +
-      'attached, and Create Evaluation issues a trial licence straight from the lead if ' +
-      'you have the evaluation permission. Converting is one-way: once converted, work ' +
-      'with them under Accounts.',
+      'The badge beside the name says whether this is a lead or a prospect, and hovering ' +
+      'it explains the difference. The details panel is editable in place — contact ' +
+      'details, status, industry, products of interest — then Save Changes. The panels ' +
+      'underneath show any contacts, orders and trial licences attached. Create ' +
+      'Evaluation issues a 30-day trial, and it appears once the record is a prospect ' +
+      'and you have the evaluation permission. Convert to Prospect is what moves a lead ' +
+      'to that stage; it is one-way and CSA does it, so ask support or your ' +
+      'administrator when one of yours is ready to trial the software.',
   },
 
   // ── Accounts ────────────────────────────────────────────────────────────
@@ -121,7 +128,8 @@ export const HELP_TOPICS: HelpTopic[] = [
       'Accounts are your customers. Search by company name, a contact email, or the ' +
       'email domain. Domain search is the useful one when you have an email from ' +
       'someone but do not know what their company is called in the portal. Leads are ' +
-      'separate: those are enquiries that have not become customers yet.',
+      'separate: a lead is an enquiry who has not tried the software, a prospect has ' +
+      'downloaded the trial, and neither is a customer until they buy.',
   },
   {
     id: 'accounts-module',

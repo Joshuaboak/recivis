@@ -13,7 +13,9 @@
  *   useGuardedRouter so confirmDiscard runs first — a tour that called
  *   router.push itself could throw away a half-written order. It also means
  *   the tour never needs a nextPath: the next step declares where it lives and
- *   the controller goes there.
+ *   the controller goes there. The reverse holds too: when a step asks the
+ *   user to open a record, the tour follows by watching where they land rather
+ *   than by listening for a click.
  *
  *   Counting. driver.js is given one step at a time (the next one may be on a
  *   page that does not exist yet), so its own progress text would read "1 of 1"
@@ -38,6 +40,7 @@ import {
   stepsForPath,
   indexOfStep,
   isDirectPath,
+  pathMatches,
   type TourStep,
 } from '@/lib/tour/steps';
 import {
@@ -125,7 +128,10 @@ export default function TourController() {
     const onTourEvent = (event: Event) => {
       const detail = (event as CustomEvent<{ action: 'start' | 'stop' }>).detail;
       if (detail?.action === 'start') {
-        rememberStep(steps[0]?.id ?? null);
+        // travelTo rather than rememberStep: the first step is on the
+        // dashboard and Replay is pressed from wherever they happen to be, so
+        // the tour has to take them there or its first step never renders.
+        travelTo(0);
       } else {
         rememberStep(null);
         driverRef.current?.destroy();
@@ -133,7 +139,7 @@ export default function TourController() {
     };
     window.addEventListener(TOUR_EVENT, onTourEvent);
     return () => window.removeEventListener(TOUR_EVENT, onTourEvent);
-  }, [rememberStep, steps]);
+  }, [rememberStep, travelTo]);
 
   // Pick the tour back up after a reload, but only if it was mid-flight.
   useEffect(() => {
@@ -147,6 +153,24 @@ export default function TourController() {
   const step: TourStep | undefined = stepIndex >= 0 ? steps[stepIndex] : undefined;
   /** True when the step's page is the page we are on. */
   const onStepPage = !!step && stepsForPath(steps, pathname).some(s => s.id === step.id);
+
+  /**
+   * Follow the user into a record.
+   *
+   * A step that says "click a customer and the tour follows you in" cannot
+   * watch for the click itself: the row is a link, the click may be a
+   * middle-click or a keyboard Enter, and the navigation may be cancelled by
+   * the unsaved-changes guard after the click has already happened. Watching
+   * where they actually ended up is both simpler and true — the tour moves on
+   * because they arrived, not because something was pressed.
+   */
+  useEffect(() => {
+    if (!enabled || !step?.advanceOnClick) return;
+    if (pathMatches(step.path, pathname)) return;
+
+    const arrived = steps.findIndex((s, i) => i > stepIndex && pathMatches(s.path, pathname));
+    if (arrived >= 0) goToStep(arrived);
+  }, [pathname, step, stepIndex, steps, enabled, goToStep]);
 
   // The tour itself. Re-runs when the step or the route changes, which is how
   // a step on another page picks up after navigation.
@@ -200,24 +224,11 @@ export default function TourController() {
     driverRef.current = instance;
     instance.drive();
 
-    // advanceOnClick steps hand control to the user: they click the real thing
-    // and the app navigates itself, so the tour just listens.
-    let cleanupClick: (() => void) | undefined;
-    if (step.advanceOnClick && step.anchor) {
-      const target = document.querySelector(`[data-tour="${step.anchor}"]`);
-      if (target) {
-        const onClick = () => goToStep(stepIndex + 1);
-        target.addEventListener('click', onClick, { once: true });
-        cleanupClick = () => target.removeEventListener('click', onClick);
-      }
-    }
-
     return () => {
-      cleanupClick?.();
       instance.destroy();
       driverRef.current = null;
     };
-  }, [step, stepIndex, steps, onStepPage, enabled, travelTo, goToStep, finish]);
+  }, [step, stepIndex, steps, onStepPage, enabled, travelTo, finish]);
 
   if (!enabled || !step || !onStepPage) return null;
   return <TourSpotlight anchor={step.anchor} />;

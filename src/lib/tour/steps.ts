@@ -46,8 +46,11 @@ export interface TourStep {
   title: string;
   body: string;
   /**
-   * Advance when the user clicks the highlighted element rather than pressing
-   * Next. Used where the point is to do the thing, not read about it.
+   * Advance when the user opens a record rather than when they press Next.
+   *
+   * The controller watches where they land, not what they clicked: the row is
+   * a link, the click may be a middle-click or a keyboard Enter, and the
+   * navigation can still be cancelled by the unsaved-changes guard.
    */
   advanceOnClick?: boolean;
   /**
@@ -108,22 +111,25 @@ export const ALL_TOUR_STEPS: TourStep[] = [
     id: 'leads-search',
     path: buildPath('leads'),
     anchor: 'leads-search',
-    title: 'Leads are enquiries, not customers yet',
+    title: 'Leads and prospects both live here',
     body:
-      'Somebody who has asked about the software but has not bought. Search by name, ' +
-      'company or email, and filter by status, region, product of interest, or ' +
-      'whether they already have a trial licence. A lead cannot be ordered against — ' +
-      'it has to become a customer first, which is two steps away.',
+      'A lead is an enquiry who has not tried the software yet — somebody who filled in ' +
+      'a form on the website or came in through marketing. A prospect has downloaded ' +
+      'a free trial and is evaluating it, but has not bought. Both live under Leads, ' +
+      'in the same list, and the Has Evaluation filter is what separates them. Search ' +
+      'by name, company or email; filter by status, region, or the product they asked ' +
+      'about.',
   },
   {
     id: 'leads-table',
     path: buildPath('leads'),
     anchor: 'leads-results',
-    title: 'The list itself',
+    title: 'What you can do with each',
     body:
-      'Click any column heading to sort. The status column is the one to watch: it is ' +
-      'how you tell a fresh enquiry from one you have already spoken to. Click a row ' +
-      'to open the lead.',
+      'The difference decides what you can do with them. A lead you edit, work and ' +
+      'record notes against — there is nothing to licence yet. A prospect already ' +
+      'holds a trial, and is what an order is raised against when they decide to buy. ' +
+      'Click a column heading to sort; click a row to open one.',
   },
   {
     id: 'lead-form',
@@ -161,35 +167,39 @@ export const ALL_TOUR_STEPS: TourStep[] = [
   {
     id: 'lead-edit',
     path: routePattern('lead-detail'),
-    title: 'The lead record',
+    title: 'The record itself',
     body:
-      'The details at the top are editable in place — change the contact details, the ' +
-      'status as you work them, the industry, or the products they are interested in, ' +
-      'then press Save Changes. Underneath are any contacts, orders and trial ' +
-      'licences attached to them.',
+      'The badge next to the name says whether this is a lead or a prospect, and ' +
+      'hovering it explains the difference. The details underneath are editable in ' +
+      'place — contact details, the status as you work them, the industry, the ' +
+      'products they are interested in — then Save Changes. Below that are any ' +
+      'contacts, orders and trial licences attached to them.',
   },
   {
     id: 'lead-evaluations',
     path: routePattern('lead-detail'),
     anchor: 'lead-evaluations',
-    title: 'Give them a trial',
+    title: 'Giving them a trial',
     body:
-      'Create Evaluation issues a 30-day trial licence. There is a cap on how many ' +
-      'one customer can have, and a longer trial needs a separate permission. ' +
-      'Evaluations are never renewed — when the trial ends they buy a commercial ' +
-      'licence instead.',
+      'Create Evaluation issues a 30-day trial licence, and issuing one is what makes ' +
+      'somebody a prospect rather than a lead. It only appears once the record is a ' +
+      'prospect — on a plain lead the button is not there yet, and the badge by the ' +
+      'name says which you are looking at. There is a cap on how many trials one ' +
+      'customer can have, and a longer trial needs a separate permission. Evaluations ' +
+      'are never renewed: when the trial ends they buy a commercial licence.',
     requires: ['canCreateEvaluations'],
   },
   {
     id: 'lead-convert',
     path: routePattern('lead-detail'),
     anchor: 'lead-convert',
-    title: 'Turning a lead into a customer',
+    title: 'Lead to prospect',
     body:
-      'Convert to Prospect creates the customer record. Their details come across, ' +
-      'the first contact is created for you, and you land on the new customer ready ' +
-      'to order. This is one-way: after converting, work with them under Accounts. ' +
-      'Convert when they are actually going to buy, not before.',
+      'Convert to Prospect is the step between the two: it is what happens when an ' +
+      'enquiry downloads the trial. Their details come across, a contact is created ' +
+      'for them, and from then on they can hold trial licences and be ordered ' +
+      'against. It is one-way, and CSA does it — if a lead of yours is ready to trial ' +
+      'the software, ask CSA support or your administrator.',
   },
 
   // ── Accounts ────────────────────────────────────────────────────────────
