@@ -261,7 +261,6 @@ export default function TourController() {
       showButtons: stepIndex === 0 ? ['next', 'close'] : ['next', 'previous', 'close'],
       steps: [buildDriverStep(step)],
       onNextClick: advance,
-      onPrevClick: () => travelTo(stepIndex - 1),
       onDestroyed: () => {
         // Closing the popover ends the tour. Reaching the final step finishes
         // it properly; anything earlier is someone opting out.
@@ -272,7 +271,39 @@ export default function TourController() {
     driverRef.current = instance;
     instance.drive();
 
+    /**
+     * Re-enable Back.
+     *
+     * driver.js decides the previous button is dead when the step it is
+     * showing is the first in its array — and its array is always one step,
+     * because the next step may be on a page that does not exist yet. So Back
+     * rendered greyed out and carrying the disabled attribute on every step of
+     * the tour, which also stopped onPrevClick from ever firing.
+     *
+     * The button is ours to drive: the click is taken in the capture phase and
+     * routed through travelTo, which is what handles going back to a step on
+     * another page.
+     */
+    let cleanupPrev: (() => void) | undefined;
+    const wirePrev = window.setTimeout(() => {
+      const prev = document.querySelector<HTMLButtonElement>('.driver-popover-prev-btn');
+      if (!prev || stepIndex === 0) return;
+
+      prev.classList.remove('driver-popover-btn-disabled');
+      prev.removeAttribute('disabled');
+
+      const onPrev = (event: Event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        travelTo(stepIndex - 1);
+      };
+      prev.addEventListener('click', onPrev, true);
+      cleanupPrev = () => prev.removeEventListener('click', onPrev, true);
+    }, 50);
+
     return () => {
+      window.clearTimeout(wirePrev);
+      cleanupPrev?.();
       instance.destroy();
       driverRef.current = null;
     };
