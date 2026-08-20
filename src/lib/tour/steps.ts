@@ -590,15 +590,25 @@ export function stepsForPath(steps: TourStep[], pathname: string): TourStep[] {
   return steps.filter(step => pathMatches(step.path, pathname));
 }
 
+/** Every route with no `[id]` in it — the pages that are pages, not records. */
+const STATIC_PATHS = new Set<string>(ROUTES.filter(r => !r.needsId).map(r => r.path));
+
 /**
  * Whether a step's path covers a pathname.
  *
  * `[id]` matches any single segment, so detail-page steps work for whichever
- * record the user opened.
+ * record the user opened — but not when the concrete path is a real page in
+ * its own right. `/leads/new` is the Create Lead form, not a lead whose id is
+ * "new", and treating it as one sent the tour to a record step while the user
+ * was still on the form, where it then had nothing to show and stopped.
  */
 export function pathMatches(stepPath: string, pathname: string): boolean {
+  const path = pathname.replace(/\/$/, '');
+  if (stepPath === path) return true;
+  if (stepPath.includes('[id]') && STATIC_PATHS.has(path)) return false;
+
   const stepParts = stepPath.split('/');
-  const pathParts = pathname.replace(/\/$/, '').split('/');
+  const pathParts = path.split('/');
   if (stepParts.length !== pathParts.length) return false;
   return stepParts.every((part, i) => part === '[id]' || part === pathParts[i]);
 }

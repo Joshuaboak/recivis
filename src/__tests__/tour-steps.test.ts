@@ -197,6 +197,23 @@ describe('pathMatches', () => {
   it('ignores a trailing slash', () => {
     expect(pathMatches('/accounts', '/accounts/')).toBe(true);
   });
+
+  it('does not treat a real page as a record id', () => {
+    // /leads/new is the Create Lead form. Matching it as a lead sent the tour
+    // to a record step while the user was still on the form, where it had
+    // nothing to anchor to and stopped dead.
+    expect(pathMatches('/leads/[id]', '/leads/new')).toBe(false);
+    expect(pathMatches('/accounts/[id]', '/accounts/new')).toBe(false);
+    expect(pathMatches('/coupons/[id]', '/coupons/new')).toBe(false);
+  });
+
+  it('still matches a real record id', () => {
+    expect(pathMatches('/leads/[id]', '/leads/55779000012345678')).toBe(true);
+  });
+
+  it('matches the static route itself', () => {
+    expect(pathMatches('/leads/new', '/leads/new')).toBe(true);
+  });
 });
 
 describe('stepsForPath', () => {

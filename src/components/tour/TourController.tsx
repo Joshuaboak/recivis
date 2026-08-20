@@ -168,7 +168,12 @@ export default function TourController() {
     if (!enabled || !step?.advanceOnClick) return;
     if (pathMatches(step.path, pathname)) return;
 
-    const arrived = steps.findIndex((s, i) => i > stepIndex && pathMatches(s.path, pathname));
+    // Only record pages count. Following the user to any later step would
+    // also fire mid-navigation, when the pathname is still the page they are
+    // leaving — which is how the tour used to skip a step and strand itself.
+    const arrived = steps.findIndex(
+      (s, i) => i > stepIndex && !isDirectPath(s.path) && pathMatches(s.path, pathname)
+    );
     if (arrived >= 0) goToStep(arrived);
   }, [pathname, step, stepIndex, steps, enabled, goToStep]);
 
