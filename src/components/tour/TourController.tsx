@@ -56,6 +56,14 @@ export default function TourController() {
   const pathname = usePathname();
 
   const driverRef = useRef<Driver | null>(null);
+  /**
+   * True while the controller is tearing a popover down itself.
+   *
+   * driver calls onDestroyed for every destroy, including the one that happens
+   * when moving to the next step — so without this, pressing Next read as the
+   * user closing the section and ended it on the first step.
+   */
+  const tearingDownRef = useRef(false);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
 
@@ -99,7 +107,9 @@ export default function TourController() {
   }, [seen, user, setUser]);
 
   const close = useCallback((sectionId: string | null) => {
+    tearingDownRef.current = true;
     driverRef.current?.destroy();
+    tearingDownRef.current = false;
     driverRef.current = null;
     setActiveSectionId(null);
     setStepIndex(0);
@@ -176,7 +186,9 @@ export default function TourController() {
   // Draw the current step.
   useEffect(() => {
     if (!enabled || !active || !step) {
+      tearingDownRef.current = true;
       driverRef.current?.destroy();
+      tearingDownRef.current = false;
       driverRef.current = null;
       return;
     }
@@ -239,8 +251,9 @@ export default function TourController() {
       },
       onDestroyed: () => {
         // The × closes the section for good: a tutorial that reappears after
-        // being dismissed is worse than one that never showed up.
-        if (driverRef.current) close(active.id);
+        // being dismissed is worse than one that never showed up. Stepping and
+        // unmounting also destroy the popover, and those are not dismissals.
+        if (!tearingDownRef.current) close(active.id);
       },
     });
 
@@ -262,7 +275,9 @@ export default function TourController() {
 
     return () => {
       document.removeEventListener('click', onFooterClick, true);
+      tearingDownRef.current = true;
       instance.destroy();
+      tearingDownRef.current = false;
       driverRef.current = null;
     };
   }, [active, step, stepIndex, enabled, close]);
