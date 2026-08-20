@@ -14,7 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { ALL_TOUR_STEPS } from '@/lib/tour/steps';
+import { ALL_SECTIONS } from '@/lib/tour/sections';
 
 const SRC = join(process.cwd(), 'src');
 
@@ -41,17 +41,24 @@ function definedAnchors(): Set<string> {
 describe('tour anchors', () => {
   const defined = definedAnchors();
 
-  it('finds an element for every anchor the tour names', () => {
-    for (const step of ALL_TOUR_STEPS) {
+  const steps = ALL_SECTIONS.flatMap(section =>
+    section.steps.map(step => ({ ...step, section: section.id }))
+  );
+
+  it('finds an element for every anchor the tutorial names', () => {
+    for (const step of steps) {
       if (!step.anchor) continue;
-      expect(defined.has(step.anchor), `step "${step.id}" wants [data-tour="${step.anchor}"]`).toBe(true);
+      expect(
+        defined.has(step.anchor),
+        `${step.section}/${step.id} wants [data-tour="${step.anchor}"]`
+      ).toBe(true);
     }
   });
 
   it('does not leave anchors in the markup that nothing points at', () => {
-    const used = new Set(ALL_TOUR_STEPS.map(s => s.anchor).filter(Boolean));
+    const used = new Set(steps.map(s => s.anchor).filter(Boolean));
     for (const anchor of defined) {
-      expect(used.has(anchor), `[data-tour="${anchor}"] is never used by the tour`).toBe(true);
+      expect(used.has(anchor), `[data-tour="${anchor}"] is never used`).toBe(true);
     }
   });
 });

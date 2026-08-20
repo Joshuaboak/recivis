@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { LOGIN_PATH } from '@/lib/routes';
-import { startTour } from '@/lib/tour/progress';
+import { openTour } from '@/lib/tour/progress';
 
 interface RoleOption {
   value: string;
@@ -137,10 +137,27 @@ export default function UserMenu({ collapsed }: { collapsed: boolean }) {
               </button>
               {tutorialOn && (
                 <button
-                  onClick={() => { setMenuOpen(false); startTour(); }}
+                  onClick={async () => {
+                    setMenuOpen(false);
+                    // Clearing what has been seen is what makes this a restart:
+                    // every section will introduce itself again as it is opened.
+                    try {
+                      const res = await fetch('/api/users/me/preferences', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ seenSections: [] }),
+                      });
+                      if (res.ok && user) {
+                        const data = await res.json();
+                        setUser({ ...user, preferences: data.preferences });
+                      }
+                    } catch { /* the walkthrough below still opens */ }
+                    openTour();
+                  }}
+                  title="Show every section's walkthrough again"
                   className="text-[10px] font-semibold text-csa-accent hover:underline cursor-pointer flex-shrink-0"
                 >
-                  Replay
+                  Restart
                 </button>
               )}
             </div>

@@ -25,6 +25,7 @@ import BrandSplash from '@/components/layout/BrandSplash';
 import SessionExpiryWatcher from '@/components/layout/SessionExpiryWatcher';
 import SearchModal from '@/components/SearchModal';
 import TourController from '@/components/tour/TourController';
+import SectionHelpButton from '@/components/tour/SectionHelpButton';
 import SupportWidget from '@/components/support/SupportWidget';
 import RecentItems from '@/components/RecentItems';
 import NotificationBell from '@/components/NotificationBell';
@@ -87,6 +88,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
+                data-tour="header-search"
                 onClick={() => setSearchOpen(true)}
                 className="flex items-center gap-2.5 px-4 py-2 bg-surface border border-border-subtle rounded-xl text-text-muted hover:text-text-primary hover:border-csa-accent/50 transition-colors cursor-pointer group"
               >
@@ -97,8 +99,16 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 </kbd>
               </button>
               <ThemeToggle />
-              <RecentItems />
-              <NotificationBell />
+              {/* Wrapped rather than given the attribute directly: the tour
+                  needs something stable to point at, and these components own
+                  their own markup. */}
+              <span data-tour="header-recent" className="flex items-center">
+                <RecentItems />
+              </span>
+              <span data-tour="header-notifications" className="flex items-center">
+                <NotificationBell />
+              </span>
+              <SectionHelpButton />
             </div>
           </header>
 

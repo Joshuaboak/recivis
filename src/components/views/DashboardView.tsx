@@ -23,7 +23,8 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { startTour } from '@/lib/tour/progress';
+import { explainOnArrival } from '@/lib/tour/progress';
+import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { buildPath } from '@/lib/routes';
 
 const featureCards = [
@@ -92,6 +93,7 @@ const item = {
 
 export default function DashboardView() {
   const { user, clearMessages } = useAppStore();
+  const router = useGuardedRouter();
 
   const timeOfDay = () => {
     const hour = new Date().getHours();
@@ -154,7 +156,14 @@ export default function DashboardView() {
 
               <div className="mt-4 pt-3 border-t border-border-subtle">
                 <button
-                  onClick={startTour}
+                  onClick={() => {
+                    // The walkthrough for that section runs on that section's
+                    // page, so this asks for it and then goes there.
+                    const path = buildPath(card.view);
+                    clearMessages();
+                    explainOnArrival(path);
+                    router.push(path);
+                  }}
                   className="flex items-center gap-1.5 text-[11px] font-semibold text-text-muted hover:text-csa-accent transition-colors cursor-pointer"
                 >
                   <BookOpen size={12} />

@@ -1,52 +1,61 @@
 /**
- * tour/progress.ts — where the tour keeps its place.
+ * tour/progress.ts — asking the tutorial to open, from anywhere.
  *
- * sessionStorage, matching the precedent set by the chat transcript: it has to
- * survive a route change, an in-app Back and a reload of the same tab, but it
- * is worthless in a new tab and should not outlive the visit. Whether someone
- * has *finished* the tour is a different question with a different lifetime,
- * and lives on their user record instead.
- *
- * Every access is wrapped: storage can be unavailable or full, and a tour that
- * cannot remember its place is a smaller problem than one that throws.
+ * There is no saved position any more. The tutorial is per page and per
+ * section: what a person has already been shown lives on their user record,
+ * and where they are is simply which page they are on. So all that is left
+ * here is the event the help icon and the user menu fire.
  */
 
-const STORAGE_KEY = 'recivis:session:tour';
-
-/** Fired at the controller to start or stop the tour from elsewhere. */
+/** Fired at the controller to open or close a section's walkthrough. */
 export const TOUR_EVENT = 'recivis-tour';
 
-/** The step id the tour was last on, or null. */
-export function readTourProgress(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return window.sessionStorage.getItem(STORAGE_KEY);
-  } catch {
-    return null;
-  }
+export interface TourEventDetail {
+  action: 'open' | 'stop';
+  /** Which section to open. Omitted means "whatever covers this page". */
+  sectionId?: string;
 }
 
-export function writeTourProgress(stepId: string): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.sessionStorage.setItem(STORAGE_KEY, stepId);
-  } catch { /* storage unavailable — the tour still runs, it just forgets */ }
+function dispatch(detail: TourEventDetail): void {
+  window.dispatchEvent(new CustomEvent<TourEventDetail>(TOUR_EVENT, { detail }));
 }
 
-export function clearTourProgress(): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.sessionStorage.removeItem(STORAGE_KEY);
-  } catch { /* nothing to do */ }
+/** Explain the page the user is on, or a named section. */
+export function openTour(sectionId?: string): void {
+  dispatch({ action: 'open', sectionId });
 }
 
-/** Start the tour from the beginning. */
-export function startTour(): void {
-  clearTourProgress();
-  window.dispatchEvent(new CustomEvent(TOUR_EVENT, { detail: { action: 'start' } }));
-}
-
-/** Stop the tour where it is. */
+/** Close whatever is open. */
 export function stopTour(): void {
-  window.dispatchEvent(new CustomEvent(TOUR_EVENT, { detail: { action: 'stop' } }));
+  dispatch({ action: 'stop' });
+}
+
+/**
+ * Ask for the next page to explain itself.
+ *
+ * "Learn more" on a dashboard card is a request about somewhere else, and a
+ * section can only run on its own page — so the request outlives the
+ * navigation in sessionStorage and the controller picks it up on arrival.
+ * Recorded against the path so a request cannot fire on the wrong page if the
+ * user changes their mind halfway.
+ */
+const PENDING_KEY = 'recivis:tour:pending';
+
+export function explainOnArrival(path: string): void {
+  try {
+    window.sessionStorage.setItem(PENDING_KEY, path);
+  } catch { /* storage unavailable — the page simply will not introduce itself */ }
+}
+
+/** Take the pending request, if it is for this path. */
+export function takeExplainRequest(pathname: string): boolean {
+  try {
+    const pending = window.sessionStorage.getItem(PENDING_KEY);
+    if (!pending) return false;
+    if (pending !== pathname) return false;
+    window.sessionStorage.removeItem(PENDING_KEY);
+    return true;
+  } catch {
+    return false;
+  }
 }

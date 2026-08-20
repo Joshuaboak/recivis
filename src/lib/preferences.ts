@@ -18,11 +18,15 @@ export interface UserPreferences {
   /** Whether the guided tutorial offers itself and its launcher is shown. */
   guidedTutorial: boolean;
   /**
-   * Whether this person has finished the tour once. Separate from the toggle
-   * above so that turning the tutorial back on does not re-run it unbidden,
-   * and finishing it does not disable the launcher.
+   * The tutorial sections this person has already been shown.
+   *
+   * The tutorial is per page rather than one long march, so "finished" is not
+   * a single flag: each section offers itself the first time its page is
+   * opened and then stays quiet. Kept as a list rather than a count so that a
+   * section added later still introduces itself to somebody who has been using
+   * the portal for a year.
    */
-  tutorialCompleted: boolean;
+  seenSections: string[];
 }
 
 /** What a user gets before they have expressed any preference. */
@@ -30,13 +34,13 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   // On by default: someone who has never seen the portal is exactly who the
   // tutorial is for, and it is one click to turn off.
   guidedTutorial: true,
-  tutorialCompleted: false,
+  seenSections: [],
 };
 
 /** The stored key for each preference. */
 const PREFERENCE_KEYS: Record<keyof UserPreferences, string> = {
   guidedTutorial: 'guided_tutorial',
-  tutorialCompleted: 'tutorial_completed',
+  seenSections: 'tutorial_sections_seen',
 };
 
 /** Stored keys back to preference names, for reading rows. */
@@ -62,12 +66,19 @@ export async function getUserPreferences(userId: number): Promise<UserPreference
       [userId]
     );
 
-    const preferences = { ...DEFAULT_PREFERENCES };
+    const preferences: UserPreferences = { ...DEFAULT_PREFERENCES, seenSections: [] };
     for (const row of result.rows) {
       const name = KEYS_TO_PREFERENCE[row.pref_key as string];
       // A key written by a newer build, or removed by an older one.
       if (!name) continue;
-      preferences[name] = row.pref_value === 'true';
+      const value = row.pref_value as string;
+      if (name === 'seenSections') {
+        // Comma-separated: the store is key/value text, and a list of short
+        // ids does not justify a column of its own.
+        preferences.seenSections = value ? value.split(',').filter(Boolean) : [];
+      } else {
+        preferences[name] = value === 'true';
+      }
     }
     return preferences;
   } catch {
@@ -79,13 +90,30 @@ export async function getUserPreferences(userId: number): Promise<UserPreference
 export async function setUserPreference(
   userId: number,
   name: keyof UserPreferences,
-  value: boolean
+  value: boolean | string[]
 ): Promise<void> {
+  const stored = Array.isArray(value) ? value.join(',') : String(value);
   await query(
     `INSERT INTO user_preferences (user_id, pref_key, pref_value, updated_at)
      VALUES ($1, $2, $3, NOW())
      ON CONFLICT (user_id, pref_key)
      DO UPDATE SET pref_value = EXCLUDED.pref_value, updated_at = NOW()`,
-    [userId, PREFERENCE_KEYS[name], String(value)]
+    [userId, PREFERENCE_KEYS[name], stored]
   );
+}
+
+/**
+ * Record that a section has been seen, keeping whatever was already there.
+ *
+ * Read-modify-write rather than an append: the value is one text row, and two
+ * sections finishing at once is not a race worth a schema for — the loser
+ * simply offers itself once more.
+ */
+export async function markSectionSeen(userId: number, sectionId: string): Promise<string[]> {
+  const current = await getUserPreferences(userId);
+  if (current.seenSections.includes(sectionId)) return current.seenSections;
+
+  const next = [...current.seenSections, sectionId];
+  await setUserPreference(userId, 'seenSections', next);
+  return next;
 }
