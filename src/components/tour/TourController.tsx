@@ -300,17 +300,21 @@ export default function TourController() {
       },
     });
 
-    driverRef.current = instance;
-    instance.drive();
-
     /**
-     * Drive the footer from one delegated listener.
+     * Drive the footer from one delegated listener, registered before driver
+     * starts.
      *
-     * The buttons are ours but the listeners cannot be: driver rewrites the
-     * footer's contents when it repositions, which drops anything bound to a
-     * node. Taking the click on the document in the capture phase survives
-     * that, and stopping propagation there keeps driver's own handler — which
-     * treats an unrecognised click as "close the tour" — from firing after it.
+     * Three things forced this shape. The buttons cannot carry their own
+     * listeners, because driver rewrites the footer's contents when it
+     * repositions the popover. A listener added after drive() never fires,
+     * because driver installs its own document capture handler at that point
+     * and stops clicks it does not recognise — which includes ours, since it
+     * recognises its buttons by identity rather than by class. And clicks it
+     * does not recognise are read as "close the tour", which is why Back was
+     * destroying the tour rather than doing nothing.
+     *
+     * Registering first means ours runs first, and stopping immediate
+     * propagation means driver never sees it.
      */
     const onFooterClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
@@ -319,12 +323,14 @@ export default function TourController() {
       if (!back && !next) return;
 
       event.preventDefault();
-      event.stopPropagation();
-      document.documentElement.dataset.recivisTourClick = back ? 'back' : 'next';
+      event.stopImmediatePropagation();
       if (back) travelTo(stepIndex - 1);
       else advance();
     };
     document.addEventListener('click', onFooterClick, true);
+
+    driverRef.current = instance;
+    instance.drive();
 
     return () => {
       document.removeEventListener('click', onFooterClick, true);
