@@ -64,7 +64,7 @@ export async function GET(
               can_view_all_records, can_view_child_records, can_modify_prices,
               can_upload_po, can_view_reports, can_export_data,
               can_create_evaluations, max_evaluations_per_account, can_extend_evaluations,
-              can_direct_customer_comms, can_monthly_subscriptions
+              can_direct_customer_comms, can_monthly_subscriptions, can_convert_leads
        FROM reseller_roles WHERE is_system_role = false ORDER BY id`
     );
 
@@ -221,6 +221,7 @@ export async function PATCH(
         'can_upload_po', 'can_view_reports', 'can_export_data',
         'can_create_evaluations', 'can_extend_evaluations', 'can_direct_customer_comms',
         'can_monthly_subscriptions',
+        'can_convert_leads',
       ];
       for (let i = 0; i < permCols.length; i++) {
         updates.push(`${permCols[i]} = $${paramIdx++}`);
@@ -339,6 +340,7 @@ export async function POST(
         toNullableBool(permOverrides.can_extend_evaluations),
         toNullableBool(permOverrides.can_direct_customer_comms),
         toNullableBool(permOverrides.can_monthly_subscriptions),
+        toNullableBool(permOverrides.can_convert_leads),
       ]
     );
 

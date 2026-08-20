@@ -23,6 +23,7 @@ function permissions(overrides: Partial<UserPermissions> = {}): UserPermissions 
     canViewReports: false,
     canExportData: false,
     canCreateEvaluations: false,
+    canConvertLeads: false,
     maxEvaluationsPerAccount: 0,
     canExtendEvaluations: false,
     canDirectCustomerComms: false,

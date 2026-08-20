@@ -195,11 +195,12 @@ export const ALL_TOUR_STEPS: TourStep[] = [
     anchor: 'lead-convert',
     title: 'Lead to prospect',
     body:
-      'Convert to Prospect is the step between the two: it is what happens when an ' +
-      'enquiry downloads the trial. Their details come across, a contact is created ' +
-      'for them, and from then on they can hold trial licences and be ordered ' +
-      'against. It is one-way, and CSA does it — if a lead of yours is ready to trial ' +
-      'the software, ask CSA support or your administrator.',
+      'Convert to Prospect is the step between the two, and it is what you press once ' +
+      'an enquiry has downloaded the trial. Their details come across, a contact is ' +
+      'created for them, and from then on they can hold trial licences and be ordered ' +
+      'against. It is one-way, so convert when they have actually taken the trial ' +
+      'rather than in advance.',
+    requires: ['canConvertLeads'],
   },
 
   // ── Accounts ────────────────────────────────────────────────────────────
@@ -483,9 +484,10 @@ export const ALL_TOUR_STEPS: TourStep[] = [
     title: 'Discount codes',
     body:
       'Every coupon you can use, with its discount, what it is restricted to, how ' +
-      'many times it has been used, and whether it is currently valid. Codes are ' +
-      'redeemed on an order, in the Coupon panel — this page is where you check one ' +
-      'is live before promising it to a customer.',
+      'many times it has been used, and whether it is currently valid. CSA sets these ' +
+      'up; you find them here and redeem them on an order, in the Coupon panel. Worth ' +
+      'checking a code is live and covers the product before promising it to a ' +
+      'customer.',
   },
 
   // ── Reports and money ───────────────────────────────────────────────────

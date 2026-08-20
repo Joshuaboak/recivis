@@ -230,6 +230,7 @@ export async function initDB() {
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_extend_evaluations BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_direct_customer_comms BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_monthly_subscriptions BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_convert_leads BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS pay_on_card BOOLEAN DEFAULT false;
 
       -- Add evaluation columns to role tables (idempotent)
@@ -255,6 +256,34 @@ export async function initDB() {
       -- before, so unlike the column above there is no backfill: every preset
       -- starts false and an admin opts a partner in.
       ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_monthly_subscriptions BOOLEAN DEFAULT false;
+
+      -- Converting a lead to a prospect. This was hardcoded to admin/IBM, which
+      -- left partners unable to move their own enquiry on when it downloaded the
+      -- trial. It is ordinary partner work, so everybody gets it by default and
+      -- an admin takes it away rather than granting it.
+      --
+      -- Wrapped so the backfill runs once. Plain UPDATEs here would re-grant the
+      -- permission on every boot and undo whatever an admin had changed.
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'reseller_roles' AND column_name = 'can_convert_leads'
+        ) THEN
+          ALTER TABLE reseller_roles ADD COLUMN can_convert_leads BOOLEAN DEFAULT true;
+          UPDATE reseller_roles SET can_convert_leads = true;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'user_roles' AND column_name = 'can_convert_leads'
+        ) THEN
+          ALTER TABLE user_roles ADD COLUMN can_convert_leads BOOLEAN DEFAULT true;
+          UPDATE user_roles SET can_convert_leads = true;
+          -- Viewer is read-only by definition; converting writes.
+          UPDATE user_roles SET can_convert_leads = false WHERE name = 'viewer';
+        END IF;
+      END $$;
     `);
     dbInitialized = true;
   } finally {

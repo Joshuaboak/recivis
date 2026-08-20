@@ -191,6 +191,7 @@ export default function LeadDetailView({
   const [resellerOptions, setResellerOptions] = useState<ResellerOption[]>([]);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
+  const canConvertLeads = !!user?.permissions?.canConvertLeads;
   const hasChildResellers = !!user?.permissions?.canViewChildRecords;
   const canEditReseller = isAdmin || hasChildResellers;
 
@@ -670,7 +671,7 @@ export default function LeadDetailView({
               <p className="text-sm text-text-muted truncate">{lead.Email as string || ''}</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {isAdmin && !convertResult?.success && (
+              {canConvertLeads && !convertResult?.success && (
                 /* The guidance is a hover tooltip rather than a caption. As a
                    caption it sat below the button, which both pushed this control
                    out of line with Edit and Open in CRM and sized the group to the

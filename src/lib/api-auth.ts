@@ -73,6 +73,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
               ur.can_upload_po AS ur_po, ur.can_manage_users AS ur_users,
               ur.can_view_reports AS ur_reports, ur.can_export_data AS ur_export,
               ur.can_create_evaluations AS ur_eval, ur.can_extend_evaluations AS ur_extend_eval,
+              ur.can_convert_leads AS ur_convert,
               rr.can_create_invoices AS rr_create, rr.can_approve_invoices AS rr_approve,
               rr.can_send_invoices AS rr_send, rr.can_view_all_records AS rr_all,
               rr.can_view_child_records AS rr_child, rr.can_modify_prices AS rr_price,
@@ -82,6 +83,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
               rr.can_extend_evaluations AS rr_extend_eval,
               rr.can_direct_customer_comms AS rr_direct_comms,
               rr.can_monthly_subscriptions AS rr_monthly_subs,
+              rr.can_convert_leads AS rr_convert,
               r.perm_create_invoices AS ro_create, r.perm_approve_invoices AS ro_approve,
               r.perm_send_invoices AS ro_send, r.perm_view_all_records AS ro_all,
               r.perm_view_child_records AS ro_child, r.perm_modify_prices AS ro_price,
@@ -91,6 +93,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
               r.perm_extend_evaluations AS ro_extend_eval,
               r.perm_direct_customer_comms AS ro_direct_comms,
               r.perm_monthly_subscriptions AS ro_monthly_subs,
+              r.perm_convert_leads AS ro_convert,
               r.region AS reseller_region
        FROM users u
        LEFT JOIN user_roles ur ON ur.id = u.user_role_id
@@ -121,6 +124,8 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
     const rrExtendEval = row.ro_extend_eval ?? row.rr_extend_eval ?? false;
     const rrDirectComms = row.ro_direct_comms ?? row.rr_direct_comms ?? false;
     const rrMonthlySubs = row.ro_monthly_subs ?? row.rr_monthly_subs ?? false;
+    // Defaults true — see auth.ts: ordinary partner work, granted unless taken.
+    const rrConvert = row.ro_convert ?? row.rr_convert ?? true;
 
     const permissions: UserPermissions = {
       canCreateInvoices: isSystemAdmin || ((row.ur_create ?? false) && rrCreate),
@@ -134,6 +139,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
       canViewReports: isSystemAdmin || ((row.ur_reports ?? false) && rrReports),
       canExportData: isSystemAdmin || ((row.ur_export ?? false) && rrExport),
       canCreateEvaluations: isSystemAdmin || ((row.ur_eval ?? false) && rrEval),
+      canConvertLeads: isSystemAdmin || ((row.ur_convert ?? true) && rrConvert),
       maxEvaluationsPerAccount: isSystemAdmin ? -1 : ((row.ur_eval ?? false) && rrEval ? rrMaxEval : 0),
       canExtendEvaluations: isSystemAdmin || ((row.ur_extend_eval ?? false) && rrExtendEval),
       // Org-level cap, so no user_role factor — same shape as canViewAllRecords.

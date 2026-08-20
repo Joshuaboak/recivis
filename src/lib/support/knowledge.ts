@@ -79,9 +79,9 @@ export const HELP_TOPICS: HelpTopic[] = [
       'downloaded a free trial and is evaluating it, but has not bought. Both live ' +
       'under Leads, in the same list, and the Has Evaluation filter is what tells them ' +
       'apart. The stage decides what you can do: a lead is edited and worked, a ' +
-      'prospect holds trial licences and can be ordered against. Convert to Prospect ' +
-      'is the step between the two and CSA does it — ask support or your administrator ' +
-      'when one of yours takes the trial. On the Leads list you ' +
+      'prospect holds trial licences and can be ordered against. Convert to Prospect, ' +
+      'on the lead itself, is the step between the two — press it once they have ' +
+      'downloaded the trial. On the Leads list you ' +
       'can: search by name, company or email; filter by status, region, country, product ' +
       'of interest, and whether they have an evaluation licence; sort the table; open any ' +
       'lead; create a new one with New Lead; and export the filtered list to a ' +
@@ -106,7 +106,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     title: 'What you can do on a lead',
     where: 'Leads → open a lead',
     path: '/leads',
-    requires: ['canCreateEvaluations'],
+    requires: ['canCreateEvaluations', 'canConvertLeads'],
     body:
       'The badge beside the name says whether this is a lead or a prospect, and hovering ' +
       'it explains the difference. The details panel is editable in place — contact ' +
@@ -114,8 +114,8 @@ export const HELP_TOPICS: HelpTopic[] = [
       'underneath show any contacts, orders and trial licences attached. Create ' +
       'Evaluation issues a 30-day trial, and it appears once the record is a prospect ' +
       'and you have the evaluation permission. Convert to Prospect is what moves a lead ' +
-      'to that stage; it is one-way and CSA does it, so ask support or your ' +
-      'administrator when one of yours is ready to trial the software.',
+      'to that stage. It is one-way, so convert when they have actually taken the ' +
+      'trial rather than in advance.',
   },
 
   // ── Accounts ────────────────────────────────────────────────────────────
@@ -360,14 +360,17 @@ export const HELP_TOPICS: HelpTopic[] = [
     where: 'Coupons',
     path: '/coupons',
     body:
-      'A coupon is a discount code you apply to an order. The list shows each code, its ' +
-      'discount, what it is valid on, how many times it has been used and whether it is ' +
-      'Draft, Active or Expired, with a status filter and search. Create Coupon sets up ' +
-      'a new one: a code and description, percentage or fixed-amount discount, currency, ' +
-      'start and end dates, a usage limit, and restrictions on which products, regions, ' +
-      'order types and order values it applies to. Opening a coupon shows all of that ' +
-      'and Edit Coupon changes it. Codes are redeemed on the order itself, in the Coupon ' +
-      'panel — the discount then shows as its own line.',
+      'A coupon is a discount code you apply to an order. Coupons are set up by CSA, ' +
+      'not by partners: this page is where you find one and check it is usable before ' +
+      'promising it to a customer. The list shows each code, its discount, what it is ' +
+      'valid on, how many times it has been used, and whether it is Draft, Active or ' +
+      'Expired, with a status filter and a search box. Open one to see its ' +
+      'restrictions — which products, regions, order types and order values it covers, ' +
+      'and the dates it runs between. To redeem it, open the order and enter the code ' +
+      'in the Coupon panel; it is checked against those restrictions and the discount ' +
+      'then appears as its own line on the order. If a code will not apply, the reason ' +
+      'is almost always one of those restrictions or the date. Ask CSA for a code you ' +
+      'do not have.',
   },
 
   // ── Reports ─────────────────────────────────────────────────────────────
@@ -477,6 +480,7 @@ const PERMISSION_LABELS: Record<keyof UserPermissions, string> = {
   canViewReports: 'view reports',
   canExportData: 'export data',
   canCreateEvaluations: 'create evaluations',
+  canConvertLeads: 'convert a lead to a prospect',
   maxEvaluationsPerAccount: 'a limit on evaluations per customer',
   canExtendEvaluations: 'extend evaluations',
   canDirectCustomerComms: 'send straight to customers',

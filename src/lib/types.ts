@@ -31,6 +31,8 @@ export interface UserPermissions {
   canViewReports: boolean;
   canExportData: boolean;
   canCreateEvaluations: boolean;
+  /** May move a lead on to prospect once it has taken the trial. */
+  canConvertLeads: boolean;
   maxEvaluationsPerAccount: number; // -1 = unlimited, 0 = disabled
   canExtendEvaluations: boolean;
   /** Org-level only (no user_role equivalent): may orders and licence keys be

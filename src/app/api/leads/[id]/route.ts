@@ -241,9 +241,14 @@ export async function POST(
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
 
-  // Only admin/ibm can convert leads
-  if (!isAdmin(user)) {
-    return NextResponse.json({ error: 'Only administrators can convert leads' }, { status: 403 });
+  // Converting is ordinary partner work — moving an enquiry on once it has
+  // taken the trial — so it is a permission rather than a role check. Admins
+  // and IBMs keep it unconditionally through the permission resolution itself.
+  if (!user.permissions.canConvertLeads) {
+    return NextResponse.json(
+      { error: 'You do not have permission to convert leads' },
+      { status: 403 }
+    );
   }
 
   const { id } = await params;

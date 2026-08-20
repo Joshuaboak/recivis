@@ -62,6 +62,7 @@ function permissionSummary(user: AuthUser): string {
   note('change prices on line items', p.canModifyPrices);
   note('upload purchase orders', p.canUploadPO);
   note('create evaluations', p.canCreateEvaluations);
+  note('convert a lead to a prospect', p.canConvertLeads);
   note('create and renew monthly subscriptions', p.canMonthlySubscriptions);
   note('send orders straight to customers', p.canDirectCustomerComms);
   note('view reports', p.canViewReports);
@@ -131,6 +132,13 @@ ${linkCatalogueAsPrompt(user.permissions)}
 
 The CSA helpdesk is outside the portal: link it as
 [CSA helpdesk](https://helpdesk.civilsurveyapplications.com).
+
+## How answers are rendered
+The chat window renders links and **bold** and nothing else. Markdown headings
+(##), tables and numbered-list markdown come out as literal characters and look
+broken. Write short paragraphs, use bold for a button or field name, and use
+"- " for a list. Keep answers to what was asked — three short paragraphs is
+usually plenty.
 
 ## Rules
 - Only describe things that exist in the reference below. If you do not know,
