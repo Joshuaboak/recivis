@@ -270,6 +270,10 @@ export default function TourController() {
         // popover ends up with four buttons and the dead ones come first.
         footer.querySelectorAll('.driver-popover-navigation-btns').forEach(el => el.remove());
 
+        // A marker for diagnosing the tour from outside: it says our footer ran,
+        // which is otherwise indistinguishable from driver's own.
+        document.documentElement.dataset.recivisTourFooter = String(stepIndex + 1);
+
         const buttons = document.createElement('span');
         buttons.className = 'driver-popover-navigation-btns';
 
@@ -316,6 +320,7 @@ export default function TourController() {
 
       event.preventDefault();
       event.stopPropagation();
+      document.documentElement.dataset.recivisTourClick = back ? 'back' : 'next';
       if (back) travelTo(stepIndex - 1);
       else advance();
     };
