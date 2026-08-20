@@ -265,6 +265,11 @@ export default function TourController() {
         const footer = popover.wrapper.querySelector('.driver-popover-footer');
         if (!footer) return;
 
+        // driver renders its own pair first — a disabled Previous and a Done —
+        // and showButtons does not stop it. They go before ours arrive, or the
+        // popover ends up with four buttons and the dead ones come first.
+        footer.querySelectorAll('.driver-popover-navigation-btns').forEach(el => el.remove());
+
         const buttons = document.createElement('span');
         buttons.className = 'driver-popover-navigation-btns';
 
