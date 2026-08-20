@@ -253,14 +253,39 @@ export default function TourController() {
       overlayOpacity: 0,
       stagePadding: 6,
       popoverClass: 'recivis-tour',
-      nextBtnText: isLast ? 'Finish' : 'Next',
-      // driver treats a single-step tour as already finished, so this is the
-      // button actually rendered. Without it every step says Finish.
-      doneBtnText: isLast ? 'Finish' : 'Next',
-      prevBtnText: 'Back',
-      showButtons: stepIndex === 0 ? ['next', 'close'] : ['next', 'previous', 'close'],
+      // driver's own footer buttons are not used. It is handed one step at a
+      // time, so it believes every step is both the first and the last: Back
+      // renders disabled and Next renders as Done. Fighting that from outside
+      // failed twice — the footer is re-rendered on every reposition, taking
+      // any listener or attribute change with it. So the footer is ours, built
+      // fresh by onPopoverRender each time driver draws one.
+      showButtons: ['close'],
       steps: [buildDriverStep(step)],
-      onNextClick: advance,
+      onPopoverRender: popover => {
+        const footer = popover.wrapper.querySelector('.driver-popover-footer');
+        if (!footer) return;
+
+        const buttons = document.createElement('span');
+        buttons.className = 'driver-popover-navigation-btns';
+
+        if (stepIndex > 0) {
+          const back = document.createElement('button');
+          back.type = 'button';
+          back.className = 'driver-popover-prev-btn driver-popover-footer-btn';
+          back.textContent = 'Back';
+          back.addEventListener('click', () => travelTo(stepIndex - 1));
+          buttons.appendChild(back);
+        }
+
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.className = 'driver-popover-next-btn driver-popover-footer-btn';
+        next.textContent = isLast ? 'Finish' : 'Next';
+        next.addEventListener('click', advance);
+        buttons.appendChild(next);
+
+        footer.appendChild(buttons);
+      },
       onDestroyed: () => {
         // Closing the popover ends the tour. Reaching the final step finishes
         // it properly; anything earlier is someone opting out.
@@ -271,41 +296,7 @@ export default function TourController() {
     driverRef.current = instance;
     instance.drive();
 
-    /**
-     * Re-enable Back, and drive it.
-     *
-     * driver.js decides the previous button is dead when the step it is
-     * showing is the first in its array — and its array is always one step,
-     * because the next step may be on a page that does not exist yet. So Back
-     * rendered greyed out and carrying the disabled attribute on every step,
-     * which also stopped onPrevClick from ever firing.
-     *
-     * Both halves have to survive driver re-rendering its own footer, which it
-     * does on reposition: the attribute is stripped on a poll rather than once,
-     * and the click is taken by a delegated capture-phase listener on the
-     * document rather than bound to a button node that gets replaced.
-     */
-    const enablePrev = window.setInterval(() => {
-      if (stepIndex === 0) return;
-      const prev = document.querySelector<HTMLButtonElement>('.driver-popover-prev-btn');
-      if (!prev) return;
-      prev.classList.remove('driver-popover-btn-disabled');
-      prev.removeAttribute('disabled');
-    }, 200);
-
-    const onDocumentClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target?.closest?.('.driver-popover-prev-btn')) return;
-      if (stepIndex === 0) return;
-      event.preventDefault();
-      event.stopPropagation();
-      travelTo(stepIndex - 1);
-    };
-    document.addEventListener('click', onDocumentClick, true);
-
     return () => {
-      window.clearInterval(enablePrev);
-      document.removeEventListener('click', onDocumentClick, true);
       instance.destroy();
       driverRef.current = null;
     };
