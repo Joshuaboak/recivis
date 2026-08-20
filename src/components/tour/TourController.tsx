@@ -54,6 +54,14 @@ import TourSpotlight from './TourSpotlight';
 /** How long to wait for an anchor that has not rendered yet. */
 const ANCHOR_TIMEOUT_MS = 8000;
 
+/**
+ * How long to wait before giving up on an anchor and moving on.
+ *
+ * Shorter than the timeout driver is given, so the skip happens rather than
+ * the user being left looking at a page with no popover on it.
+ */
+const ANCHOR_GIVE_UP_MS = 5000;
+
 export default function TourController() {
   const { user, setUser } = useAppStore();
   const pathname = usePathname();
@@ -176,6 +184,41 @@ export default function TourController() {
     );
     if (arrived >= 0) goToStep(arrived);
   }, [pathname, step, stepIndex, steps, enabled, goToStep]);
+
+  /**
+   * Skip a step whose target never appears.
+   *
+   * driver.js has skipMissingElement, but it only skips within the step array
+   * it was given, and it is given one step at a time — so a missing anchor
+   * produced no popover at all and the tour simply stopped, which is what
+   * happened on the send-keys step, whose buttons only exist once a licence is
+   * ticked. Anchors legitimately come and go: empty lists, permission-gated
+   * buttons, controls that appear on selection. The tour has to survive all of
+   * them, so if the target has not turned up by the time the user would notice,
+   * move on.
+   */
+  useEffect(() => {
+    if (!enabled || !step?.anchor || !onStepPage) return;
+
+    const selector = `[data-tour="${step.anchor}"]`;
+    if (document.querySelector(selector)) return;
+
+    let cancelled = false;
+    const started = Date.now();
+
+    const look = () => {
+      if (cancelled) return;
+      if (document.querySelector(selector)) return;
+      if (Date.now() - started >= ANCHOR_GIVE_UP_MS) {
+        travelTo(stepIndex + 1);
+        return;
+      }
+      window.setTimeout(look, 300);
+    };
+    const timer = window.setTimeout(look, 300);
+
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [step, stepIndex, onStepPage, enabled, travelTo]);
 
   // The tour itself. Re-runs when the step or the route changes, which is how
   // a step on another page picks up after navigation.

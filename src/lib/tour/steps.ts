@@ -328,12 +328,15 @@ export const ALL_TOUR_STEPS: TourStep[] = [
   {
     id: 'account-send-keys',
     path: routePattern('account-detail'),
-    anchor: 'account-send-keys',
+    // Anchored to the table rather than to the buttons: Send Keys only exists
+    // once a licence is ticked, and a tour step cannot tick one for you.
+    anchor: 'account-assets',
     title: 'Sending licence keys again',
     body:
-      'Tick licences and send their keys out again — to you, or straight to the ' +
-      'customer. This is the answer to "they have lost their keys", and it does not ' +
-      'reissue or change anything, it just emails what already exists.',
+      'Tick any licence in this table and two more buttons appear above it: Generate ' +
+      'Renewal, and Send Keys — to you, or straight to the customer. Sending keys is ' +
+      'the answer to "they have lost their keys"; it reissues nothing and changes ' +
+      'nothing, it just emails what already exists.',
   },
 
   // ── Orders ──────────────────────────────────────────────────────────────

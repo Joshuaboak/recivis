@@ -1250,7 +1250,6 @@ export default function AccountDetailView({
                   )}
                 </div>
                 <button
-                  data-tour="account-send-keys"
                   onClick={() => setSendKeysConfirm('reseller')}
                   disabled={sendingKeys || generatingRenewal}
                   className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer disabled:opacity-50"
