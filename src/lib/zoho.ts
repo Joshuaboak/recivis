@@ -152,10 +152,10 @@ export async function callMcpTool(
 
   try {
     await ensureInitialized();
-    return await mcpRequest('tools/call', {
+    return assertToolSucceeded(toolName, await mcpRequest('tools/call', {
       name: toolName,
       arguments: args,
-    });
+    }));
   } catch (err) {
     // Session may be stale — reset and retry once
     log('warn', 'mcp', `Tool call ${toolName} failed, resetting session and retrying`, {
@@ -163,11 +163,30 @@ export async function callMcpTool(
     });
     resetSession();
     await ensureInitialized();
-    return await mcpRequest('tools/call', {
+    return assertToolSucceeded(toolName, await mcpRequest('tools/call', {
       name: toolName,
       arguments: args,
-    });
+    }));
   }
+}
+
+/**
+ * Turn a tool-level failure into a thrown error.
+ *
+ * MCP reports two different kinds of failure. A protocol error comes back as a
+ * JSON-RPC error and already throws; a tool that ran and failed — an unknown
+ * tool name, a rejected payload — comes back as a perfectly successful
+ * response carrying `isError: true`. Without this, the second kind reads as
+ * success all the way up to the caller, which is how tagging silently did
+ * nothing for months.
+ */
+function assertToolSucceeded(toolName: string, result: unknown): unknown {
+  const res = result as { isError?: boolean; content?: Array<{ text?: string }> } | null;
+  if (!res?.isError) return result;
+
+  const detail = res.content?.map(c => c.text).filter(Boolean).join(' ').slice(0, 300) || 'no detail';
+  log('error', 'mcp', `Tool ${toolName} reported an error`, { detail });
+  throw new Error(`MCP tool ${toolName} failed: ${detail}`);
 }
 
 /**
@@ -344,14 +363,38 @@ export async function executeZohoTool(
     }
 
     case 'add_tags': {
-      // Zoho tags are a record-level list, not a field, so they are added
-      // through their own endpoint rather than an update_records call.
-      // Appends by default — over_write would wipe tags set elsewhere.
-      return callMcpTool('ZohoCRM_postAddTagsWithId', {
-        path_variables: { module: args.module, id: args.record_id },
+      // Zoho has a dedicated add-tags endpoint, and this used to call it. The
+      // portal's MCP endpoint does not carry it — it exposes 34 tools and not
+      // one of them touches tags — so every call failed and the licences it
+      // was meant to mark came out untagged.
+      //
+      // Tags can be written through the record instead, but the semantics are
+      // the opposite of the endpoint's: `Tag` on an update REPLACES the list
+      // rather than appending to it. So the current tags are read and merged
+      // first. (Leaving `Tag` out of an update leaves existing tags alone,
+      // which is why every other update in this codebase is safe.)
+      const module = args.module as string;
+      const recordId = args.record_id as string;
+      const wanted = args.tags as string[];
+
+      const current = await callMcpTool('ZohoCRM_getRecord', {
+        path_variables: { module, recordId },
+        query_params: { fields: 'Tag' },
+      });
+      const record = parseMcpResult(current).data[0] as Record<string, unknown> | undefined;
+      const existing = Array.isArray(record?.Tag)
+        ? (record.Tag as Array<string | { name?: string }>)
+            .map(t => (typeof t === 'string' ? t : t?.name || ''))
+            .filter(Boolean)
+        : [];
+
+      const merged = [...new Set([...existing, ...wanted])];
+
+      return callMcpTool('ZohoCRM_updateRecords', {
+        path_variables: { module },
         body: {
-          tags: (args.tags as string[]).map(name => ({ name })),
-          over_write: false,
+          data: [{ id: recordId, Tag: merged.map(name => ({ name })) }],
+          trigger: [],
         },
       });
     }

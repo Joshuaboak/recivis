@@ -509,8 +509,9 @@ async function markAsSubscription(
 
   if (await hasSubscriptionTag(assetId)) return null;
 
-  // One retry: tagging goes through its own endpoint and can lose a race with
-  // the record being written.
+  // One retry: the tag is written by merging it into the record's tag list, so
+  // a read that lands before the licence is fully written can merge into the
+  // wrong picture.
   try {
     await executeZohoTool('add_tags', { module: 'Assets1', record_id: assetId, tags });
   } catch { /* the check below is what decides */ }
