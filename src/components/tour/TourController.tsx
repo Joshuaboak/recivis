@@ -116,10 +116,20 @@ export default function TourController() {
     if (sectionId) markSeen(sectionId);
   }, [markSeen]);
 
+  /**
+   * Show a section, and count it as shown.
+   *
+   * Marked seen on opening rather than on finishing. A section can end without
+   * being finished — its last step's target may not exist on this particular
+   * record, or the user may simply walk away — and a walkthrough that reopens
+   * every time you visit the page is the thing this rework was meant to stop.
+   * It has introduced itself; the help icon is there when it is wanted again.
+   */
   const open = useCallback((sectionId: string) => {
     setActiveSectionId(sectionId);
     setStepIndex(0);
-  }, []);
+    markSeen(sectionId);
+  }, [markSeen]);
 
   /**
    * Offer a section on arrival.
