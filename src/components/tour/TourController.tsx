@@ -272,38 +272,40 @@ export default function TourController() {
     instance.drive();
 
     /**
-     * Re-enable Back.
+     * Re-enable Back, and drive it.
      *
      * driver.js decides the previous button is dead when the step it is
      * showing is the first in its array — and its array is always one step,
      * because the next step may be on a page that does not exist yet. So Back
-     * rendered greyed out and carrying the disabled attribute on every step of
-     * the tour, which also stopped onPrevClick from ever firing.
+     * rendered greyed out and carrying the disabled attribute on every step,
+     * which also stopped onPrevClick from ever firing.
      *
-     * The button is ours to drive: the click is taken in the capture phase and
-     * routed through travelTo, which is what handles going back to a step on
-     * another page.
+     * Both halves have to survive driver re-rendering its own footer, which it
+     * does on reposition: the attribute is stripped on a poll rather than once,
+     * and the click is taken by a delegated capture-phase listener on the
+     * document rather than bound to a button node that gets replaced.
      */
-    let cleanupPrev: (() => void) | undefined;
-    const wirePrev = window.setTimeout(() => {
+    const enablePrev = window.setInterval(() => {
+      if (stepIndex === 0) return;
       const prev = document.querySelector<HTMLButtonElement>('.driver-popover-prev-btn');
-      if (!prev || stepIndex === 0) return;
-
+      if (!prev) return;
       prev.classList.remove('driver-popover-btn-disabled');
       prev.removeAttribute('disabled');
+    }, 200);
 
-      const onPrev = (event: Event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        travelTo(stepIndex - 1);
-      };
-      prev.addEventListener('click', onPrev, true);
-      cleanupPrev = () => prev.removeEventListener('click', onPrev, true);
-    }, 50);
+    const onDocumentClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest?.('.driver-popover-prev-btn')) return;
+      if (stepIndex === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      travelTo(stepIndex - 1);
+    };
+    document.addEventListener('click', onDocumentClick, true);
 
     return () => {
-      window.clearTimeout(wirePrev);
-      cleanupPrev?.();
+      window.clearInterval(enablePrev);
+      document.removeEventListener('click', onDocumentClick, true);
       instance.destroy();
       driverRef.current = null;
     };
