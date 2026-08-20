@@ -60,10 +60,10 @@ export const HELP_TOPICS: HelpTopic[] = [
     where: 'Dashboard',
     path: '/dashboard',
     body:
-      'The landing page. It shows headline counts for your leads, customers and orders, ' +
-      'and shortcut cards into Leads, Accounts, Orders, Order Assistant, Reports ' +
-      'Dashboard and the Reports Assistant. Nothing is created or changed from here — ' +
-      'it is a starting point.',
+      'The landing page. Shortcut cards into Leads, Accounts, Orders, Order Assistant, ' +
+      'Reports Dashboard and the Reports Assistant, each with a line saying what it is ' +
+      'for and a Learn more link. Nothing is created or changed from here — it is a ' +
+      'starting point.',
   },
 
   // ── Leads ───────────────────────────────────────────────────────────────
@@ -77,16 +77,16 @@ export const HELP_TOPICS: HelpTopic[] = [
       'A lead is an enquiry who has not tried the software yet — somebody who filled ' +
       'in a form on the website or came in through marketing. A prospect has ' +
       'downloaded a free trial and is evaluating it, but has not bought. Both live ' +
-      'under Leads, in the same list, and the Has Evaluation filter is what tells them ' +
-      'apart. The stage decides what you can do: a lead is edited and worked, a ' +
+      'under Leads, in the same list. Two things tell them apart: the status column ' +
+      'reads Prospect, and the evaluation filter can show only those holding a trial. The stage decides what you can do: a lead is edited and worked, a ' +
       'prospect holds trial licences and can be ordered against. Convert to Prospect, ' +
       'on the lead itself, is the step between the two — press it once they have ' +
       'downloaded the trial. On the Leads list you ' +
-      'can: search by name, company or email; filter by status, region, country, product ' +
-      'of interest, and whether they have an evaluation licence; sort the table; open any ' +
-      'lead; create a new one with New Lead; and export the filtered list to a ' +
-      'spreadsheet if you have the export permission. Distributors also get a partner ' +
-      'filter so they can look at one of their resellers at a time. Neither a lead nor ' +
+      'can: search by name, company or email; filter by status, by product of interest, ' +
+      'and by whether they hold a trial licence; sort the table; open any lead; create ' +
+      'a new one with New Lead; and export the filtered list to a spreadsheet if you ' +
+      'have the export permission. Distributors and CSA also get region and partner ' +
+      'filters, so they can look at one reseller at a time. Neither a lead nor ' +
       'a prospect is a customer: they become one when they buy.',
   },
   {

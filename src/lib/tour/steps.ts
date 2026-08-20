@@ -102,8 +102,9 @@ export const ALL_TOUR_STEPS: TourStep[] = [
     anchor: 'dashboard-cards',
     title: 'Or start from here',
     body:
-      'The same destinations as shortcuts, with your current counts on them. Nothing ' +
-      'is created from the dashboard — it is a starting point, not a workspace.',
+      'The same destinations as shortcuts, each with a line saying what it is for and ' +
+      'a Learn more link. Nothing is created from the dashboard — it is a starting ' +
+      'point, not a workspace.',
   },
 
   // ── Leads ───────────────────────────────────────────────────────────────
@@ -116,9 +117,10 @@ export const ALL_TOUR_STEPS: TourStep[] = [
       'A lead is an enquiry who has not tried the software yet — somebody who filled in ' +
       'a form on the website or came in through marketing. A prospect has downloaded ' +
       'a free trial and is evaluating it, but has not bought. Both live under Leads, ' +
-      'in the same list, and the Has Evaluation filter is what separates them. Search ' +
-      'by name, company or email; filter by status, region, or the product they asked ' +
-      'about.',
+      'in the same list. Two things mark a prospect out: the status column reads ' +
+      'Prospect, and the evaluation filter can show only those holding a trial. ' +
+      'Search by name, company or email, and filter by status or by the product they ' +
+      'asked about.',
   },
   {
     id: 'leads-table',
