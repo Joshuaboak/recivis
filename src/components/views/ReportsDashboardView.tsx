@@ -274,7 +274,7 @@ export default function ReportsDashboardView() {
         </div>
 
         {/* Month picker */}
-        <div className="mb-6">
+        <div data-tour="reports-months" className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Months</span>
             {selectedMonths.size > 0 && <button onClick={() => setSelectedMonths(new Set())} className="text-[10px] text-csa-accent cursor-pointer">Clear</button>}

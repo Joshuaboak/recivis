@@ -1,24 +1,27 @@
 /**
  * tour/sections.ts — the guided tutorial, one section per page.
  *
- * The tutorial used to be a single forty-step march that drove the user
- * around the portal. This is the same material rearranged around how somebody
- * actually learns an app: they open a page, and the page explains itself.
- *
  * A section belongs to a route. It offers itself the first time that route is
- * visited, and never again once it has been seen — and the help icon in the
- * header brings it back on demand. Nothing here navigates: the user goes where
- * they were going anyway, and the tutorial meets them there.
+ * visited, and the help icon in the header brings it back on demand. Nothing
+ * here navigates: the user goes where they were going anyway, and the tutorial
+ * meets them there.
  *
- * Three rules shaped this list:
+ * Four rules shaped this list:
  *
  * 1. **A section explains one page.** No step assumes the user arrived from
  *    another section, or that they will go on to a particular next one.
- * 2. **Nothing is shown that the viewer cannot do.** Steps declare the
+ * 2. **One step, one thing.** A step names a single control and says what it
+ *    is for. Anything that needed a second sentence about a second control is
+ *    two steps, so the highlight is always on what is being talked about.
+ * 3. **Point at what you mention.** If a step names a button, a filter or a
+ *    column, it anchors to it. Steps with no anchor exist only where the
+ *    subject is the whole page.
+ * 4. **Nothing is shown that the viewer cannot do.** Steps declare the
  *    permissions their subject needs; a section whose steps are all filtered
  *    out stops existing for that person, icon and all.
- * 3. **A missing anchor is normal.** Empty lists, buttons that appear on
- *    selection, panels that depend on data. The controller skips them.
+ *
+ * A missing anchor is normal — empty lists, buttons that appear on selection,
+ * panels that depend on data. The controller skips them.
  */
 
 import { ROUTES, buildPath, type LegacyViewId } from '../routes';
@@ -36,6 +39,10 @@ function routePattern(view: LegacyViewId): string {
   return route.path;
 }
 
+/** Which side of the anchor the popover sits on. driver.js's own vocabulary. */
+export type TourSide = 'top' | 'right' | 'bottom' | 'left';
+export type TourAlign = 'start' | 'center' | 'end';
+
 export interface TourStep {
   /** Unique within its section. */
   id: string;
@@ -43,6 +50,13 @@ export interface TourStep {
   anchor?: string;
   title: string;
   body: string;
+  /**
+   * Where to put the popover relative to the anchor. Defaults to below it,
+   * which is wrong for anything down the left edge or hard against the top
+   * right — the arrow ends up pointing at nothing.
+   */
+  side?: TourSide;
+  align?: TourAlign;
   /** Permissions this step's subject needs. Missing any one drops the step. */
   requires?: (keyof UserPermissions)[];
 }
@@ -73,81 +87,145 @@ export const ALL_SECTIONS: TourSection[] = [
         id: 'welcome',
         title: 'Welcome to the partner portal',
         body:
-          'A quick look at what is where. From here on the tutorial stays out of your ' +
-          'way: open a section and it will explain that section, once. The help icon ' +
-          'in the top bar brings the explanation back whenever you want it.',
+          'A quick tour of what is where. It takes about a minute, and it is the ' +
+          'only one that covers the whole portal — every other page explains itself ' +
+          'when you first open it.',
       },
       {
         id: 'sidebar',
         anchor: 'sidebar',
-        title: 'Everything lives here',
+        side: 'right',
+        align: 'start',
+        title: 'The menu, top to bottom',
         body:
-          'Leads are enquiries and the people trialling the software. Accounts are ' +
-          'customers. Assets are the licences those customers hold. Orders is where you ' +
-          'sell them something. Sections with an arrow open up to show more underneath ' +
-          '— Create Lead, Create Account and the renewal views live in there.',
+          'Every part of the portal is in here. The items with a chevron open up to ' +
+          'show more underneath. The next few steps walk down the four you will use ' +
+          'most.',
+      },
+      {
+        id: 'nav-leads',
+        anchor: 'nav-leads',
+        side: 'right',
+        align: 'start',
+        title: 'Leads — people who have not bought yet',
+        body:
+          'Enquiries from the website, and the people trialling the software. Opens ' +
+          'to Browse Leads and Create Lead.',
+      },
+      {
+        id: 'nav-accounts',
+        anchor: 'nav-accounts',
+        side: 'right',
+        align: 'start',
+        title: 'Accounts — your customers',
+        body:
+          'Everyone who has bought. Opens to Browse Accounts and Create Account. ' +
+          'This is also where orders are raised, because an order always belongs to ' +
+          'a customer.',
+      },
+      {
+        id: 'nav-assets',
+        anchor: 'nav-assets',
+        side: 'right',
+        align: 'start',
+        title: 'Assets — the licences they hold',
+        body:
+          'All Assets is the whole estate. Due for Renewal and Recently Expired are ' +
+          'the two lists worth checking weekly.',
+      },
+      {
+        id: 'nav-orders',
+        anchor: 'nav-orders',
+        side: 'right',
+        align: 'start',
+        title: 'Orders — what you have sold',
+        body:
+          'Browse Orders lists them. Order Assistant builds one from a description. ' +
+          'Neither starts a new order from scratch — that begins on the customer.',
       },
       {
         id: 'cards',
         anchor: 'dashboard-cards',
+        side: 'top',
         title: 'Or start from here',
         body:
-          'The same destinations as shortcuts, each with a line saying what it is for ' +
-          'and a Learn more link. Nothing is created from the dashboard — it is a ' +
-          'starting point, not a workspace.',
+          'The same destinations as shortcuts, each with a line saying what it is ' +
+          'for. Nothing is created from the dashboard — it is a starting point, not ' +
+          'a workspace.',
+      },
+      {
+        id: 'learn-more',
+        anchor: 'dashboard-learn-more',
+        side: 'top',
+        align: 'start',
+        title: 'Learn more, on every card',
+        body:
+          'Takes you to that section and plays its walkthrough when you arrive. Use ' +
+          'it when you want the explanation rather than the page.',
       },
       {
         id: 'search',
         anchor: 'header-search',
+        side: 'bottom',
+        align: 'end',
         title: 'Search everything',
         body:
-          'One box across customers, leads, orders and licences. Ctrl K from anywhere ' +
-          'opens it without reaching for the mouse. This is usually faster than ' +
-          'navigating to a section and filtering it.',
+          'One box across customers, leads, orders and licences. Ctrl K opens it from ' +
+          'anywhere, which is usually quicker than navigating and filtering.',
       },
       {
         id: 'recent',
         anchor: 'header-recent',
+        side: 'bottom',
+        align: 'end',
         title: 'Where you have just been',
         body:
           'The records you opened most recently, so going back to the order you were ' +
-          'looking at five minutes ago does not mean searching for it again.',
+          'looking at earlier does not mean searching for it again.',
       },
       {
         id: 'notifications',
         anchor: 'header-notifications',
+        side: 'bottom',
+        align: 'end',
         title: 'What needs you',
         body:
-          'Licences coming up for renewal, orders that have moved on, anything the ' +
-          'portal thinks you should know. The dot means there is something unread.',
-      },
-      {
-        id: 'your-menu',
-        anchor: 'user-menu',
-        title: 'Your account, and this tutorial',
-        body:
-          'Your details and role, the theme, and the switch that turns these ' +
-          'walkthroughs off. Restart, beside it, makes every section introduce itself ' +
-          'again — useful when somebody new sits at your desk.',
-      },
-      {
-        id: 'support',
-        anchor: 'support-launcher',
-        title: 'Ask, in your own words',
-        body:
-          'The help assistant knows this portal and your permissions. Ask it how to do ' +
-          'something, or why a button is missing, and it will tell you which page to go ' +
-          'to and link you straight there. It cannot see your data, so it will not read ' +
-          'a specific order to you — but it will say where to look.',
+          'Licences coming up for renewal, orders that have moved on. The dot means ' +
+          'there is something unread.',
       },
       {
         id: 'help',
         anchor: 'header-help',
+        side: 'bottom',
+        align: 'end',
         title: 'This icon explains the page you are on',
         body:
-          'Every section of the portal has a short walkthrough like this one. It plays ' +
-          'itself the first time you open that section, and this icon replays it any ' +
-          'time. You can turn the whole thing off under your name at the bottom left.',
+          'Every section has a short walkthrough like this one, and this replays the ' +
+          'one for wherever you happen to be. It only appears on pages that have ' +
+          'something to say.',
+      },
+      {
+        id: 'your-menu',
+        anchor: 'user-menu',
+        side: 'right',
+        align: 'end',
+        title: 'Your account, and this tutorial',
+        body:
+          'Your name and role, and Sign Out. The Guided tutorial switch in here stops ' +
+          'walkthroughs opening on their own; Restart beside it makes every section ' +
+          'introduce itself again.',
+      },
+      {
+        id: 'support',
+        anchor: 'support-launcher',
+        side: 'left',
+        align: 'end',
+        title: 'Ask, in your own words',
+        body:
+          'The help assistant knows this portal and your permissions. Ask how to do ' +
+          'something, or why a button is missing, and it will point you at the right ' +
+          'page. It cannot read your records, so it will not tell you what is on a ' +
+          'particular order.',
       },
     ],
   },
@@ -159,34 +237,42 @@ export const ALL_SECTIONS: TourSection[] = [
     path: buildPath('leads'),
     steps: [
       {
-        id: 'lead-vs-prospect',
+        id: 'whats-here',
         anchor: 'leads-search',
         title: 'Leads and prospects both live here',
         body:
-          'A lead is an enquiry who has not tried the software yet — somebody who ' +
-          'filled in a form on the website or came in through marketing. A prospect ' +
-          'has downloaded a free trial and is evaluating it, but has not bought. Two ' +
-          'things mark a prospect out: the status column reads Prospect, and the ' +
-          'evaluation filter can show only those holding a trial.',
+          'A lead is an enquiry — somebody who filled in a form or came in through ' +
+          'marketing. A prospect has downloaded a trial and is evaluating it. Search ' +
+          'by name, email or company.',
+      },
+      {
+        id: 'eval-filter',
+        anchor: 'leads-eval-filter',
+        title: 'Holding a trial is what makes a prospect',
+        body:
+          'Has Evaluation narrows the list to the people currently trialling ' +
+          'something, and you can pick a single product instead. No Evaluation is the ' +
+          'rest.',
       },
       {
         id: 'list',
         anchor: 'leads-results',
-        title: 'What you can do with each',
+        side: 'top',
+        title: 'Reading the list',
         body:
-          'The stage decides what is possible. A lead you edit, work and record notes ' +
-          'against — there is nothing to licence yet. A prospect already holds a trial ' +
-          'and is what an order is raised against when they decide to buy. Click a ' +
-          'column heading to sort; click a row to open one.',
+          'Status says which stage somebody is at. Evaluations shows what they are ' +
+          'trialling. Created is the one sortable column — click it to flip newest ' +
+          'and oldest. Click any row to open the record.',
       },
       {
         id: 'creating',
+        anchor: 'nav-leads',
+        side: 'right',
+        align: 'start',
         title: 'Adding one yourself',
         body:
-          'Create Lead, under Leads in the sidebar, takes a name, a company and an ' +
-          'email. Everything else — phone, website, industry, country, source, the ' +
-          'products they asked about — is optional, and is what makes the lead worth ' +
-          'having in three months.',
+          'Create Lead is under Leads in the menu, and takes a name, a company and ' +
+          'an email.',
       },
     ],
   },
@@ -196,16 +282,26 @@ export const ALL_SECTIONS: TourSection[] = [
     path: buildPath('create-lead'),
     steps: [
       {
-        id: 'form',
+        id: 'contact',
         anchor: 'lead-form',
-        title: 'What actually matters',
+        title: 'Who they are',
         body:
-          'Name, company and email. The rest is optional but useful later — and if you ' +
-          'are a distributor you also choose which of your resellers owns the lead.',
+          'A name and an email. The phone numbers are optional, but a lead with no ' +
+          'way to reach it is not worth much in three months.',
+      },
+      {
+        id: 'company',
+        anchor: 'lead-company',
+        title: 'Where they work',
+        body:
+          'Company Name is required — everything downstream groups by company. The ' +
+          'website, industry and country are optional.',
       },
       {
         id: 'submit',
         anchor: 'lead-create-submit',
+        side: 'bottom',
+        align: 'end',
         title: 'Create Lead saves and opens it',
         body:
           'If you leave this page half-finished the portal asks before discarding it, ' +
@@ -219,38 +315,41 @@ export const ALL_SECTIONS: TourSection[] = [
     path: routePattern('lead-detail'),
     steps: [
       {
-        id: 'record',
-        title: 'The record itself',
+        id: 'badge',
+        anchor: 'lead-badge',
+        title: 'Lead or prospect',
         body:
-          'The badge beside the name says whether this is a lead or a prospect, and ' +
-          'hovering it explains the difference. The details underneath are editable in ' +
-          'place — contact details, status, industry, the products they are interested ' +
-          'in — then Save Changes. Below that are any contacts, orders and trial ' +
-          'licences attached to them.',
+          'The badge beside the name says which this is. Hover it for the difference ' +
+          'in one line.',
       },
       {
-        id: 'evaluations',
-        anchor: 'lead-evaluations',
-        title: 'Giving them a trial',
+        id: 'record',
+        anchor: 'lead-details',
+        title: 'The details',
         body:
-          'Create Evaluation issues a 30-day trial licence, and holding one is what ' +
-          'makes somebody a prospect rather than a lead. There is a cap on how many one ' +
-          'customer can have, and a longer trial needs a separate permission. ' +
-          'Evaluations are never renewed: when the trial ends they buy a commercial ' +
-          'licence.',
-        requires: ['canCreateEvaluations'],
+          'Contact details, company, industry, the products they asked about. Edit at ' +
+          'the top opens the full form; Open in CRM jumps to the same record in Zoho.',
       },
       {
         id: 'convert',
         anchor: 'lead-convert',
-        title: 'Lead to prospect',
+        side: 'bottom',
+        align: 'end',
+        title: 'Convert to Prospect',
         body:
-          'Convert to Prospect is the step between the two — press it once they have ' +
-          'downloaded the trial. Their details come across, a contact is created for ' +
-          'them, and from then on they can hold trial licences and be ordered against. ' +
-          'It is one-way, so convert when they have actually taken the trial rather ' +
-          'than in advance.',
+          'Press this once they have actually downloaded a trial. It creates a ' +
+          'prospect account and a contact, and from then on they can hold trial ' +
+          'licences and be ordered against. It is one-way.',
         requires: ['canConvertLeads'],
+      },
+      {
+        id: 'evaluations',
+        anchor: 'lead-evaluations',
+        title: 'Trial licences',
+        body:
+          'Once somebody is a prospect, Create Evaluation issues them a 30-day trial. ' +
+          'Trials are never renewed — when one ends they buy a commercial licence.',
+        requires: ['canCreateEvaluations'],
       },
     ],
   },
@@ -266,18 +365,29 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'accounts-search',
         title: 'Finding a customer',
         body:
-          'Search by company name, a contact email, or just the email domain. Domain is ' +
-          'the useful one: somebody emails you from an address you do not recognise and ' +
+          'By company name, a contact email, or just the email domain. Domain is the ' +
+          'useful one: somebody emails you from an address you do not recognise and ' +
           'you need to know whether their company is already in here.',
       },
       {
         id: 'open',
         anchor: 'accounts-results',
+        side: 'top',
         title: 'Everything happens inside a customer',
         body:
-          'Open one and you get their contacts, their orders, their licences, and the ' +
-          'buttons that raise an order or a renewal. Create Account, under Accounts in ' +
-          'the sidebar, adds a new one.',
+          'Open one and you get their contacts, orders and licences, and the buttons ' +
+          'that raise an order or a renewal. Created sorts the list; click any row to ' +
+          'open it.',
+      },
+      {
+        id: 'creating',
+        anchor: 'nav-accounts',
+        side: 'right',
+        align: 'start',
+        title: 'Adding one yourself',
+        body:
+          'Create Account is under Accounts in the menu, and needs a company and one ' +
+          'contact at it.',
       },
     ],
   },
@@ -287,22 +397,32 @@ export const ALL_SECTIONS: TourSection[] = [
     path: buildPath('create-account'),
     steps: [
       {
-        id: 'form',
-        anchor: 'account-create-submit',
-        title: 'Company plus a primary contact',
+        id: 'details',
+        anchor: 'account-details-form',
+        title: 'The company',
         body:
-          'That is the minimum, and the contact matters because it is the person orders ' +
-          'and licence keys are addressed to. Fill the address in properly if they are ' +
-          'buying on account terms; it ends up on the paperwork.',
+          'Account Name and Country are required, and so is the reseller the account ' +
+          'belongs to. Fill the address in properly if they will be buying on account ' +
+          'terms — it ends up on the paperwork.',
       },
       {
-        id: 'duplicates',
-        anchor: 'account-duplicates',
-        title: 'Read the duplicate warning',
+        id: 'contact',
+        anchor: 'account-primary-contact',
+        title: 'And a person at it',
         body:
-          'If the name looks like one already in the portal you get a warning before it ' +
-          'saves. Two records for one company splits their licence history in half, and ' +
-          'it is unpleasant to unpick later.',
+          'First name, last name and email. This is the primary contact, which ' +
+          'matters because it is who orders and licence keys are addressed to.',
+      },
+      {
+        id: 'submit',
+        anchor: 'account-create-submit',
+        side: 'bottom',
+        align: 'end',
+        title: 'Create Account, and the duplicate check',
+        body:
+          'If the name or domain looks like one already in the portal you get a ' +
+          'warning listing the matches before anything is saved. Two records for one ' +
+          'company splits their licence history in half, so read it.',
       },
     ],
   },
@@ -316,27 +436,27 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'account-contacts',
         title: 'Their people',
         body:
-          'Contacts are the individuals at that company. One is marked primary — that ' +
-          'is who orders and licence keys go to — and you can mark a secondary as well. ' +
-          'Use Set As on any contact to change which is which, and Add Contact to add ' +
-          'somebody new.',
+          'One contact is marked primary — that is who orders and licence keys go to. ' +
+          'The Set As column changes which is which, and Add Contact adds somebody ' +
+          'new.',
       },
       {
         id: 'orders',
         anchor: 'account-orders',
         title: 'Their orders',
         body:
-          'Everything this customer has bought and where each order got to — Draft, ' +
-          'Approved or Sent. Click any of them to open it.',
+          'Everything this customer has bought and where each order got to. Click any ' +
+          'of them to open it.',
       },
       {
         id: 'new-order',
         anchor: 'new-order-button',
-        title: 'Raising an order',
+        side: 'left',
+        title: 'New Product Order',
         body:
-          'Orders always start from a customer, which is why this button is here and ' +
-          'not in the Orders section. It carries the customer, their primary contact ' +
-          'and your pricing into the order for you.',
+          'Orders start from a customer, which is why this is here and not in the ' +
+          'Orders section. It carries the customer, their primary contact and your ' +
+          'pricing into the order for you.',
         requires: ['canCreateInvoices'],
       },
       {
@@ -344,31 +464,39 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'account-evaluations',
         title: 'Trial licences',
         body:
-          'The same 30-day evaluations as on a lead. Their existing trials are listed ' +
-          'here, so you can see what they have already had before issuing another.',
+          'The same 30-day evaluations as on a prospect. What they have already had ' +
+          'is listed here, so you can see it before issuing another.',
         requires: ['canCreateEvaluations'],
       },
       {
         id: 'assets',
         anchor: 'account-assets',
-        title: 'Their licences, and how renewals start',
+        title: 'Active Assets',
         body:
-          'Every licence this customer currently holds, with its serial key and renewal ' +
-          'date. Tick any row and two buttons appear above the table: Generate Renewal, ' +
-          'which raises the renewal order, and Send Keys, which emails the existing keys ' +
-          'to you or to the customer. Trials, educational and NFR licences cannot be ' +
-          'renewed, and the button says which ones are blocking it.',
+          'Every licence this customer currently holds, with its serial key and ' +
+          'renewal date. Archived Assets underneath is the same for the ones that ' +
+          'have lapsed.',
+      },
+      {
+        id: 'asset-actions',
+        anchor: 'account-assets',
+        title: 'Renewals and keys start with a tick',
+        body:
+          'Tick any licence and three buttons appear along this row: Generate ' +
+          'Renewal, which raises the renewal order, and Send Keys to Reseller or to ' +
+          'Customer, which emails the existing keys out. A licence that cannot be ' +
+          'renewed cannot be ticked — hover its box and it says why.',
         requires: ['canCreateInvoices'],
       },
       {
         id: 'subscriptions',
         anchor: 'account-new-subscription',
+        side: 'left',
         title: 'Monthly subscriptions',
         body:
-          'A 30-day licence you renew a month at a time instead of buying a year up ' +
-          'front. Prices are quoted in US dollars with your own currency alongside, less ' +
-          'your commission. Renew Monthly beside it renews all of this customer\'s ' +
-          'subscriptions at once.',
+          'Create Monthly Subscription sets up a licence they pay for a month at a ' +
+          'time instead of a year up front. Once they have one, Renew Monthly appears ' +
+          'beside this and renews all of them at once.',
         requires: ['canMonthlySubscriptions'],
       },
     ],
@@ -381,23 +509,35 @@ export const ALL_SECTIONS: TourSection[] = [
     path: buildPath('draft-invoices'),
     steps: [
       {
-        id: 'list',
+        id: 'search',
         anchor: 'orders-search',
         title: 'Every order you have raised',
-        body:
-          'Search by order number, subject or customer, and filter by status and by ' +
-          'type — New Product, Renewal, Co-Term (lining a licence up with an existing ' +
-          'renewal date) or Add To Contract. New orders are not raised from here; they ' +
-          'start on the customer.',
+        body: 'Search by order number, subject or customer.',
       },
       {
-        id: 'statuses',
-        anchor: 'orders-results',
-        title: 'Draft, Approved, Sent',
+        id: 'status-filter',
+        anchor: 'orders-status-filter',
+        title: 'This opens on Draft',
         body:
-          'A Draft can still be changed. Approved means licence keys have been issued ' +
-          'against it. Sent means it has gone out for payment. Once an order leaves ' +
-          'Draft it locks, because the keys and the money are settled off its totals.',
+          'Which catches people out — an order you approved yesterday is not missing, ' +
+          'it is under Approved. Sent means it has gone out for payment.',
+      },
+      {
+        id: 'type-filter',
+        anchor: 'orders-type-filter',
+        title: 'And by what kind of order it is',
+        body:
+          'New Product, Renewal, Co-Term for lining a licence up with an existing ' +
+          'renewal date, or Add To Contract.',
+      },
+      {
+        id: 'list',
+        anchor: 'orders-results',
+        side: 'top',
+        title: 'Opening one',
+        body:
+          'Click any row. New orders are not raised from this page — they start on ' +
+          'the customer.',
       },
     ],
   },
@@ -410,28 +550,19 @@ export const ALL_SECTIONS: TourSection[] = [
         id: 'shape',
         title: 'How an order is put together',
         body:
-          'The header carries the customer, contact, dates, currency and totals; the ' +
-          'table underneath carries the line items. While it is a Draft the quantities ' +
-          'and products can be changed. Once it is Approved or Sent it shows a Locked ' +
-          'badge and corrections go through CSA.',
-      },
-      {
-        id: 'coupon',
-        anchor: 'order-coupon',
-        title: 'Discount codes',
-        body:
-          'Enter a code here and it is checked against its rules — products, region, ' +
-          'order type, minimum and maximum value, expiry — before it applies. The ' +
-          'discount then appears as its own line.',
+          'The cards at the top carry the customer, contact, dates and currency. The ' +
+          'panels below are the parts you fill in, and the table near the bottom is ' +
+          'what they are buying. All of it is editable while the order is a Draft, ' +
+          'and locked once it is not.',
       },
       {
         id: 'po',
         anchor: 'order-po',
-        title: 'Purchase orders',
+        title: 'Purchase Order',
         body:
-          'Buying on account terms needs both a purchase order number and the document ' +
-          'attached, and both have to be here before the order will go through. Drag ' +
-          'the file straight onto the panel.',
+          'The pencil sets the PO number; Attach PO Document uploads the document ' +
+          'itself. Buying on account terms needs both before the order will go ' +
+          'through.',
         requires: ['canUploadPO'],
       },
       {
@@ -439,21 +570,39 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'order-send-to',
         title: 'Where the order and keys go',
         body:
-          'Reseller sends everything to you, copying the CSA sales rep, and you pass it ' +
-          'on. Customer sends it straight to the end customer, copying you. Switching ' +
-          'this also reprices the line items, because what you pay and what they pay are ' +
-          'different numbers.',
+          'Reseller sends everything to you, copying the CSA sales rep, and you pass ' +
+          'it on. Customer sends it straight to them, copying you. Switching this ' +
+          'also changes the prices on the lines, because what you pay and what they ' +
+          'pay are different numbers.',
+      },
+      {
+        id: 'line-items',
+        anchor: 'order-line-items',
+        title: 'What they are buying',
+        body:
+          'One row per product, with the quantity and the price. On a Draft, Edit ' +
+          'Line Items above the table lets you change them or add another.',
       },
       {
         id: 'actions',
         anchor: 'order-actions',
+        side: 'top',
+        align: 'end',
         title: 'Finishing the order',
         body:
           'This is the step that issues licence keys. Place Order approves it on your ' +
-          'account terms. Pay Now opens a card payment page and the keys follow when ' +
-          'payment clears. Pay Later sends it out for payment. Which you see depends on ' +
-          'whether your partner account is set up for card, account terms, or both.',
-        requires: ['canApproveInvoices'],
+          'account terms. Pay Now opens a card payment page. Pay Later sends it out ' +
+          'for payment. Each one asks twice before it goes, because none of them can ' +
+          'be undone.',
+      },
+      {
+        id: 'coupon',
+        anchor: 'order-coupon',
+        title: 'Discount codes',
+        body:
+          'Enter a code and Apply checks it against its rules before adding the ' +
+          'discount as its own line. Do it before you place the order — a locked ' +
+          'order will not take one.',
       },
     ],
   },
@@ -469,9 +618,16 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'assets-search',
         title: 'Every licence you can see',
         body:
-          'The whole estate across all your customers, searchable by customer, product ' +
-          'or serial key, and filterable by status and by how soon it renews. This is ' +
-          'the page for "what do they actually have".',
+          'The whole estate across all your customers, searchable by customer, ' +
+          'product or serial key. This is the page for "what do they actually have".',
+      },
+      {
+        id: 'window',
+        anchor: 'assets-window-filter',
+        title: 'Narrow it by when it renews',
+        body:
+          'Overdue, or the next 30, 60 or 90 days. The status filter beside it hides ' +
+          'the expired and cancelled ones.',
       },
       {
         id: 'groups',
@@ -479,8 +635,8 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'Grouped by customer',
         body:
           'Licences are individual records but you think in customers, so they are ' +
-          'grouped. Each group collapses, and the header shows how many licences and ' +
-          'when the next one is due.',
+          'stacked under one. Each header says how many there are and when the next ' +
+          'one is due, and the arrow collapses it.',
       },
     ],
   },
@@ -493,18 +649,20 @@ export const ALL_SECTIONS: TourSection[] = [
         id: 'window',
         title: 'The next 60 days',
         body:
-          'Every licence renewing within 60 days, soonest first. Recently Expired is the ' +
-          'same list for the 60 days behind you — worth a look weekly, because a lapsed ' +
-          'licence is usually somebody who meant to renew and forgot.',
+          'Every active licence renewing within 60 days, soonest first. Recently ' +
+          'Expired, next to it in the menu, is the same list for the 60 days behind ' +
+          'you — worth a look weekly, because a lapsed licence is usually somebody ' +
+          'who meant to renew and forgot.',
       },
       {
         id: 'generate',
         anchor: 'assets-groups',
         title: 'Raising the renewal from here',
         body:
-          'Tick the licences under a customer and a Generate Renewal button appears on ' +
-          'that customer\'s row. It creates the order and opens it. Licences that cannot ' +
-          'be renewed cannot be ticked, and hovering one says why.',
+          'Tick the licences under a customer and Generate Renewal appears on that ' +
+          'customer\'s row, counting what you have selected. It creates the order and ' +
+          'opens it. Licences that cannot be renewed cannot be ticked — hover the box ' +
+          'and it says why.',
         requires: ['canCreateInvoices'],
       },
     ],
@@ -517,11 +675,12 @@ export const ALL_SECTIONS: TourSection[] = [
     steps: [
       {
         id: 'renewing',
+        anchor: 'assets-groups',
         title: 'Rolling monthly licences',
         body:
-          'Every monthly subscription you hold, with its next renewal date and a renew ' +
-          'button per customer. These need renewing every 30 days — this is the page ' +
-          'that stops one quietly lapsing.',
+          'Every monthly subscription you hold, with its next renewal date. Renew all ' +
+          'on a customer\'s row does the whole account in one go. These need renewing ' +
+          'every 30 days — this is the page that stops one quietly lapsing.',
       },
     ],
   },
@@ -539,9 +698,18 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'Describe the order in plain English',
         body:
           'An email address, a customer name, what they are buying — it finds the ' +
-          'customer, picks the product and builds a draft for you to check. It can also ' +
-          'create a lead, customer or contact when they are not in the portal yet. It ' +
-          'never approves, sends or pays for anything; that stays on the order.',
+          'customer, picks the product and builds a draft for you to check. It can ' +
+          'also create a lead, customer or contact when they are not in the portal ' +
+          'yet.',
+      },
+      {
+        id: 'limits',
+        anchor: 'order-assistant-chat',
+        title: 'It stops at the draft',
+        body:
+          'It never approves, sends or pays for anything. You open the order it made ' +
+          'and finish it there, which is also where you would fix anything it read ' +
+          'wrong.',
       },
     ],
   },
@@ -553,13 +721,29 @@ export const ALL_SECTIONS: TourSection[] = [
     path: buildPath('coupons'),
     steps: [
       {
-        id: 'using',
-        title: 'Finding a code and using it',
+        id: 'finding',
+        anchor: 'coupons-filters',
+        title: 'Checking a code before you promise it',
         body:
-          'Coupons are set up by CSA. This page is where you check one is live and what ' +
-          'it covers — products, regions, order types, order values, and the dates it ' +
-          'runs between — before promising it to a customer. To redeem it, open the ' +
-          'order and enter the code in the Coupon panel.',
+          'Coupons are set up by CSA; this page is where you look one up. Search by ' +
+          'code or name, and filter by status to see only the live ones.',
+      },
+      {
+        id: 'reading',
+        anchor: 'coupons-results',
+        side: 'top',
+        title: 'What each one covers',
+        body:
+          'Discount is what it takes off, Valid is the window it runs between, Uses ' +
+          'is how much of it is left, and Products is what it applies to. Open a row ' +
+          'for the full conditions.',
+      },
+      {
+        id: 'redeeming',
+        title: 'Using it',
+        body:
+          'Codes are redeemed on the order, not here. Open the draft order and enter ' +
+          'it in the Apply Coupon panel.',
       },
     ],
   },
@@ -571,21 +755,37 @@ export const ALL_SECTIONS: TourSection[] = [
     path: buildPath('reports-dashboard'),
     steps: [
       {
+        id: 'months',
+        anchor: 'reports-months',
+        title: 'Pick your months first',
+        body:
+          'Everything below reads from what is selected here. Pick none and you get ' +
+          'the lot; Load More reaches further back.',
+      },
+      {
         id: 'cards',
         anchor: 'reports-cards',
         title: 'How you are doing',
         body:
-          'New customers, new leads, approved orders and revenue over the months you ' +
-          'choose, with your commission alongside. Amounts show in their original ' +
-          'currency with an Australian dollar equivalent. Click any card to drill into ' +
-          'the records behind it.',
+          'New Accounts, New Leads, Approved Orders and Revenue for those months. ' +
+          'Click any card to drill into the records behind it — that is what the tabs ' +
+          'along the top are.',
+      },
+      {
+        id: 'currency',
+        anchor: 'reports-cards',
+        title: 'Money is shown in one currency',
+        body:
+          'Orders come in several, so the selector above converts them to Australian ' +
+          'dollars, or shows a single currency on its own. Your commission is on the ' +
+          'Revenue tab.',
       },
       {
         id: 'assistant',
         title: 'Or just ask',
         body:
-          'The Reports Assistant, under Reports in the sidebar, answers the same ' +
-          'questions as a conversation if you would rather ask than work the filters.',
+          'AI Assistant, under Reports in the menu, answers the same questions as a ' +
+          'conversation if you would rather ask than work the filters.',
       },
     ],
   },
@@ -598,12 +798,28 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'statement',
         anchor: 'partner-report-tabs',
-        title: 'What is owed, and to whom',
+        title: 'Monthly Statement',
         body:
-          'Monthly Statement is the month-end reconciliation: approved orders and active ' +
-          'subscriptions, netted against whoever you settle with — your distributor if ' +
-          'you sit under one, CSA if you do not. Billing Schedule is forward-looking: ' +
-          'what your subscriptions cost per month and per year. Both export.',
+          'The month-end reconciliation: approved orders and active subscriptions for ' +
+          'the month you choose, netted against whoever you settle with — your ' +
+          'distributor if you sit under one, CSA if you do not.',
+      },
+      {
+        id: 'schedule',
+        anchor: 'partner-report-tabs',
+        title: 'Billing Schedule',
+        body:
+          'The forward-looking half: what your subscriptions cost per month and per ' +
+          'year, so the next few statements hold no surprises.',
+      },
+      {
+        id: 'export',
+        anchor: 'partner-report-tabs',
+        side: 'bottom',
+        align: 'end',
+        title: 'Both export',
+        body: 'Export CSV takes whichever tab you are on into a spreadsheet.',
+        requires: ['canExportData'],
       },
     ],
   },
@@ -618,18 +834,18 @@ export const ALL_SECTIONS: TourSection[] = [
         id: 'organisation',
         title: 'Your partner organisation',
         body:
-          'Your own details — address, region, currency, commission percentages, ' +
-          'payment methods and permissions — and, if you are a distributor, the ' +
-          'resellers underneath you. Open one to see how it is set up.',
+          'Open your own record for your address, region, currency, commission ' +
+          'percentages, payment methods and permissions. If you are a distributor, ' +
+          'the resellers underneath you are listed here too.',
       },
       {
         id: 'users',
         title: 'The people at your organisation',
         body:
-          'Open your partner record and the users list is on it: who has an account, ' +
-          'their role, when they last logged in, with Add User, Edit User and Reset ' +
-          'Password. Each person\'s permissions sit inside the organisation\'s — you ' +
-          'cannot grant somebody something the organisation itself does not have.',
+          'The users list is inside your partner record, near the bottom: who has an ' +
+          'account, their role, when they last logged in, with Add User and a reset ' +
+          'for a forgotten password. Nobody can be given something the organisation ' +
+          'itself does not have.',
         requires: ['canManageUsers'],
       },
     ],
@@ -641,12 +857,14 @@ export const ALL_SECTIONS: TourSection[] = [
     steps: [
       {
         id: 'whats-here',
-        title: 'Marketing material, documentation and training',
+        anchor: 'partner-resources-cards',
+        side: 'top',
+        title: 'Three places, not three pages',
         body:
-          'Logos and brand guidelines, brochures and datasheets, co-branded email ' +
-          'templates and social assets on the marketing side. Documentation, knowledge ' +
-          'base articles, release notes, tutorials and webinar recordings on the product ' +
-          'side. The link to raise a support ticket with CSA is here too.',
+          'Marketing Resources is the shared drive of brochures, templates and brand ' +
+          'assets. YouTube Product Guides is the tutorial and webinar channel. ' +
+          'Support is the help desk, where knowledge base articles live and support ' +
+          'tickets are raised. Each card opens in a new tab.',
       },
     ],
   },

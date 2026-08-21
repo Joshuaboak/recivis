@@ -303,7 +303,7 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
                 </select>
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
               </div>
-              <div className="relative">
+              <div data-tour="assets-window-filter" className="relative">
                 <select
                   value={window}
                   onChange={e => setWindow(e.target.value)}

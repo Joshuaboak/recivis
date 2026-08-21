@@ -657,7 +657,7 @@ export default function LeadDetailView({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-text-primary truncate" title={(lead.Company as string) || (lead.Full_Name as string) || ''}>{lead.Company as string || lead.Full_Name as string}</h1>
-                <div className="relative group/badge flex-shrink-0">
+                <div data-tour="lead-badge" className="relative group/badge flex-shrink-0">
                   <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-csa-accent/15 text-csa-accent cursor-help">
                     Lead
                   </span>
@@ -836,7 +836,7 @@ export default function LeadDetailView({
           </AnimatePresence>
 
           <InlineEditFieldProvider>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+          <motion.div data-tour="lead-details" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
             <InlineEditField fieldId="company" label="Company" icon={<Building2 size={14} />}
               value={(lead.Company as string) || ''} type="text" canEdit={isAdmin}
               onSave={v => saveFields({ Company: v || null })} />

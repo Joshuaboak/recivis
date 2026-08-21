@@ -78,6 +78,14 @@ const featureCards = [
   },
 ];
 
+/**
+ * Which card carries the tutorial's "Learn more" anchor.
+ *
+ * Six identical buttons would make the first match arbitrary, so one of them
+ * is named and the rest go without.
+ */
+const LEARN_MORE_ANCHOR_CARD = 'leads';
+
 const container = {
   hidden: { opacity: 0 },
   show: {
@@ -156,6 +164,7 @@ export default function DashboardView() {
 
               <div className="mt-4 pt-3 border-t border-border-subtle">
                 <button
+                  data-tour={card.id === LEARN_MORE_ANCHOR_CARD ? 'dashboard-learn-more' : undefined}
                   onClick={() => {
                     // The walkthrough for that section runs on that section's
                     // page, so this asks for it and then goes there.

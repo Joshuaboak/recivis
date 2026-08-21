@@ -101,7 +101,7 @@ export default function CouponsView() {
             ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div data-tour="coupons-filters" className="flex flex-wrap items-center gap-3">
             <div className="flex-1 min-w-[220px] relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
               <input
@@ -141,7 +141,7 @@ export default function CouponsView() {
               <Pagination currentPage={safePage} totalItems={filtered.length} pageSize={pageSize} onPageChange={setCurrentPage} />
             </div>
             <div className="border border-border-subtle rounded-xl overflow-x-auto">
-              <table className="w-full min-w-[700px]">
+              <table data-tour="coupons-results" className="w-full min-w-[700px]">
                 <thead>
                   <tr className="bg-surface-raised">
                     <th>Code</th>

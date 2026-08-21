@@ -346,7 +346,7 @@ export default function CreateLeadView() {
           </div>
 
           {/* Company Details */}
-          <div className="bg-surface border border-border-subtle rounded-xl p-5 mb-5">
+          <div data-tour="lead-company" className="bg-surface border border-border-subtle rounded-xl p-5 mb-5">
             <h2 className="text-sm font-bold text-text-primary mb-4 flex items-center gap-2">
               <Building2 size={15} className="text-csa-accent" /> Company Details
             </h2>

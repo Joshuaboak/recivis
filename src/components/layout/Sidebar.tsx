@@ -123,7 +123,7 @@ export default function Sidebar() {
         <NavItem href={PATHS.dashboard} label="Dashboard" icon={LayoutDashboard} active={pathname === PATHS.dashboard} onClick={() => handleNavClick(PATHS.dashboard)} open={sidebarOpen} />
 
         {/* Leads (with submenu) */}
-        <div>
+        <div data-tour="nav-leads">
           <GuardedLink
             href={PATHS.leads}
             title={sidebarOpen ? undefined : 'Leads'}
@@ -178,7 +178,7 @@ export default function Sidebar() {
         </div>
 
         {/* Accounts (with submenu) */}
-        <div>
+        <div data-tour="nav-accounts">
           <GuardedLink
             href={PATHS.accounts}
             title={sidebarOpen ? undefined : 'Accounts'}
@@ -233,7 +233,7 @@ export default function Sidebar() {
         </div>
 
         {/* Assets (with submenu) */}
-        <div>
+        <div data-tour="nav-assets">
           <GuardedLink
             href={PATHS.assets}
             title={sidebarOpen ? undefined : 'Assets'}
@@ -274,7 +274,7 @@ export default function Sidebar() {
         </div>
 
         {/* Invoices (with submenu) */}
-        <div>
+        <div data-tour="nav-orders">
           <GuardedLink
             href={PATHS.orderAssistant}
             title={sidebarOpen ? undefined : 'Orders'}

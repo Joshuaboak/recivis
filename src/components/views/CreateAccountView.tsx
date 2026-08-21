@@ -411,7 +411,7 @@ export default function CreateAccountView() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <AlertTriangle size={16} className="text-warning" />
-                <span data-tour="account-duplicates" className="text-sm font-semibold text-warning">Possible duplicates found</span>
+                <span className="text-sm font-semibold text-warning">Possible duplicates found</span>
               </div>
               <button onClick={() => setShowDuplicateWarning(false)} className="p-1 text-text-muted hover:text-text-primary transition-colors cursor-pointer">
                 <X size={14} />
@@ -449,7 +449,7 @@ export default function CreateAccountView() {
         ) : null}
 
         {/* Account Details */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+        <motion.div data-tour="account-details-form" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <h2 className="text-base font-bold text-text-primary mb-4 flex items-center gap-2">
             <Building2 size={16} className="text-csa-accent" />
             Account Details
@@ -562,7 +562,7 @@ export default function CreateAccountView() {
         </motion.div>
 
         {/* Primary Contact */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+        <motion.div data-tour="account-primary-contact" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <h2 className="text-base font-bold text-text-primary mb-4 flex items-center gap-2">
             <User size={16} className="text-csa-accent" />
             Primary Contact

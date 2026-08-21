@@ -98,6 +98,7 @@ export default function PartnerResourcesView() {
           variants={container}
           initial="hidden"
           animate="show"
+          data-tour="partner-resources-cards"
           className="grid grid-cols-1 lg:grid-cols-3 gap-6"
         >
           {resources.map((resource) => (

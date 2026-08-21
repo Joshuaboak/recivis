@@ -297,7 +297,7 @@ export default function LeadsView() {
             </div>
 
             {/* Evaluation filter */}
-            <div className="relative min-w-[180px]">
+            <div data-tour="leads-eval-filter" className="relative min-w-[180px]">
               <select
                 value={selectedEval}
                 onChange={(e) => setSelectedEval(e.target.value)}

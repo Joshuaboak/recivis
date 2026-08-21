@@ -193,6 +193,17 @@ export default function InvoiceDetailView({
   const canEditPO = invoice?.Status === 'Draft';
   /** Mirrors the PATCH route: `Approved` needs canApproveInvoices or admin/IBM. */
   const canEditStatus = isEditor || !!user?.permissions?.canApproveInvoices;
+  /**
+   * Whether OrderActions will render a button.
+   *
+   * Mirrors its own visibility rules so the tutorial's anchor can be dropped
+   * when the panel would be empty. Kept here beside the other derived flags
+   * rather than inline, where it read as three nested conditions.
+   */
+  const hasOrderActions =
+    (invoice?.Status === 'Draft' || invoice?.Status === 'Sent') &&
+    ((canPurchaseOnCredit && !!user?.permissions?.canSendInvoices) ||
+      (canPurchaseOnAccount && !!user?.permissions?.canApproveInvoices));
 
   // -------------------------------------------------------------------
   // Data fetching
@@ -1158,6 +1169,7 @@ export default function InvoiceDetailView({
             </button>
           </div>
         )}
+        <div data-tour="order-line-items">
         <InvoiceLineItems
           displayLineItems={displayLineItems}
           editing={editing}
@@ -1171,10 +1183,16 @@ export default function InvoiceDetailView({
           resellerPercentage={resellerPercentage}
           isResellerPricing={!!invoice.Reseller_Direct_Purchase && resellerPercentage != null}
         />
+        </div>
 
         {/* Order Action Buttons (Pay Now / Pay Later / Place Order) */}
         {!editing && (
-          <div data-tour="order-actions">
+          /* The anchor only exists when a button will actually be under it.
+             OrderActions renders nothing outside Draft/Sent, or when the
+             partner has no payment method the user is allowed to use, and a
+             tour step pointing at an empty wrapper is worse than one that
+             skips itself. */
+          <div data-tour={hasOrderActions ? 'order-actions' : undefined}>
           <OrderActions
             invoice={invoice}
             status={status}
@@ -1197,7 +1215,7 @@ export default function InvoiceDetailView({
         )}
 
         {/* Coupon */}
-        <div data-tour="order-coupon">
+        <div data-tour={canApplyCoupon ? 'order-coupon' : undefined}>
         <InvoiceCoupon
           canApply={!!canApplyCoupon}
           couponCode={couponCode}

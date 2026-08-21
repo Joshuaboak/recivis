@@ -274,7 +274,7 @@ export default function DraftInvoicesView() {
             </div>
 
             {/* Status filter */}
-            <div className="relative min-w-[140px]">
+            <div data-tour="orders-status-filter" className="relative min-w-[140px]">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -288,7 +288,7 @@ export default function DraftInvoicesView() {
             </div>
 
             {/* Type filter */}
-            <div className="relative min-w-[160px]">
+            <div data-tour="orders-type-filter" className="relative min-w-[160px]">
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}

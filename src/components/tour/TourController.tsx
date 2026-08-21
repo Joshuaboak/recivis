@@ -40,8 +40,24 @@ import TourSpotlight from './TourSpotlight';
 /** How long to wait for an anchor that has not rendered yet. */
 const ANCHOR_TIMEOUT_MS = 8000;
 
-/** How long before giving up on an anchor and moving to the next step. */
+/**
+ * How long before giving up on a missing anchor, on a section's first step.
+ *
+ * Generous, because the page may still be fetching: the list the step points
+ * at has not rendered yet, but it is coming.
+ */
 const ANCHOR_GIVE_UP_MS = 5000;
+
+/**
+ * The same, once a step has already been shown.
+ *
+ * By then the page has rendered and the user has spent a few seconds reading,
+ * so a target that is still absent is usually absent for good — a panel this
+ * particular record does not have, or a button that needs a selection. Waiting
+ * five more seconds for it is a stall in the middle of a walkthrough; this is
+ * short enough to read as a step that simply did not apply.
+ */
+const ANCHOR_GIVE_UP_SETTLED_MS = 1200;
 
 /**
  * How long a page gets to settle before a section offers itself.
@@ -179,10 +195,11 @@ export default function TourController() {
 
     let cancelled = false;
     const started = Date.now();
+    const giveUpAfter = stepIndex === 0 ? ANCHOR_GIVE_UP_MS : ANCHOR_GIVE_UP_SETTLED_MS;
     const look = () => {
       if (cancelled) return;
       if (document.querySelector(selector)) return;
-      if (Date.now() - started >= ANCHOR_GIVE_UP_MS) {
+      if (Date.now() - started >= giveUpAfter) {
         if (stepIndex + 1 < active.steps.length) setStepIndex(stepIndex + 1);
         else close(active.id);
         return;
@@ -225,8 +242,8 @@ export default function TourController() {
         popover: {
           title: step.title,
           description: step.body,
-          side: 'bottom' as const,
-          align: 'start' as const,
+          side: step.side ?? 'bottom',
+          align: step.align ?? 'start',
         },
         disableActiveInteraction: false,
         skipMissingElement: true,
