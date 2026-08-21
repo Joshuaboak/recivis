@@ -90,6 +90,23 @@ describe('section definitions', () => {
     }
   });
 
+  /**
+   * A section that could resolve to nothing is a help icon that does nothing.
+   *
+   * Steps marked `onlyIfPresent` are dropped when their target is not on the
+   * page, so a section made entirely of them can empty itself out. Every
+   * section needs at least one step that is always there to carry it.
+   */
+  it('always has something to say', () => {
+    for (const section of ALL_SECTIONS) {
+      const unconditional = section.steps.filter(step => !step.onlyIfPresent);
+      expect(
+        unconditional.length,
+        `every step in "${section.id}" is conditional, so it can open empty`
+      ).toBeGreaterThan(0);
+    }
+  });
+
   it('says something in every step', () => {
     for (const section of ALL_SECTIONS) {
       for (const step of section.steps) {

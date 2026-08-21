@@ -57,6 +57,17 @@ export interface TourStep {
    */
   side?: TourSide;
   align?: TourAlign;
+  /**
+   * Drop this step when its anchor is not on the page as the section opens.
+   *
+   * For controls that belong to one version of a page rather than to the page
+   * itself: a lead and the prospect it became are the same route and share
+   * almost no markup, and an order's coupon and action panels are there while
+   * it is a Draft and gone once it is not. Without this the walkthrough either
+   * counts steps it cannot show or, where every step belongs to the other
+   * version, opens with nothing in it.
+   */
+  onlyIfPresent?: boolean;
   /** Permissions this step's subject needs. Missing any one drops the step. */
   requires?: (keyof UserPermissions)[];
 }
@@ -257,6 +268,7 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'list',
         anchor: 'leads-results',
+        onlyIfPresent: true,
         side: 'top',
         title: 'Reading the list',
         body:
@@ -315,8 +327,17 @@ export const ALL_SECTIONS: TourSection[] = [
     path: routePattern('lead-detail'),
     steps: [
       {
+        id: 'two-pages',
+        title: 'One address, two pages',
+        body:
+          'A lead and the prospect it becomes live at the same place, and the page ' +
+          'changes when you convert one. What follows describes whichever of the two ' +
+          'you are looking at.',
+      },
+      {
         id: 'badge',
         anchor: 'lead-badge',
+        onlyIfPresent: true,
         title: 'Lead or prospect',
         body:
           'The badge beside the name says which this is. Hover it for the difference ' +
@@ -325,6 +346,7 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'record',
         anchor: 'lead-details',
+        onlyIfPresent: true,
         title: 'The details',
         body:
           'Contact details, company, industry, the products they asked about. Edit at ' +
@@ -333,6 +355,7 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'convert',
         anchor: 'lead-convert',
+        onlyIfPresent: true,
         side: 'bottom',
         align: 'end',
         title: 'Convert to Prospect',
@@ -345,10 +368,12 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'evaluations',
         anchor: 'lead-evaluations',
+        onlyIfPresent: true,
         title: 'Trial licences',
         body:
-          'Once somebody is a prospect, Create Evaluation issues them a 30-day trial. ' +
-          'Trials are never renewed — when one ends they buy a commercial licence.',
+          'A prospect can hold trials, and Create Evaluation issues them a 30-day ' +
+          'one. Trials are never renewed — when one ends they buy a commercial ' +
+          'licence. Their contacts, orders and licences are listed below this.',
         requires: ['canCreateEvaluations'],
       },
     ],
@@ -372,6 +397,7 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'open',
         anchor: 'accounts-results',
+        onlyIfPresent: true,
         side: 'top',
         title: 'Everything happens inside a customer',
         body:
@@ -491,6 +517,7 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'subscriptions',
         anchor: 'account-new-subscription',
+        onlyIfPresent: true,
         side: 'left',
         title: 'Monthly subscriptions',
         body:
@@ -533,6 +560,7 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'list',
         anchor: 'orders-results',
+        onlyIfPresent: true,
         side: 'top',
         title: 'Opening one',
         body:
@@ -586,6 +614,7 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'actions',
         anchor: 'order-actions',
+        onlyIfPresent: true,
         side: 'top',
         align: 'end',
         title: 'Finishing the order',
@@ -598,6 +627,7 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'coupon',
         anchor: 'order-coupon',
+        onlyIfPresent: true,
         title: 'Discount codes',
         body:
           'Enter a code and Apply checks it against its rules before adding the ' +
@@ -632,6 +662,7 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'groups',
         anchor: 'assets-groups',
+        onlyIfPresent: true,
         title: 'Grouped by customer',
         body:
           'Licences are individual records but you think in customers, so they are ' +
@@ -657,6 +688,7 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'generate',
         anchor: 'assets-groups',
+        onlyIfPresent: true,
         title: 'Raising the renewal from here',
         body:
           'Tick the licences under a customer and Generate Renewal appears on that ' +
@@ -674,13 +706,21 @@ export const ALL_SECTIONS: TourSection[] = [
     requires: ['canMonthlySubscriptions'],
     steps: [
       {
-        id: 'renewing',
-        anchor: 'assets-groups',
+        id: 'what-it-is',
         title: 'Rolling monthly licences',
         body:
-          'Every monthly subscription you hold, with its next renewal date. Renew all ' +
-          'on a customer\'s row does the whole account in one go. These need renewing ' +
-          'every 30 days — this is the page that stops one quietly lapsing.',
+          'A monthly subscription is a 30-day licence paid for a month at a time ' +
+          'rather than a year up front. It has to be renewed every 30 days, and this ' +
+          'is the page that stops one quietly lapsing.',
+      },
+      {
+        id: 'renewing',
+        anchor: 'assets-groups',
+        onlyIfPresent: true,
+        title: 'Renewing them',
+        body:
+          'Every subscription you hold, grouped by customer, with its next renewal ' +
+          'date. Renew all on a customer\'s row does that whole account in one go.',
       },
     ],
   },
@@ -731,6 +771,7 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'reading',
         anchor: 'coupons-results',
+        onlyIfPresent: true,
         side: 'top',
         title: 'What each one covers',
         body:

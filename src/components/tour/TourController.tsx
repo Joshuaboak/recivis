@@ -35,7 +35,7 @@ import { usePathname } from 'next/navigation';
 import { driver, type Driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { useAppStore } from '@/lib/store';
-import { sectionsFor, sectionForPath, type TourSection } from '@/lib/tour/sections';
+import { sectionsFor, sectionForPath, type TourSection, type TourStep } from '@/lib/tour/sections';
 import { TOUR_EVENT, takeExplainRequest, type TourEventDetail } from '@/lib/tour/progress';
 import TourSpotlight from './TourSpotlight';
 
@@ -69,6 +69,21 @@ const ANCHOR_GIVE_UP_SETTLED_MS = 1200;
  */
 const AUTO_OPEN_DELAY_MS = 1200;
 
+/**
+ * How long to keep looking for the optional steps before settling the list.
+ *
+ * A section opens against whichever version of the page it landed on: steps
+ * marked `onlyIfPresent` are kept when their target is there and dropped when
+ * it is not. That has to be decided once, up front, or the progress count
+ * lies — but not so early that a list still fetching its rows loses the step
+ * about the list. Resolution happens as soon as every optional target has
+ * turned up, and at the latest when this expires.
+ */
+const RESOLVE_WINDOW_MS = 1500;
+
+/** How often to look while waiting for that. */
+const RESOLVE_POLL_MS = 150;
+
 export default function TourController() {
   const { user, setUser } = useAppStore();
   const pathname = usePathname();
@@ -98,7 +113,19 @@ export default function TourController() {
   );
 
   const active = activeSectionId ? sections.find(s => s.id === activeSectionId) : undefined;
-  const step = active?.steps[stepIndex];
+
+  /**
+   * The section's steps, narrowed to the page actually in front of the user.
+   *
+   * Null until the decision has been made. One route can render two different
+   * pages — a lead and the prospect it was converted into share `/leads/[id]`
+   * and have almost no markup in common — so a fixed list either stalls on
+   * targets that will never appear or, on the prospect, has nothing to show at
+   * all. Steps marked `onlyIfPresent` are kept or dropped by looking.
+   */
+  const [resolvedSteps, setResolvedSteps] = useState<TourStep[] | null>(null);
+  const steps = resolvedSteps ?? active?.steps ?? [];
+  const step = resolvedSteps ? resolvedSteps[stepIndex] : undefined;
 
   /**
    * Remember that a section has been shown.
@@ -130,6 +157,7 @@ export default function TourController() {
     tearingDownRef.current = false;
     driverRef.current = null;
     setActiveSectionId(null);
+    setResolvedSteps(null);
     setStepIndex(0);
     if (sectionId) markSeen(sectionId);
   }, [markSeen]);
@@ -145,9 +173,44 @@ export default function TourController() {
    */
   const open = useCallback((sectionId: string) => {
     setActiveSectionId(sectionId);
+    setResolvedSteps(null);
     setStepIndex(0);
     markSeen(sectionId);
   }, [markSeen]);
+
+  /**
+   * Decide which of a section's steps belong to this page, once, on opening.
+   *
+   * Settles as soon as every optional target is on screen, so the common case
+   * costs a single look, and at the latest when the window expires. Falling
+   * back to the whole list when the filter empties it keeps the help icon
+   * honest: it is better to skip a step than to open a walkthrough with
+   * nothing in it.
+   */
+  useEffect(() => {
+    if (!active || resolvedSteps) return;
+
+    const optional = active.steps.filter(s => s.onlyIfPresent && s.anchor);
+    const here = (anchor: string) => !!document.querySelector(`[data-tour="${anchor}"]`);
+    const settle = () => {
+      const kept = active.steps.filter(s => !s.onlyIfPresent || !s.anchor || here(s.anchor));
+      setResolvedSteps(kept.length ? kept : active.steps);
+    };
+
+    if (optional.every(s => here(s.anchor!))) {
+      settle();
+      return;
+    }
+
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      if (optional.every(s => here(s.anchor!)) || Date.now() - started >= RESOLVE_WINDOW_MS) {
+        window.clearInterval(timer);
+        settle();
+      }
+    }, RESOLVE_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [active, resolvedSteps]);
 
   /**
    * Offer a section on arrival.
@@ -202,7 +265,7 @@ export default function TourController() {
       if (cancelled) return;
       if (document.querySelector(selector)) return;
       if (Date.now() - started >= giveUpAfter) {
-        if (stepIndex + 1 < active.steps.length) setStepIndex(stepIndex + 1);
+        if (stepIndex + 1 < steps.length) setStepIndex(stepIndex + 1);
         else close(active.id);
         return;
       }
@@ -210,7 +273,7 @@ export default function TourController() {
     };
     const timer = window.setTimeout(look, 300);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [step, stepIndex, active, close]);
+  }, [step, stepIndex, active, steps.length, close]);
 
   // Draw the current step.
   useEffect(() => {
@@ -222,7 +285,7 @@ export default function TourController() {
       return;
     }
 
-    const isLast = stepIndex === active.steps.length - 1;
+    const isLast = stepIndex === steps.length - 1;
     const advance = () => {
       if (isLast) close(active.id);
       else setStepIndex(stepIndex + 1);
@@ -231,7 +294,7 @@ export default function TourController() {
 
     const instance = driver({
       showProgress: true,
-      progressText: `${active.title} · ${stepIndex + 1} of ${active.steps.length}`,
+      progressText: `${active.title} · ${stepIndex + 1} of ${steps.length}`,
       allowClose: true,
       // TourSpotlight paints the dim and the blur; driver's overlay stays only
       // to swallow clicks outside the highlight.
@@ -321,7 +384,7 @@ export default function TourController() {
       tearingDownRef.current = false;
       driverRef.current = null;
     };
-  }, [active, step, stepIndex, enabled, close]);
+  }, [active, step, stepIndex, steps.length, enabled, close]);
 
   if (!enabled || !active || !step) return null;
   return <TourSpotlight anchor={step.anchor} />;
