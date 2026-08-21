@@ -283,8 +283,8 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'start',
         title: 'Adding one yourself',
         body:
-          'Create Lead is under Leads in the menu, and takes a name, a company and ' +
-          'an email.',
+          'Create Lead is under Leads in the menu. A last name and a company are all ' +
+          'it insists on.',
       },
     ],
   },
@@ -298,8 +298,9 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'lead-form',
         title: 'Who they are',
         body:
-          'A name and an email. The phone numbers are optional, but a lead with no ' +
-          'way to reach it is not worth much in three months.',
+          'Last Name is the only one here it will not save without. The email and ' +
+          'phone numbers are optional — though a lead with no way to reach it is not ' +
+          'worth much in three months.',
       },
       {
         id: 'company',
@@ -360,9 +361,9 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'end',
         title: 'Convert to Prospect',
         body:
-          'Press this once they have actually downloaded a trial. It creates a ' +
-          'prospect account and a contact, and from then on they can hold trial ' +
-          'licences and be ordered against. It is one-way.',
+          'This creates a prospect account and a contact from the lead, and it is the ' +
+          'step that unlocks the rest: only a prospect can be given a trial or have ' +
+          'an order raised against it. It is one-way, so convert when they are real.',
         requires: ['canConvertLeads'],
       },
       {
@@ -510,8 +511,9 @@ export const ALL_SECTIONS: TourSection[] = [
         body:
           'Tick any licence and three buttons appear along this row: Generate ' +
           'Renewal, which raises the renewal order, and Send Keys to Reseller or to ' +
-          'Customer, which emails the existing keys out. A licence that cannot be ' +
-          'renewed cannot be ticked — hover its box and it says why.',
+          'Customer, which emails the existing keys out. If something you have ticked ' +
+          'cannot be renewed, Generate Renewal greys out — hover it and it lists what ' +
+          'to untick.',
         requires: ['canCreateInvoices'],
       },
       {
@@ -547,7 +549,7 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'This opens on Draft',
         body:
           'Which catches people out — an order you approved yesterday is not missing, ' +
-          'it is under Approved. Sent means it has gone out for payment.',
+          'it is under Approved. Sent is the third: it has already gone out.',
       },
       {
         id: 'type-filter',
@@ -608,8 +610,9 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'order-line-items',
         title: 'What they are buying',
         body:
-          'One row per product, with the quantity and the price. On a Draft, Edit ' +
-          'Line Items above the table lets you change them or add another.',
+          'One row per product, with the quantity and the price. Changing the lines is ' +
+          'a CSA job — ask them while the order is still a Draft, because once it is ' +
+          'approved or sent the totals are settled.',
       },
       {
         id: 'actions',
@@ -745,11 +748,11 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'limits',
         anchor: 'order-assistant-chat',
-        title: 'It stops at the draft',
+        title: 'Nothing happens without your say-so',
         body:
-          'It never approves, sends or pays for anything. You open the order it made ' +
-          'and finish it there, which is also where you would fix anything it read ' +
-          'wrong.',
+          'It always builds the order as a Draft first. It can then send it or approve ' +
+          'it, but only after showing you who the order and keys would go to and ' +
+          'asking you to confirm. It cannot take a payment.',
       },
     ],
   },
@@ -809,8 +812,8 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'How you are doing',
         body:
           'New Accounts, New Leads, Approved Orders and Revenue for those months. ' +
-          'Click any card to drill into the records behind it — that is what the tabs ' +
-          'along the top are.',
+          'Clicking a card opens its tab along the top; clicking a month inside that ' +
+          'tab lists the records behind the number.',
       },
       {
         id: 'currency',
@@ -884,9 +887,9 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'The people at your organisation',
         body:
           'The users list is inside your partner record, near the bottom: who has an ' +
-          'account, their role, when they last logged in, with Add User and a reset ' +
-          'for a forgotten password. Nobody can be given something the organisation ' +
-          'itself does not have.',
+          'account, their role, when they last logged in, and when they last did. Add ' +
+          'User creates one; the icons on each row edit it, reset a forgotten ' +
+          'password, or switch it off.',
         requires: ['canManageUsers'],
       },
     ],
