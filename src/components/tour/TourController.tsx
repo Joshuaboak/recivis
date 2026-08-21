@@ -13,12 +13,14 @@
  * driver.js draws the popover and TourSpotlight draws the dim-and-blur. Two
  * things are deliberately not driver's job:
  *
- *   The footer. driver is handed one step at a time, so it believes every step
+ *   The buttons. driver is handed one step at a time, so it believes every step
  *   is both the first and the last: Back renders disabled and Next renders as
- *   Done. The footer is rebuilt by onPopoverRender, and its clicks are taken by
- *   a capture listener registered before driver starts — driver installs its
- *   own, treats clicks it does not recognise as "close", and would otherwise
- *   destroy the tour when Back was pressed.
+ *   Done. The footer is rebuilt by onPopoverRender, and every click on it —
+ *   Back, Next and the × alike — is taken by a capture listener registered
+ *   before driver starts. driver installs its own, treats clicks it does not
+ *   recognise as "close", and would otherwise destroy the tour when Back was
+ *   pressed; and its × tore the popover down without the controller hearing
+ *   about it, which left the dim and the blur on a page with no tutorial.
  *
  *   Skipping. driver's skipMissingElement only skips within its own step array,
  *   which is one step long, so a missing anchor showed nothing at all. Anchors
@@ -284,24 +286,36 @@ export default function TourController() {
       },
     });
 
-    const onFooterClick = (event: MouseEvent) => {
+    /**
+     * Back, Next and × are all taken here rather than left to driver.
+     *
+     * The footer buttons are ours, so driver does not recognise them. The ×
+     * is driver's own, and driver tears its popover down without telling us
+     * in a way we can rely on — `onDestroyed` did not fire for it, so the
+     * section stayed open as far as React was concerned and TourSpotlight
+     * went on painting the dim and the blur over a page with no popover on
+     * it. Closing it ourselves is one path for all three buttons.
+     */
+    const onPopoverClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
       const isBack = target?.closest?.('.driver-popover-prev-btn');
       const isNext = target?.closest?.('.driver-popover-next-btn');
-      if (!isBack && !isNext) return;
+      const isClose = target?.closest?.('.driver-popover-close-btn');
+      if (!isBack && !isNext && !isClose) return;
 
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (isBack) back();
+      if (isClose) close(active.id);
+      else if (isBack) back();
       else advance();
     };
-    document.addEventListener('click', onFooterClick, true);
+    document.addEventListener('click', onPopoverClick, true);
 
     driverRef.current = instance;
     instance.drive();
 
     return () => {
-      document.removeEventListener('click', onFooterClick, true);
+      document.removeEventListener('click', onPopoverClick, true);
       tearingDownRef.current = true;
       instance.destroy();
       tearingDownRef.current = false;
