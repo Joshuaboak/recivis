@@ -107,6 +107,31 @@ describe('section definitions', () => {
     }
   });
 
+  /**
+   * Steps stay short.
+   *
+   * The tutorial is read standing in front of the thing it describes, so a
+   * step is a caption, not a paragraph — and length is the one part of that
+   * a test can hold. A step built as a definition list is allowed more room,
+   * because its bulk is structure rather than prose.
+   */
+  it('keeps every step to a caption', () => {
+    for (const section of ALL_SECTIONS) {
+      for (const step of section.steps) {
+        const plain = step.body.replace(/<[^>]+>/g, '');
+        const limit = step.body.includes('<br>') ? 400 : 260;
+        expect(
+          plain.length,
+          `${section.id}/${step.id} runs to ${plain.length} characters`
+        ).toBeLessThanOrEqual(limit);
+        expect(
+          step.title.length,
+          `${section.id}/${step.id} has a long title`
+        ).toBeLessThanOrEqual(60);
+      }
+    }
+  });
+
   it('says something in every step', () => {
     for (const section of ALL_SECTIONS) {
       for (const step of section.steps) {

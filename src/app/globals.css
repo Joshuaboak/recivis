@@ -395,6 +395,32 @@ tr:hover td { background: var(--row-hover); }
   font-size: 0.7rem;
 }
 
+/* The mark sits with the progress line, and the buttons keep the right edge.
+   driver's own footer is space-between, which would strand a third child in
+   the middle of the row. */
+.driver-popover.recivis-tour .driver-popover-footer {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.driver-popover.recivis-tour .driver-popover-navigation-btns {
+  margin-left: auto;
+}
+
+.driver-popover.recivis-tour .recivis-tour-mark {
+  width: 8px;
+  height: 16px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* A definition inside a step — "Leads", "Prospects" — rather than emphasis. */
+.driver-popover.recivis-tour .driver-popover-description strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
 .driver-popover.recivis-tour .driver-popover-navigation-btns button {
   background-color: var(--accent);
   color: #fff;

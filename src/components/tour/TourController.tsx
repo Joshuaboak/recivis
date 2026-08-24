@@ -318,6 +318,19 @@ export default function TourController() {
         const footer = popover.wrapper.querySelector('.driver-popover-footer');
         if (!footer) return;
 
+        // The CSA mark, so a popover that appears over someone else's page
+        // still reads as part of this portal. driver repositions itself once
+        // an image inside it loads, so this cannot leave the arrow misaligned.
+        const progress = footer.querySelector('.driver-popover-progress-text');
+        if (progress && !footer.querySelector('.recivis-tour-mark')) {
+          const mark = document.createElement('img');
+          mark.src = '/logo.svg';
+          mark.alt = '';
+          mark.setAttribute('aria-hidden', 'true');
+          mark.className = 'recivis-tour-mark';
+          footer.insertBefore(mark, progress);
+        }
+
         // driver renders its own pair first — a disabled Previous and a Done —
         // and showButtons does not stop it.
         footer.querySelectorAll('.driver-popover-navigation-btns').forEach(el => el.remove());

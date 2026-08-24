@@ -6,7 +6,7 @@
  * here navigates: the user goes where they were going anyway, and the tutorial
  * meets them there.
  *
- * Four rules shaped this list:
+ * Five rules shaped this list:
  *
  * 1. **A section explains one page.** No step assumes the user arrived from
  *    another section, or that they will go on to a particular next one.
@@ -16,7 +16,10 @@
  * 3. **Point at what you mention.** If a step names a button, a filter or a
  *    column, it anchors to it. Steps with no anchor exist only where the
  *    subject is the whole page.
- * 4. **Nothing is shown that the viewer cannot do.** Steps declare the
+ * 4. **Say it plainly.** Titles are short, and name the thing before glossing
+ *    it — "Assets: your customer licences". Bodies are one to three sentences
+ *    of plain statement. No asides, no throat-clearing, no selling.
+ * 5. **Nothing is shown that the viewer cannot do.** Steps declare the
  *    permissions their subject needs; a section whose steps are all filtered
  *    out stops existing for that person, icon and all.
  *
@@ -49,6 +52,13 @@ export interface TourStep {
   /** Element to highlight, matched as [data-tour="..."]. Omit to centre it. */
   anchor?: string;
   title: string;
+  /**
+   * What the step says.
+   *
+   * Rendered as HTML, so `<strong>` and `<br>` are available where a step is
+   * really a short definition list. Everything here is written by us — none of
+   * it comes from a record — so there is nothing to escape.
+   */
   body: string;
   /**
    * Where to put the popover relative to the anchor. Defaults to below it,
@@ -98,9 +108,8 @@ export const ALL_SECTIONS: TourSection[] = [
         id: 'welcome',
         title: 'Welcome to the partner portal',
         body:
-          'A quick tour of what is where. It takes about a minute, and it is the ' +
-          'only one that covers the whole portal — every other page explains itself ' +
-          'when you first open it.',
+          'This is a quick tour of how to use the basics of the partner portal. As ' +
+          'you continue to explore the portal more quick tutorials will appear.',
       },
       {
         id: 'sidebar',
@@ -109,8 +118,8 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'start',
         title: 'The menu, top to bottom',
         body:
-          'Every part of the portal is in here. The items with a chevron open up to ' +
-          'show more underneath. The next few steps walk down the four you will use ' +
+          'Every part of the portal is in here. The menu options with arrows open up ' +
+          'to sub-menus underneath. The next few steps explain the four you will use ' +
           'most.',
       },
       {
@@ -118,41 +127,87 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'nav-leads',
         side: 'right',
         align: 'start',
-        title: 'Leads — people who have not bought yet',
+        title: 'Leads: people who have not bought',
         body:
-          'Enquiries from the website, and the people trialling the software. Opens ' +
-          'to Browse Leads and Create Lead.',
+          '<strong>Important:</strong> this menu stores both leads and prospects.' +
+          '<br><br><strong>Leads</strong> have interacted with marketing material but ' +
+          'have not yet trialled the software. To place an order for a lead you need ' +
+          'to convert them to an account.' +
+          '<br><br><strong>Prospects</strong> have trialled the software. You can ' +
+          'create new orders for prospects.' +
+          '<br><br>Opens to Browse Leads and Create Lead.',
       },
       {
         id: 'nav-accounts',
         anchor: 'nav-accounts',
         side: 'right',
         align: 'start',
-        title: 'Accounts — your customers',
+        title: 'Accounts: customers',
         body:
           'Everyone who has bought. Opens to Browse Accounts and Create Account. ' +
-          'This is also where orders are raised, because an order always belongs to ' +
-          'a customer.',
+          'Renewals and new orders are created from an account.',
       },
       {
         id: 'nav-assets',
         anchor: 'nav-assets',
         side: 'right',
         align: 'start',
-        title: 'Assets — the licences they hold',
+        title: 'Assets: your customer licences',
         body:
-          'All Assets is the whole estate. Due for Renewal and Recently Expired are ' +
-          'the two lists worth checking weekly.',
+          'Every licence your customers hold. Due for Renewal and Recently Expired ' +
+          'are the two lists worth checking weekly.',
       },
       {
         id: 'nav-orders',
         anchor: 'nav-orders',
         side: 'right',
         align: 'start',
-        title: 'Orders — what you have sold',
+        title: 'Orders: new and renewal sales',
         body:
-          'Browse Orders lists them. Order Assistant builds one from a description. ' +
-          'Neither starts a new order from scratch — that begins on the customer.',
+          'Browse Orders lists them. Order Assistant is a chatbot you can use to ' +
+          'place orders.',
+      },
+      {
+        id: 'search',
+        anchor: 'header-search',
+        side: 'bottom',
+        align: 'end',
+        title: 'Search: the fastest way to anything',
+        body:
+          'One box across customers, leads, orders and licences. Press <strong>Ctrl ' +
+          'K</strong> from any page to open it. If you know the company, the order ' +
+          'number or the serial key, searching beats working down the menu — this is ' +
+          'the control worth learning first.',
+      },
+      {
+        id: 'recent',
+        anchor: 'header-recent',
+        side: 'bottom',
+        align: 'end',
+        title: 'Recently viewed',
+        body:
+          'The records you opened last, so you can get back to one without searching ' +
+          'for it again.',
+      },
+      {
+        id: 'notifications',
+        anchor: 'header-notifications',
+        side: 'bottom',
+        align: 'end',
+        title: 'Notifications',
+        body:
+          'Licences coming up for renewal and orders that have moved on. A dot means ' +
+          'there is something unread.',
+      },
+      {
+        id: 'help',
+        anchor: 'header-help',
+        side: 'bottom',
+        align: 'end',
+        title: 'Help: replays the tutorial',
+        body:
+          'Every page has a short tutorial like this one. This icon replays the one ' +
+          'for the page you are on.',
       },
       {
         id: 'cards',
@@ -161,82 +216,35 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'Or start from here',
         body:
           'The same destinations as shortcuts, each with a line saying what it is ' +
-          'for. Nothing is created from the dashboard — it is a starting point, not ' +
-          'a workspace.',
+          'for.',
       },
       {
         id: 'learn-more',
         anchor: 'dashboard-learn-more',
         side: 'top',
         align: 'start',
-        title: 'Learn more, on every card',
-        body:
-          'Takes you to that section and plays its walkthrough when you arrive. Use ' +
-          'it when you want the explanation rather than the page.',
-      },
-      {
-        id: 'search',
-        anchor: 'header-search',
-        side: 'bottom',
-        align: 'end',
-        title: 'Search everything',
-        body:
-          'One box across customers, leads, orders and licences. Ctrl K opens it from ' +
-          'anywhere, which is usually quicker than navigating and filtering.',
-      },
-      {
-        id: 'recent',
-        anchor: 'header-recent',
-        side: 'bottom',
-        align: 'end',
-        title: 'Where you have just been',
-        body:
-          'The records you opened most recently, so going back to the order you were ' +
-          'looking at earlier does not mean searching for it again.',
-      },
-      {
-        id: 'notifications',
-        anchor: 'header-notifications',
-        side: 'bottom',
-        align: 'end',
-        title: 'What needs you',
-        body:
-          'Licences coming up for renewal, orders that have moved on. The dot means ' +
-          'there is something unread.',
-      },
-      {
-        id: 'help',
-        anchor: 'header-help',
-        side: 'bottom',
-        align: 'end',
-        title: 'This icon explains the page you are on',
-        body:
-          'Every section has a short walkthrough like this one, and this replays the ' +
-          'one for wherever you happen to be. It only appears on pages that have ' +
-          'something to say.',
+        title: 'Learn more',
+        body: 'Opens that section and plays its tutorial when you arrive.',
       },
       {
         id: 'your-menu',
         anchor: 'user-menu',
         side: 'right',
         align: 'end',
-        title: 'Your account, and this tutorial',
+        title: 'Your account',
         body:
-          'Your name and role, and Sign Out. The Guided tutorial switch in here stops ' +
-          'walkthroughs opening on their own; Restart beside it makes every section ' +
-          'introduce itself again.',
+          'Your name, your role and Sign Out. The Guided tutorial switch stops these ' +
+          'opening on their own. Restart makes every page introduce itself again.',
       },
       {
         id: 'support',
         anchor: 'support-launcher',
         side: 'left',
         align: 'end',
-        title: 'Ask, in your own words',
+        title: 'Support assistant',
         body:
-          'The help assistant knows this portal and your permissions. Ask how to do ' +
-          'something, or why a button is missing, and it will point you at the right ' +
-          'page. It cannot read your records, so it will not tell you what is on a ' +
-          'particular order.',
+          'Ask how to do something in your own words. It knows the portal and your ' +
+          'permissions, but it cannot read your records.',
       },
     ],
   },
@@ -252,18 +260,16 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'leads-search',
         title: 'Leads and prospects both live here',
         body:
-          'A lead is an enquiry — somebody who filled in a form or came in through ' +
-          'marketing. A prospect has downloaded a trial and is evaluating it. Search ' +
-          'by name, email or company.',
+          'A lead has not trialled the software yet. A prospect has. Search by name, ' +
+          'email or company.',
       },
       {
         id: 'eval-filter',
         anchor: 'leads-eval-filter',
-        title: 'Holding a trial is what makes a prospect',
+        title: 'Filter by evaluation',
         body:
-          'Has Evaluation narrows the list to the people currently trialling ' +
-          'something, and you can pick a single product instead. No Evaluation is the ' +
-          'rest.',
+          'Has Evaluation shows who is currently trialling something. You can also ' +
+          'pick a single product.',
       },
       {
         id: 'list',
@@ -272,19 +278,18 @@ export const ALL_SECTIONS: TourSection[] = [
         side: 'top',
         title: 'Reading the list',
         body:
-          'Status says which stage somebody is at. Evaluations shows what they are ' +
-          'trialling. Created is the one sortable column — click it to flip newest ' +
-          'and oldest. Click any row to open the record.',
+          'Status shows the stage. Evaluations shows what they are trialling. Created ' +
+          'is the only sortable column. Click a row to open it.',
       },
       {
         id: 'creating',
         anchor: 'nav-leads',
         side: 'right',
         align: 'start',
-        title: 'Adding one yourself',
+        title: 'Adding one',
         body:
           'Create Lead is under Leads in the menu. A last name and a company are all ' +
-          'it insists on.',
+          'it needs.',
       },
     ],
   },
@@ -298,27 +303,25 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'lead-form',
         title: 'Who they are',
         body:
-          'Last Name is the only one here it will not save without. The email and ' +
-          'phone numbers are optional — though a lead with no way to reach it is not ' +
-          'worth much in three months.',
+          'Last Name is the only field here it will not save without. Email and phone ' +
+          'are optional, but a lead with no way to reach it is not worth much later.',
       },
       {
         id: 'company',
         anchor: 'lead-company',
         title: 'Where they work',
         body:
-          'Company Name is required — everything downstream groups by company. The ' +
-          'website, industry and country are optional.',
+          'Company Name is required. Website, industry and country are optional.',
       },
       {
         id: 'submit',
         anchor: 'lead-create-submit',
         side: 'bottom',
         align: 'end',
-        title: 'Create Lead saves and opens it',
+        title: 'Create Lead',
         body:
-          'If you leave this page half-finished the portal asks before discarding it, ' +
-          'and offers the draft back when you return.',
+          'Saves the lead and opens it. If you leave the page half-finished the ' +
+          'portal offers the draft back when you return.',
       },
     ],
   },
@@ -331,18 +334,15 @@ export const ALL_SECTIONS: TourSection[] = [
         id: 'two-pages',
         title: 'One address, two pages',
         body:
-          'A lead and the prospect it becomes live at the same place, and the page ' +
-          'changes when you convert one. What follows describes whichever of the two ' +
-          'you are looking at.',
+          'A lead and the prospect it becomes share this page. What you see below ' +
+          'depends on which of the two you are looking at.',
       },
       {
         id: 'badge',
         anchor: 'lead-badge',
         onlyIfPresent: true,
         title: 'Lead or prospect',
-        body:
-          'The badge beside the name says which this is. Hover it for the difference ' +
-          'in one line.',
+        body: 'The badge beside the name says which. Hover it for the difference.',
       },
       {
         id: 'record',
@@ -350,8 +350,8 @@ export const ALL_SECTIONS: TourSection[] = [
         onlyIfPresent: true,
         title: 'The details',
         body:
-          'Contact details, company, industry, the products they asked about. Edit at ' +
-          'the top opens the full form; Open in CRM jumps to the same record in Zoho.',
+          'Contact details, company, industry and the products they asked about. Edit ' +
+          'opens the full form. Open in CRM jumps to the record in Zoho.',
       },
       {
         id: 'convert',
@@ -361,20 +361,18 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'end',
         title: 'Convert to Prospect',
         body:
-          'This creates a prospect account and a contact from the lead, and it is the ' +
-          'step that unlocks the rest: only a prospect can be given a trial or have ' +
-          'an order raised against it. It is one-way, so convert when they are real.',
+          'Creates a prospect account and a contact from the lead. Only a prospect ' +
+          'can be given a trial or ordered against. It is one-way.',
         requires: ['canConvertLeads'],
       },
       {
         id: 'evaluations',
         anchor: 'lead-evaluations',
         onlyIfPresent: true,
-        title: 'Trial licences',
+        title: 'Evaluations: trial licences',
         body:
-          'A prospect can hold trials, and Create Evaluation issues them a 30-day ' +
-          'one. Trials are never renewed — when one ends they buy a commercial ' +
-          'licence. Their contacts, orders and licences are listed below this.',
+          'Create Evaluation issues a 30-day trial. Trials are not renewed — when one ' +
+          'ends they buy a licence. Contacts, orders and licences are listed below.',
         requires: ['canCreateEvaluations'],
       },
     ],
@@ -391,9 +389,8 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'accounts-search',
         title: 'Finding a customer',
         body:
-          'By company name, a contact email, or just the email domain. Domain is the ' +
-          'useful one: somebody emails you from an address you do not recognise and ' +
-          'you need to know whether their company is already in here.',
+          'Search by company name, a contact email, or the email domain. Domain is ' +
+          'the useful one when all you have is an address you do not recognise.',
       },
       {
         id: 'open',
@@ -402,18 +399,17 @@ export const ALL_SECTIONS: TourSection[] = [
         side: 'top',
         title: 'Everything happens inside a customer',
         body:
-          'Open one and you get their contacts, orders and licences, and the buttons ' +
-          'that raise an order or a renewal. Created sorts the list; click any row to ' +
-          'open it.',
+          'Open one for their contacts, orders and licences. Created is the only ' +
+          'sortable column. Click a row to open it.',
       },
       {
         id: 'creating',
         anchor: 'nav-accounts',
         side: 'right',
         align: 'start',
-        title: 'Adding one yourself',
+        title: 'Adding one',
         body:
-          'Create Account is under Accounts in the menu, and needs a company and one ' +
+          'Create Account is under Accounts in the menu. It needs a company and one ' +
           'contact at it.',
       },
     ],
@@ -428,28 +424,27 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'account-details-form',
         title: 'The company',
         body:
-          'Account Name and Country are required, and so is the reseller the account ' +
-          'belongs to. Fill the address in properly if they will be buying on account ' +
-          'terms — it ends up on the paperwork.',
+          'Account Name, Country and Reseller are required. Fill in the address if ' +
+          'they will be buying on account terms.',
       },
       {
         id: 'contact',
         anchor: 'account-primary-contact',
-        title: 'And a person at it',
+        title: 'The primary contact',
         body:
-          'First name, last name and email. This is the primary contact, which ' +
-          'matters because it is who orders and licence keys are addressed to.',
+          'First name, last name and email. This is who orders and licence keys are ' +
+          'addressed to.',
       },
       {
         id: 'submit',
         anchor: 'account-create-submit',
         side: 'bottom',
         align: 'end',
-        title: 'Create Account, and the duplicate check',
+        title: 'Create Account',
         body:
-          'If the name or domain looks like one already in the portal you get a ' +
-          'warning listing the matches before anything is saved. Two records for one ' +
-          'company splits their licence history in half, so read it.',
+          'If the name or domain matches one already in the portal you get the ' +
+          'matches listed before anything saves. Two records for one company splits ' +
+          'their licence history.',
       },
     ],
   },
@@ -461,19 +456,18 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'contacts',
         anchor: 'account-contacts',
-        title: 'Their people',
+        title: 'Contacts',
         body:
-          'One contact is marked primary — that is who orders and licence keys go to. ' +
-          'The Set As column changes which is which, and Add Contact adds somebody ' +
-          'new.',
+          'One contact is primary — that is who orders and licence keys go to. The ' +
+          'Set As column changes which. Add Contact adds someone new.',
       },
       {
         id: 'orders',
         anchor: 'account-orders',
-        title: 'Their orders',
+        title: 'Orders',
         body:
-          'Everything this customer has bought and where each order got to. Click any ' +
-          'of them to open it.',
+          'Everything this customer has bought and the status of each. Click one to ' +
+          'open it.',
       },
       {
         id: 'new-order',
@@ -481,18 +475,17 @@ export const ALL_SECTIONS: TourSection[] = [
         side: 'left',
         title: 'New Product Order',
         body:
-          'Orders start from a customer, which is why this is here and not in the ' +
-          'Orders section. It carries the customer, their primary contact and your ' +
-          'pricing into the order for you.',
+          'Orders start from a customer. This carries the customer, their primary ' +
+          'contact and your pricing into the order.',
         requires: ['canCreateInvoices'],
       },
       {
         id: 'evaluations',
         anchor: 'account-evaluations',
-        title: 'Trial licences',
+        title: 'Evaluations',
         body:
-          'The same 30-day evaluations as on a prospect. What they have already had ' +
-          'is listed here, so you can see it before issuing another.',
+          '30-day trials, and what this customer has already had. Worth a look before ' +
+          'issuing another.',
         requires: ['canCreateEvaluations'],
       },
       {
@@ -500,20 +493,18 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'account-assets',
         title: 'Active Assets',
         body:
-          'Every licence this customer currently holds, with its serial key and ' +
-          'renewal date. Archived Assets underneath is the same for the ones that ' +
-          'have lapsed.',
+          'Every licence they currently hold, with its serial key and renewal date. ' +
+          'Archived Assets below is the same for the lapsed ones.',
       },
       {
         id: 'asset-actions',
         anchor: 'account-assets',
-        title: 'Renewals and keys start with a tick',
+        title: 'Renewals and keys',
         body:
-          'Tick any licence and three buttons appear along this row: Generate ' +
-          'Renewal, which raises the renewal order, and Send Keys to Reseller or to ' +
-          'Customer, which emails the existing keys out. If something you have ticked ' +
-          'cannot be renewed, Generate Renewal greys out — hover it and it lists what ' +
-          'to untick.',
+          'Tick a licence and three buttons appear on this row: Generate Renewal, ' +
+          'Send Keys to Reseller and Send Keys to Customer. If something you ticked ' +
+          'cannot be renewed, Generate Renewal greys out — hover it to see what to ' +
+          'untick.',
         requires: ['canCreateInvoices'],
       },
       {
@@ -523,9 +514,8 @@ export const ALL_SECTIONS: TourSection[] = [
         side: 'left',
         title: 'Monthly subscriptions',
         body:
-          'Create Monthly Subscription sets up a licence they pay for a month at a ' +
-          'time instead of a year up front. Once they have one, Renew Monthly appears ' +
-          'beside this and renews all of them at once.',
+          'Create Monthly Subscription sets up a licence paid a month at a time ' +
+          'instead of a year up front. Renew Monthly renews all of theirs at once.',
         requires: ['canMonthlySubscriptions'],
       },
     ],
@@ -548,16 +538,16 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'orders-status-filter',
         title: 'This opens on Draft',
         body:
-          'Which catches people out — an order you approved yesterday is not missing, ' +
-          'it is under Approved. Sent is the third: it has already gone out.',
+          'An order you approved yesterday is not missing, it is under Approved. Sent ' +
+          'means it has already gone out.',
       },
       {
         id: 'type-filter',
         anchor: 'orders-type-filter',
-        title: 'And by what kind of order it is',
+        title: 'Order types',
         body:
-          'New Product, Renewal, Co-Term for lining a licence up with an existing ' +
-          'renewal date, or Add To Contract.',
+          'New Product, Renewal, Co-Term and Add To Contract. Co-Term lines a licence ' +
+          'up with a renewal date the customer already has.',
       },
       {
         id: 'list',
@@ -566,8 +556,8 @@ export const ALL_SECTIONS: TourSection[] = [
         side: 'top',
         title: 'Opening one',
         body:
-          'Click any row. New orders are not raised from this page — they start on ' +
-          'the customer.',
+          'Click a row. New orders are not raised from this page — they start on the ' +
+          'customer.',
       },
     ],
   },
@@ -578,21 +568,19 @@ export const ALL_SECTIONS: TourSection[] = [
     steps: [
       {
         id: 'shape',
-        title: 'How an order is put together',
+        title: 'How an order is built',
         body:
-          'The cards at the top carry the customer, contact, dates and currency. The ' +
-          'panels below are the parts you fill in, and the table near the bottom is ' +
-          'what they are buying. All of it is editable while the order is a Draft, ' +
-          'and locked once it is not.',
+          'The cards at the top hold the customer, contact, dates and currency. The ' +
+          'panels below are what you fill in. The table near the bottom is what they ' +
+          'are buying.',
       },
       {
         id: 'po',
         anchor: 'order-po',
         title: 'Purchase Order',
         body:
-          'The pencil sets the PO number; Attach PO Document uploads the document ' +
-          'itself. Buying on account terms needs both before the order will go ' +
-          'through.',
+          'The pencil sets the PO number. Attach PO Document uploads the file itself. ' +
+          'Buying on account terms needs both before Place Order will work.',
         requires: ['canUploadPO'],
       },
       {
@@ -600,19 +588,16 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'order-send-to',
         title: 'Where the order and keys go',
         body:
-          'Reseller sends everything to you, copying the CSA sales rep, and you pass ' +
-          'it on. Customer sends it straight to them, copying you. Switching this ' +
-          'also changes the prices on the lines, because what you pay and what they ' +
-          'pay are different numbers.',
+          'Reseller sends to you, copying the CSA sales rep. Customer sends straight ' +
+          'to them, copying you. Switching this also changes the prices on the lines.',
       },
       {
         id: 'line-items',
         anchor: 'order-line-items',
         title: 'What they are buying',
         body:
-          'One row per product, with the quantity and the price. Changing the lines is ' +
-          'a CSA job — ask them while the order is still a Draft, because once it is ' +
-          'approved or sent the totals are settled.',
+          'One row per product, with the quantity and the price. Changing the lines ' +
+          'is a CSA job, and only while the order is still a Draft.',
       },
       {
         id: 'actions',
@@ -624,8 +609,7 @@ export const ALL_SECTIONS: TourSection[] = [
         body:
           'This is the step that issues licence keys. Place Order approves it on your ' +
           'account terms. Pay Now opens a card payment page. Pay Later sends it out ' +
-          'for payment. Each one asks twice before it goes, because none of them can ' +
-          'be undone.',
+          'for payment. Each one asks twice.',
       },
       {
         id: 'coupon',
@@ -633,9 +617,8 @@ export const ALL_SECTIONS: TourSection[] = [
         onlyIfPresent: true,
         title: 'Discount codes',
         body:
-          'Enter a code and Apply checks it against its rules before adding the ' +
-          'discount as its own line. Do it before you place the order — a locked ' +
-          'order will not take one.',
+          'Enter a code and press Apply. The discount appears as its own line. Do it ' +
+          'before you place the order.',
       },
     ],
   },
@@ -651,13 +634,13 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'assets-search',
         title: 'Every licence you can see',
         body:
-          'The whole estate across all your customers, searchable by customer, ' +
-          'product or serial key. This is the page for "what do they actually have".',
+          'The whole estate across your customers. Search by customer, product or ' +
+          'serial key.',
       },
       {
         id: 'window',
         anchor: 'assets-window-filter',
-        title: 'Narrow it by when it renews',
+        title: 'Filter by renewal date',
         body:
           'Overdue, or the next 30, 60 or 90 days. The status filter beside it hides ' +
           'the expired and cancelled ones.',
@@ -668,9 +651,8 @@ export const ALL_SECTIONS: TourSection[] = [
         onlyIfPresent: true,
         title: 'Grouped by customer',
         body:
-          'Licences are individual records but you think in customers, so they are ' +
-          'stacked under one. Each header says how many there are and when the next ' +
-          'one is due, and the arrow collapses it.',
+          'Each header shows how many licences there are and when the next one is ' +
+          'due. The arrow collapses the group.',
       },
     ],
   },
@@ -684,20 +666,17 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'The next 60 days',
         body:
           'Every active licence renewing within 60 days, soonest first. Recently ' +
-          'Expired, next to it in the menu, is the same list for the 60 days behind ' +
-          'you — worth a look weekly, because a lapsed licence is usually somebody ' +
-          'who meant to renew and forgot.',
+          'Expired is the same list for the 60 days behind you.',
       },
       {
         id: 'generate',
         anchor: 'assets-groups',
         onlyIfPresent: true,
-        title: 'Raising the renewal from here',
+        title: 'Raising the renewal',
         body:
-          'Tick the licences under a customer and Generate Renewal appears on that ' +
-          'customer\'s row, counting what you have selected. It creates the order and ' +
-          'opens it. Licences that cannot be renewed cannot be ticked — hover the box ' +
-          'and it says why.',
+          'Tick the licences under a customer and Generate Renewal appears on their ' +
+          'row. It creates the order and opens it. Licences that cannot be renewed ' +
+          'cannot be ticked — hover the box to see why.',
         requires: ['canCreateInvoices'],
       },
     ],
@@ -712,9 +691,8 @@ export const ALL_SECTIONS: TourSection[] = [
         id: 'what-it-is',
         title: 'Rolling monthly licences',
         body:
-          'A monthly subscription is a 30-day licence paid for a month at a time ' +
-          'rather than a year up front. It has to be renewed every 30 days, and this ' +
-          'is the page that stops one quietly lapsing.',
+          'A 30-day licence paid for a month at a time instead of a year up front. It ' +
+          'has to be renewed every 30 days.',
       },
       {
         id: 'renewing',
@@ -723,7 +701,7 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'Renewing them',
         body:
           'Every subscription you hold, grouped by customer, with its next renewal ' +
-          'date. Renew all on a customer\'s row does that whole account in one go.',
+          'date. Renew all does a whole account in one go.',
       },
     ],
   },
@@ -740,19 +718,18 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'order-assistant-chat',
         title: 'Describe the order in plain English',
         body:
-          'An email address, a customer name, what they are buying — it finds the ' +
-          'customer, picks the product and builds a draft for you to check. It can ' +
-          'also create a lead, customer or contact when they are not in the portal ' +
-          'yet.',
+          'Give it an email address, a customer name and what they are buying. It ' +
+          'finds the customer, picks the product and builds a draft. It can also ' +
+          'create a lead, customer or contact.',
       },
       {
         id: 'limits',
         anchor: 'order-assistant-chat',
         title: 'Nothing happens without your say-so',
         body:
-          'It always builds the order as a Draft first. It can then send it or approve ' +
-          'it, but only after showing you who the order and keys would go to and ' +
-          'asking you to confirm. It cannot take a payment.',
+          'It always builds the order as a Draft. It can then send or approve it, but ' +
+          'only after showing you who it goes to and asking you to confirm. It cannot ' +
+          'take a payment.',
       },
     ],
   },
@@ -766,10 +743,10 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'finding',
         anchor: 'coupons-filters',
-        title: 'Checking a code before you promise it',
+        title: 'Checking a code',
         body:
-          'Coupons are set up by CSA; this page is where you look one up. Search by ' +
-          'code or name, and filter by status to see only the live ones.',
+          'Coupons are set up by CSA. Search by code or name, and filter by status to ' +
+          'see the live ones.',
       },
       {
         id: 'reading',
@@ -778,13 +755,12 @@ export const ALL_SECTIONS: TourSection[] = [
         side: 'top',
         title: 'What each one covers',
         body:
-          'Discount is what it takes off, Valid is the window it runs between, Uses ' +
-          'is how much of it is left, and Products is what it applies to. Open a row ' +
-          'for the full conditions.',
+          'Discount is what it takes off. Valid is the date range. Uses is how many ' +
+          'are left. Open a row for the full conditions.',
       },
       {
         id: 'redeeming',
-        title: 'Using it',
+        title: 'Using one',
         body:
           'Codes are redeemed on the order, not here. Open the draft order and enter ' +
           'it in the Apply Coupon panel.',
@@ -803,33 +779,32 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'reports-months',
         title: 'Pick your months first',
         body:
-          'Everything below reads from what is selected here. Pick none and you get ' +
-          'the lot; Load More reaches further back.',
+          'Everything below reads from what you select here. Load More reaches ' +
+          'further back.',
       },
       {
         id: 'cards',
         anchor: 'reports-cards',
         title: 'How you are doing',
         body:
-          'New Accounts, New Leads, Approved Orders and Revenue for those months. ' +
-          'Clicking a card opens its tab along the top; clicking a month inside that ' +
-          'tab lists the records behind the number.',
+          'New Accounts, New Leads, Approved Orders and Revenue. Clicking a card ' +
+          'opens its tab; clicking a month in that tab lists the records.',
       },
       {
         id: 'currency',
         anchor: 'reports-cards',
-        title: 'Money is shown in one currency',
+        title: 'Currency',
         body:
-          'Orders come in several, so the selector above converts them to Australian ' +
-          'dollars, or shows a single currency on its own. Your commission is on the ' +
+          'Orders come in several currencies. The selector above converts them to ' +
+          'Australian dollars or shows one on its own. Your commission is on the ' +
           'Revenue tab.',
       },
       {
         id: 'assistant',
-        title: 'Or just ask',
+        title: 'Or ask instead',
         body:
           'AI Assistant, under Reports in the menu, answers the same questions as a ' +
-          'conversation if you would rather ask than work the filters.',
+          'chat.',
       },
     ],
   },
@@ -845,8 +820,7 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'Monthly Statement',
         body:
           'The month-end reconciliation: approved orders and active subscriptions for ' +
-          'the month you choose, netted against whoever you settle with — your ' +
-          'distributor if you sit under one, CSA if you do not.',
+          'the month you pick, netted against whoever you settle with.',
       },
       {
         id: 'schedule',
@@ -854,15 +828,15 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'Billing Schedule',
         body:
           'The forward-looking half: what your subscriptions cost per month and per ' +
-          'year, so the next few statements hold no surprises.',
+          'year.',
       },
       {
         id: 'export',
         anchor: 'partner-report-tabs',
         side: 'bottom',
         align: 'end',
-        title: 'Both export',
-        body: 'Export CSV takes whichever tab you are on into a spreadsheet.',
+        title: 'Export CSV',
+        body: 'Takes whichever tab you are on into a spreadsheet.',
         requires: ['canExportData'],
       },
     ],
@@ -876,20 +850,19 @@ export const ALL_SECTIONS: TourSection[] = [
     steps: [
       {
         id: 'organisation',
-        title: 'Your partner organisation',
+        title: 'Your organisation',
         body:
           'Open your own record for your address, region, currency, commission ' +
-          'percentages, payment methods and permissions. If you are a distributor, ' +
-          'the resellers underneath you are listed here too.',
+          'percentages, payment methods and permissions. Distributors also see their ' +
+          'resellers here.',
       },
       {
         id: 'users',
-        title: 'The people at your organisation',
+        title: 'Your users',
         body:
-          'The users list is inside your partner record, near the bottom: who has an ' +
-          'account, their role, when they last logged in, and when they last did. Add ' +
-          'User creates one; the icons on each row edit it, reset a forgotten ' +
-          'password, or switch it off.',
+          'The users list is inside your partner record. It shows who has an account, ' +
+          'their role and when they last logged in. Add User creates one; the icons ' +
+          'on each row edit it, reset a password or switch it off.',
         requires: ['canManageUsers'],
       },
     ],
@@ -903,12 +876,11 @@ export const ALL_SECTIONS: TourSection[] = [
         id: 'whats-here',
         anchor: 'partner-resources-cards',
         side: 'top',
-        title: 'Three places, not three pages',
+        title: 'Three links, not three pages',
         body:
-          'Marketing Resources is the shared drive of brochures, templates and brand ' +
-          'assets. YouTube Product Guides is the tutorial and webinar channel. ' +
-          'Support is the help desk, where knowledge base articles live and support ' +
-          'tickets are raised. Each card opens in a new tab.',
+          'Marketing Resources is the shared drive of brochures and brand assets. ' +
+          'YouTube Product Guides is the tutorial channel. Support is the help desk, ' +
+          'for knowledge base articles and tickets. Each opens in a new tab.',
       },
     ],
   },
