@@ -657,6 +657,17 @@ export const ALL_SECTIONS: TourSection[] = [
           'line items table, then the totals.',
       },
       {
+        id: 'header-actions',
+        anchor: 'order-header-actions',
+        side: 'bottom',
+        align: 'end',
+        title: 'The buttons at the top',
+        body:
+          'Approve and Send Order sit here while the order is a Draft, each asking to ' +
+          'confirm first. Once it is neither, a Locked badge replaces them and only ' +
+          'CSA can change anything.',
+      },
+      {
         id: 'po',
         anchor: 'order-po',
         title: 'Purchase Order',
@@ -842,6 +853,15 @@ export const ALL_SECTIONS: TourSection[] = [
     path: buildPath('invoice'),
     requires: ['canCreateInvoices'],
     steps: [
+      {
+        id: 'po-upload',
+        anchor: 'order-assistant-po',
+        side: 'bottom',
+        title: 'Or drop a purchase order on it',
+        body:
+          'Drag a PO onto this strip, or click to pick one. It reads the customer and ' +
+          'the products off it and starts the order from there. PDF, PNG or JPG.',
+      },
       {
         id: 'what-it-does',
         anchor: 'order-assistant-chat',

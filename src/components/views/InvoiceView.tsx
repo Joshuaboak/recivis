@@ -84,6 +84,7 @@ export default function InvoiceView() {
       <div className="px-6 pt-4 pb-2 flex-shrink-0">
         <div className="max-w-5xl mx-auto">
           <div
+            data-tour="order-assistant-po"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}

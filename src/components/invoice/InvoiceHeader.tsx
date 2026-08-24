@@ -117,7 +117,7 @@ export default function InvoiceHeader({
         <div className="flex-1" />
 
         {/* Action buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div data-tour="order-header-actions" className="flex flex-wrap items-center gap-2">
           {/* Edit button — only when not already editing and invoice is editable */}
           {canEdit && !editing ? (
             <button onClick={onEdit} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-warning bg-warning/10 border border-warning/30 rounded-xl hover:bg-warning/20 transition-colors cursor-pointer">
