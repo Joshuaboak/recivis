@@ -1141,7 +1141,7 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
 
         {/* DB Role Badge + Permission Management */}
         {dbRegistered && dbRole && (
-          <div className="mb-6">
+          <div data-tour="partner-permissions" className="mb-6">
             <div className="flex items-center gap-2 mb-3">
               <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-success/15 text-success">Registered</span>
               <span className="text-xs text-text-muted">Permission preset: <span className="text-text-secondary font-semibold">{dbRole.display}</span></span>
@@ -1316,7 +1316,7 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
 
         {/* Info Cards — click any card to edit it inline */}
         <InlineEditFieldProvider>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+          <motion.div data-tour="partner-info" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
 
             {/* Primary Contact — composite (First+Last). Click opens the full edit form. */}
             <div
@@ -1429,7 +1429,7 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
         </InlineEditFieldProvider>
 
         {/* Users Section */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+        <motion.div data-tour="partner-users" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-text-primary flex items-center gap-2"><Users size={18} className="text-csa-accent" /> Users ({users.length})</h2>
             <button onClick={() => setShowAddUser(true)} className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">

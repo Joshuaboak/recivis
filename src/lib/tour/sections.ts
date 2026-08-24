@@ -139,7 +139,7 @@ export const ALL_SECTIONS: TourSection[] = [
           '<strong>Important:</strong> this menu stores both leads and prospects.' +
           '<br><br><strong>Leads</strong> have interacted with marketing material but ' +
           'have not yet trialled the software. To place an order for a lead you need ' +
-          'to convert them to an account.' +
+          'to convert them to a prospect.' +
           '<br><br><strong>Prospects</strong> have trialled the software. You can ' +
           'create new orders for prospects.' +
           '<br><br>Opens to Browse Leads and Create Lead.',
@@ -363,8 +363,8 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'end',
         title: 'Convert to Prospect',
         body:
-          'Creates an account and a contact from the lead. Only a prospect can be ' +
-          'given a trial or ordered against. It is one-way.',
+          'Converts them to a prospect, creating their contact at the same time. Only ' +
+          'a prospect can be given a trial or ordered against. It is one-way.',
         requires: ['canConvertLeads'],
       },
       {
@@ -419,7 +419,7 @@ export const ALL_SECTIONS: TourSection[] = [
         onlyIfPresent: true,
         title: 'Assets',
         body:
-          'Every licence they hold, trial or bought, with its serial key. Tick one to ' +
+          'The trial licences they hold, with the serial key for each. Tick one to ' +
           'send its keys out again.',
       },
     ],
@@ -592,7 +592,10 @@ export const ALL_SECTIONS: TourSection[] = [
         id: 'type-filter',
         anchor: 'orders-type-filter',
         title: 'Order types',
-        body: 'New Product, Renewal, Co-Term and Add To Contract.',
+        body:
+          'New Product, Renewal, Co-Term and Add To Contract. Co-Term lines a new ' +
+          'licence up with a renewal date the customer already has, so everything ' +
+          'renews together.',
       },
       {
         id: 'list',
@@ -726,6 +729,31 @@ export const ALL_SECTIONS: TourSection[] = [
       },
     ],
   },
+  {
+    id: 'assets-expired',
+    title: 'Recently Expired',
+    path: buildPath('assets-expired'),
+    steps: [
+      {
+        id: 'window',
+        title: 'The last 60 days',
+        body:
+          'Every licence that lapsed in the last 60 days, most recent first. Usually ' +
+          'somebody who meant to renew and did not.',
+      },
+      {
+        id: 'generate',
+        anchor: 'assets-groups',
+        onlyIfPresent: true,
+        title: 'Renewing one anyway',
+        body:
+          'Tick the licences under a customer and Generate Renewal appears on their ' +
+          'row, the same as on Due for Renewal.',
+        requires: ['canCreateInvoices'],
+      },
+    ],
+  },
+
   {
     id: 'assets-subscriptions',
     title: 'Monthly Subscriptions',
@@ -894,20 +922,46 @@ export const ALL_SECTIONS: TourSection[] = [
     path: buildPath('resellers'),
     steps: [
       {
-        id: 'organisation',
-        title: 'Your organisation',
+        id: 'whos-here',
+        title: 'The partners under you',
         body:
-          'Open your own record for your address, region, currency, commission ' +
-          'percentages, payment methods and permissions. Distributors also see their ' +
-          'resellers here.',
+          'Distributors see their resellers here. Open one for its details, ' +
+          'permissions and users. If you have none, the portal takes you straight to ' +
+          'your own record instead.',
+      },
+    ],
+  },
+  {
+    id: 'partner-detail',
+    title: 'A partner',
+    path: routePattern('reseller-detail'),
+    steps: [
+      {
+        id: 'info',
+        anchor: 'partner-info',
+        title: 'The organisation',
+        body:
+          'Address, region, currency, commission percentages and payment methods. ' +
+          'Open in CRM jumps to the same record in Zoho.',
+      },
+      {
+        id: 'permissions',
+        anchor: 'partner-permissions',
+        onlyIfPresent: true,
+        title: 'What this partner can do',
+        body:
+          'The permission preset, and any changes made on top of it. This is what ' +
+          'decides which buttons and sections exist for everyone at the organisation.',
       },
       {
         id: 'users',
-        title: 'Your users',
+        anchor: 'partner-users',
+        onlyIfPresent: true,
+        title: 'Users',
         body:
-          'The users list is inside your partner record. It shows who has an account, ' +
-          'their role and when they last logged in. Add User creates one; the icons ' +
-          'on each row edit it, reset a password or switch it off.',
+          'Who has an account, their role, and when they last logged in. Add User ' +
+          'creates one. The icons on each row edit it, reset a password, or switch ' +
+          'it off.',
         requires: ['canManageUsers'],
       },
     ],
