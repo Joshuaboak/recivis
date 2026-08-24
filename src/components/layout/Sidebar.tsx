@@ -437,6 +437,7 @@ export default function Sidebar() {
 
       {/* Collapse toggle */}
       <button
+        data-tour="sidebar-collapse"
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className="absolute -right-3 top-20 w-6 h-6 bg-surface border border-border shadow-[var(--shadow-raised)] flex items-center justify-center text-text-muted hover:text-csa-accent hover:border-csa-accent transition-colors z-30 rounded-full cursor-pointer"
       >

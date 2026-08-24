@@ -175,6 +175,15 @@ export const ALL_SECTIONS: TourSection[] = [
           'place orders.',
       },
       {
+        id: 'collapse',
+        anchor: 'sidebar-collapse',
+        side: 'right',
+        title: 'Narrowing the menu',
+        body:
+          'The arrow on the edge of the menu shrinks it to icons. Labels and ' +
+          'sub-menus come back when you open it again.',
+      },
+      {
         id: 'search',
         anchor: 'header-search',
         side: 'bottom',
@@ -272,8 +281,9 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'leads-search',
         title: 'Leads and prospects both live here',
         body:
-          'A lead is an enquiry that has not been converted yet. A prospect is the ' +
-          'account it becomes. Search matches the company name from the start.',
+          'A lead is an enquiry that has not been converted yet. A prospect is a ' +
+          'converted lead, and most have trialled the software. Search matches the ' +
+          'company name from the start.',
       },
       {
         id: 'eval-filter',
@@ -442,9 +452,8 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'accounts-search',
         title: 'Finding a customer',
         body:
-          'Search matches the start of the account name. It does not look at ' +
-          'contacts, so a contact email address will not find the account. Prospects ' +
-          'are not listed here.',
+          'Search for an account here, by the start of its name. Prospects are not ' +
+          'listed on this page.',
       },
       {
         id: 'open',
