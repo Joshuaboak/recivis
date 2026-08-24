@@ -366,8 +366,7 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'lead-details',
         title: 'The details',
         body:
-          'Who they are and who owns them. Open in CRM, at the top, jumps to the same ' +
-          'record in Zoho.',
+          'Who they are, who owns them, and the contact details you have on record.',
       },
       {
         id: 'convert',
@@ -1021,8 +1020,8 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'partner-info',
         title: 'The organisation',
         body:
-          'Address, region, currency and the commission percentages. Open in CRM, top ' +
-          'right, jumps to the same record in Zoho.',
+          'Address, region, currency and the commission percentages. Click a card to ' +
+          'see the full value.',
       },
       {
         id: 'permissions',
