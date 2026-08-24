@@ -271,6 +271,15 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    // A lead with no name is not a lead. Checked here as well as on the form,
+    // so the rule holds for anything that posts to this route.
+    if (!String(body.First_Name ?? '').trim()) {
+      return NextResponse.json({ error: 'First name is required' }, { status: 400 });
+    }
+    if (!String(body.Last_Name ?? '').trim()) {
+      return NextResponse.json({ error: 'Last name is required' }, { status: 400 });
+    }
+
     // Build lead record — only allow known fields
     const leadData: Record<string, unknown> = {};
     const directFields = [

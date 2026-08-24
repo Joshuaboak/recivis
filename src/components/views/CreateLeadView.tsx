@@ -233,7 +233,7 @@ export default function CreateLeadView() {
 
   const selectedResellerName = resellers.find(r => r.id === selectedReseller)?.name;
 
-  const canSubmit = lastName.trim() && company.trim();
+  const canSubmit = firstName.trim() && lastName.trim() && company.trim();
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -310,7 +310,7 @@ export default function CreateLeadView() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>First Name</label>
+                <label className={labelCls}>First Name *</label>
                 <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First name" className={inputCls} />
               </div>
               <div>

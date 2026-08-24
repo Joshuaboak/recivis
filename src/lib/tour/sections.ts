@@ -311,8 +311,8 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'start',
         title: 'Adding one',
         body:
-          'Create Lead is under Leads in the menu. A last name and a company are all ' +
-          'it needs.',
+          'Create Lead is under Leads in the menu. It needs a first name, a last name ' +
+          'and a company.',
       },
     ],
   },
@@ -326,8 +326,8 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'lead-form',
         title: 'Who they are',
         body:
-          'Last Name is the only required field here. First name, email, phone, ' +
-          'mobile and job title are all optional.',
+          'First Name and Last Name are required. Email, phone, mobile and job title ' +
+          'are optional.',
       },
       {
         id: 'company',
