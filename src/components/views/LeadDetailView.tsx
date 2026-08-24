@@ -970,7 +970,7 @@ export default function LeadDetailView({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-text-primary truncate" title={account.Account_Name as string}>{account.Account_Name as string}</h1>
-              <div className="relative group/badge flex-shrink-0">
+              <div data-tour="lead-badge" className="relative group/badge flex-shrink-0">
                 <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-csa-purple/15 text-csa-purple cursor-help">
                   Prospect
                 </span>
@@ -997,7 +997,7 @@ export default function LeadDetailView({
           </div>
         </div>
 
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <motion.div data-tour="lead-details" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           <InfoCard label="Country" value={account.Billing_Country as string} icon={<MapPin size={14} />} />
           <InfoCard label="Reseller" value={reseller?.name || '\u2014'} icon={<Building2 size={14} />} />
           <InfoCard label="CSA Sales Rep" value={owner?.name || '\u2014'} icon={<User size={14} />} />
@@ -1064,7 +1064,7 @@ export default function LeadDetailView({
           )}
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
+        <motion.div data-tour="prospect-contacts" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
           <h2 className="text-lg font-bold text-text-primary flex items-center gap-2 mb-3">
             <User size={18} className="text-csa-accent" />
             Contacts ({contacts.length})
@@ -1118,7 +1118,7 @@ export default function LeadDetailView({
 
         <EmailHistory module="Accounts" recordId={leadId} />
 
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
+        <motion.div data-tour="prospect-orders" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
               <FileText size={18} className="text-csa-purple" />
@@ -1137,6 +1137,7 @@ export default function LeadDetailView({
                 });
                 router.push(buildPath('create-invoice'));
               }}
+              data-tour="prospect-new-order"
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
             >
               <Plus size={13} />
@@ -1196,7 +1197,7 @@ export default function LeadDetailView({
         </motion.div>
 
         {activeAssets.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-8">
+          <motion.div data-tour="prospect-assets" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-8">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
                 <Package size={18} className="text-success" />

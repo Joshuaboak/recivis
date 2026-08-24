@@ -275,10 +275,10 @@ export const ALL_SECTIONS: TourSection[] = [
       {
         id: 'eval-filter',
         anchor: 'leads-eval-filter',
-        title: 'Filter by evaluation',
+        title: 'Filter by trial',
         body:
-          'Has Evaluation shows who is currently trialling something. You can also ' +
-          'pick a single product.',
+          'Narrows the list to the people currently trialling something, or to those ' +
+          'trialling one particular product.',
       },
       {
         id: 'list',
@@ -336,31 +336,24 @@ export const ALL_SECTIONS: TourSection[] = [
   },
   {
     id: 'lead-detail',
-    title: 'A lead',
+    title: 'Lead or prospect',
     path: routePattern('lead-detail'),
     steps: [
       {
-        id: 'two-pages',
-        title: 'One address, two pages',
-        body:
-          'A lead and the prospect it becomes share this page. What you see below ' +
-          'depends on which of the two you are looking at.',
-      },
-      {
         id: 'badge',
         anchor: 'lead-badge',
-        onlyIfPresent: true,
-        title: 'Lead or prospect',
-        body: 'The badge beside the name says which. Hover it for the difference.',
+        title: 'Which one this is',
+        body:
+          'The badge beside the name says lead or prospect. Hover it for the ' +
+          'difference. The page shows different things for each.',
       },
       {
         id: 'record',
         anchor: 'lead-details',
-        onlyIfPresent: true,
         title: 'The details',
         body:
-          'Contact details, company, industry and the products they asked about. Edit ' +
-          'opens the full form. Open in CRM jumps to the record in Zoho.',
+          'Who they are and who owns them. Edit at the top opens the full form. Open ' +
+          'in CRM jumps to the record in Zoho.',
       },
       {
         id: 'convert',
@@ -370,19 +363,64 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'end',
         title: 'Convert to Prospect',
         body:
-          'Creates a prospect account and a contact from the lead. Only a prospect ' +
-          'can be given a trial or ordered against. It is one-way.',
+          'Creates an account and a contact from the lead. Only a prospect can be ' +
+          'given a trial or ordered against. It is one-way.',
         requires: ['canConvertLeads'],
       },
       {
         id: 'evaluations',
         anchor: 'lead-evaluations',
         onlyIfPresent: true,
-        title: 'Evaluations: trial licences',
+        title: 'Evaluations: their trials',
         body:
-          'Create Evaluation issues a 30-day trial, which is also the maximum without ' +
-          'an admin. Trials are not renewed — when one ends they buy a licence.',
+          'The trial licences this prospect holds, with the product, dates and serial ' +
+          'key for each.',
+      },
+      {
+        id: 'create-evaluation',
+        anchor: 'lead-evaluations',
+        onlyIfPresent: true,
+        title: 'Issuing a trial',
+        body:
+          'Create Evaluation gives them a 30-day trial, which is also the longest ' +
+          'without an admin. Trials are not renewed.',
         requires: ['canCreateEvaluations'],
+      },
+      {
+        id: 'contacts',
+        anchor: 'prospect-contacts',
+        onlyIfPresent: true,
+        title: 'Contacts',
+        body:
+          'The people at this company. One is marked primary — that is who orders and ' +
+          'licence keys go to.',
+      },
+      {
+        id: 'orders',
+        anchor: 'prospect-orders',
+        onlyIfPresent: true,
+        title: 'Orders',
+        body: 'Anything this prospect has bought. Click one to open it.',
+      },
+      {
+        id: 'new-order',
+        anchor: 'prospect-new-order',
+        onlyIfPresent: true,
+        side: 'left',
+        title: 'New Product Order',
+        body:
+          'Raises an order against this prospect, carrying their contact and your ' +
+          'pricing into it.',
+        requires: ['canCreateInvoices'],
+      },
+      {
+        id: 'assets',
+        anchor: 'prospect-assets',
+        onlyIfPresent: true,
+        title: 'Assets',
+        body:
+          'Every licence they hold, trial or bought, with its serial key. Tick one to ' +
+          'send its keys out again.',
       },
     ],
   },
