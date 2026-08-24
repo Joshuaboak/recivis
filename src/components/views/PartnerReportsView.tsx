@@ -238,6 +238,7 @@ export default function PartnerReportsView() {
           {user?.permissions?.canExportData && active && (
             <button
               onClick={handleExport}
+              data-tour="partner-report-export"
               className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-text-muted bg-surface border-2 border-border-subtle rounded-xl hover:border-csa-accent/30 hover:text-csa-accent transition-colors cursor-pointer"
             >
               <Download size={14} /> Export CSV

@@ -262,7 +262,7 @@ export default function ReportsDashboardView() {
 
           {/* Currency switcher (for overview & revenue tabs) */}
           {(tab === 'overview' || tab === 'revenue') && availableCurrencies.length > 1 && (
-            <div className="flex items-center gap-1 bg-surface rounded-xl p-1">
+            <div data-tour="reports-currency" className="flex items-center gap-1 bg-surface rounded-xl p-1">
               {availableCurrencies.map(c => (
                 <button key={c} onClick={() => setViewCurrency(c)}
                   className={`px-3 py-1.5 text-[10px] font-semibold rounded-lg transition-colors cursor-pointer ${viewCurrency === c ? 'bg-csa-purple/15 text-csa-purple' : 'text-text-muted hover:text-text-secondary'}`}>
