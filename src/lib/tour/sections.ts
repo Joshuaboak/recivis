@@ -22,6 +22,13 @@
  * 5. **Nothing is shown that the viewer cannot do.** Steps declare the
  *    permissions their subject needs; a section whose steps are all filtered
  *    out stops existing for that person, icon and all.
+ * 6. **Every claim comes from the code.** What a control does is read out of
+ *    the thing that implements it, not inferred from its name or its
+ *    neighbours. Copy written from context reads perfectly well and is wrong
+ *    in ways nobody notices until a partner follows it: the notifications
+ *    step described renewal reminders for a bell that reports new leads,
+ *    evaluations, order status and expiries. If the source has not been
+ *    opened, the sentence does not go in.
  *
  * A missing anchor is normal — empty lists, buttons that appear on selection,
  * panels that depend on data. The controller skips them.
@@ -174,10 +181,10 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'end',
         title: 'Search: the fastest way to anything',
         body:
-          'One box across customers, leads, orders and licences. Press <strong>Ctrl ' +
-          'K</strong> from any page to open it. If you know the company, the order ' +
-          'number or the serial key, searching beats working down the menu — this is ' +
-          'the control worth learning first.',
+          'One box across customers, prospects, leads, contacts, orders and partners. ' +
+          'Press <strong>Ctrl K</strong> from any page to open it, then narrow to one ' +
+          'type if you need to. If you know the company, the person or the order ' +
+          'number, searching beats working down the menu.',
       },
       {
         id: 'recent',
@@ -186,8 +193,8 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'end',
         title: 'Recently viewed',
         body:
-          'The records you opened last, so you can get back to one without searching ' +
-          'for it again.',
+          'The last ten records you opened — customers, leads, orders, coupons and ' +
+          'partners — so you can get back to one without searching again.',
       },
       {
         id: 'notifications',
@@ -196,8 +203,9 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'end',
         title: 'Notifications',
         body:
-          'Licences coming up for renewal and orders that have moved on. A dot means ' +
-          'there is something unread.',
+          'New leads, evaluations started, orders approved, sent or paid, and ' +
+          'licences that have expired. Anything from the last 30 days. The number is ' +
+          'how many are waiting; opening one clears it.',
       },
       {
         id: 'help',
@@ -206,7 +214,7 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'end',
         title: 'Help: replays the tutorial',
         body:
-          'Every page has a short tutorial like this one. This icon replays the one ' +
+          'Most pages have a short tutorial like this one. This icon replays the one ' +
           'for the page you are on.',
       },
       {
@@ -243,8 +251,9 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'end',
         title: 'Support assistant',
         body:
-          'Ask how to do something in your own words. It knows the portal and your ' +
-          'permissions, but it cannot read your records.',
+          'Ask how to do something in your own words. It knows the portal and what ' +
+          'your account is allowed to do. It cannot see your records or change ' +
+          'anything.',
       },
     ],
   },
@@ -371,8 +380,8 @@ export const ALL_SECTIONS: TourSection[] = [
         onlyIfPresent: true,
         title: 'Evaluations: trial licences',
         body:
-          'Create Evaluation issues a 30-day trial. Trials are not renewed — when one ' +
-          'ends they buy a licence. Contacts, orders and licences are listed below.',
+          'Create Evaluation issues a 30-day trial, which is also the maximum without ' +
+          'an admin. Trials are not renewed — when one ends they buy a licence.',
         requires: ['canCreateEvaluations'],
       },
     ],
@@ -389,8 +398,8 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'accounts-search',
         title: 'Finding a customer',
         body:
-          'Search by company name, a contact email, or the email domain. Domain is ' +
-          'the useful one when all you have is an address you do not recognise.',
+          'Search by name, email or email domain. Domain is the useful one when all ' +
+          'you have is an address you do not recognise.',
       },
       {
         id: 'open',
@@ -545,9 +554,7 @@ export const ALL_SECTIONS: TourSection[] = [
         id: 'type-filter',
         anchor: 'orders-type-filter',
         title: 'Order types',
-        body:
-          'New Product, Renewal, Co-Term and Add To Contract. Co-Term lines a licence ' +
-          'up with a renewal date the customer already has.',
+        body: 'New Product, Renewal, Co-Term and Add To Contract.',
       },
       {
         id: 'list',
@@ -642,8 +649,8 @@ export const ALL_SECTIONS: TourSection[] = [
         anchor: 'assets-window-filter',
         title: 'Filter by renewal date',
         body:
-          'Overdue, or the next 30, 60 or 90 days. The status filter beside it hides ' +
-          'the expired and cancelled ones.',
+          'Overdue, or the next 30, 60 or 90 days. The status filter beside it ' +
+          'narrows to Active, Expired or Cancelled.',
       },
       {
         id: 'groups',
@@ -796,7 +803,7 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'Currency',
         body:
           'Orders come in several currencies. The selector above converts them to ' +
-          'Australian dollars or shows one on its own. Your commission is on the ' +
+          'Australian dollars or shows one on its own. What you earn is on the ' +
           'Revenue tab.',
       },
       {
