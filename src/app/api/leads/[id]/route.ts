@@ -13,9 +13,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { executeZohoTool, parseMcpResult, callMcpTool } from '@/lib/zoho';
+import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
+import { NOT_YOURS, requireRecordAccess } from '@/lib/record-access';
 
 // --- OAuth Token Management (same pattern as attach-file) ---
 
@@ -55,9 +56,20 @@ export async function GET(
 ) {
   const authResult = await requireAuth(request);
   if (authResult instanceof NextResponse) return authResult;
+  const user = authResult;
 
   const { id } = await params;
   const source = new URL(request.url).searchParams.get('source') || 'lead';
+
+  // A prospect is an Account and a lead is a Lead, and both are scoped by the
+  // partner named on the record. Checked before the fetch: the id comes
+  // straight off the URL, so without this any lead in the CRM was one link away.
+  const denied = await requireRecordAccess(
+    user,
+    source === 'prospect' ? 'Accounts' : 'Leads',
+    id
+  );
+  if (denied) return denied;
 
   try {
     if (source === 'prospect') {
@@ -183,6 +195,15 @@ export async function PATCH(
 
   const { id } = await params;
 
+  const denied = await requireRecordAccess(user, 'Leads', id);
+  if (denied) return denied;
+
+  // Reading a lead is one thing; changing it is another. Viewers are read-only
+  // by definition, so they stop here rather than at each field.
+  if (user.role === 'viewer') {
+    return NextResponse.json({ error: 'Your account is read-only.' }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
     const updateData: Record<string, unknown> = { id };
@@ -201,6 +222,15 @@ export async function PATCH(
     if (body.Reseller !== undefined) {
       if (!isAdmin(user) && !user.permissions.canViewChildRecords) {
         return NextResponse.json({ error: 'Insufficient permissions to change reseller' }, { status: 403 });
+      }
+      // A distributor may move a lead around its own tree, not out of it —
+      // otherwise reassignment was a way to hand a lead to a stranger, or to
+      // take one by first assigning it to yourself.
+      if (body.Reseller && !isAdmin(user) && !user.allowedResellerIds.includes(String(body.Reseller))) {
+        return NextResponse.json(
+          { error: 'You cannot assign a lead to another partner.' },
+          { status: 403 }
+        );
       }
       updateData.Reseller = body.Reseller ? { id: body.Reseller } : null;
     }
@@ -253,35 +283,20 @@ export async function POST(
 
   const { id } = await params;
 
+  // Converting creates an account and a contact from the lead, so it has to be
+  // the caller's lead before any of that happens.
+  const denied = await requireRecordAccess(user, 'Leads', id, NOT_YOURS);
+  if (denied) return denied;
+
   try {
     const body = await request.json().catch(() => ({}));
 
-    // Step 1: Get conversion options to find the right layout/mapping
-    let conversionOptions: Record<string, unknown> | null = null;
-    try {
-      const optionsResult = await callMcpTool('ZohoCRM_getLeadConversionOptions', {
-        path_variables: { leadId: id },
-      });
-      const parsed = optionsResult as { content?: Array<{ text?: string }> };
-      if (parsed?.content) {
-        for (const item of parsed.content) {
-          if (item.text) {
-            try {
-              conversionOptions = JSON.parse(item.text);
-            } catch { /* skip */ }
-          }
-        }
-      }
-    } catch (err) {
-      log('warn', 'api', 'Could not fetch lead conversion options, proceeding with defaults', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-
-    // Step 2: Get OAuth token
+    // The conversion options endpoint used to be called here and its result
+    // thrown away — a round trip per conversion for nothing. Zoho picks the
+    // layout and mapping itself when the payload omits them, which is what the
+    // payload below does.
     const accessToken = await getAccessToken();
 
-    // Step 3: Build conversion payload
     // Omit Accounts/Contacts to let Zoho create new records from the lead data
     const convertData: Record<string, unknown>[] = [{
       overwrite: body.overwrite ?? false,
@@ -289,7 +304,7 @@ export async function POST(
       notify_new_entity_owner: body.notify_new_entity_owner ?? true,
     }];
 
-    // Step 4: Call the Zoho REST API to convert
+    // Call the Zoho REST API to convert
     const convertUrl = `https://www.zohoapis.com.au/crm/v7/Leads/${id}/actions/convert`;
     const res = await fetch(convertUrl, {
       method: 'POST',
@@ -330,10 +345,34 @@ export async function POST(
       }, { status: 502 });
     }
 
-    // Parse the conversion result
+    // Parse the conversion result.
+    //
+    // Zoho returns the new record ids under `details` on this action, and the
+    // older shape put them at the top level. Reading only the top level meant
+    // `accountId` came back null from a conversion that had in fact succeeded,
+    // and the UI reported "Conversion failed" over a converted lead — so the
+    // next click tried to convert it again.
     const conversionResult = data?.data?.[0] || data;
-    const accountId = conversionResult?.Accounts || null;
-    const contactId = conversionResult?.Contacts || null;
+    const ids = (conversionResult?.details ?? conversionResult) as Record<string, unknown>;
+    const accountId = (ids?.Accounts as string) || null;
+    const contactId = (ids?.Contacts as string) || null;
+
+    if (!accountId) {
+      // Zoho accepted it, so the lead is converted whatever we can see. Saying
+      // so is the only safe answer: reporting failure invites a second attempt.
+      log('warn', 'api', `Lead ${id} converted but no account id in the response`, {
+        response: responseText.slice(0, 500),
+        user: user.email,
+      });
+      return NextResponse.json({
+        success: true,
+        accountId: null,
+        contactId,
+        warning:
+          'The lead was converted, but the new customer could not be opened automatically. Find them under Accounts.',
+        data: conversionResult,
+      });
+    }
 
     log('info', 'api', `Lead ${id} converted`, {
       accountId,
