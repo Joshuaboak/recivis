@@ -61,7 +61,38 @@ describe('renderSupportContent', () => {
   it('renders bold, since the model emits it alongside links', () => {
     const [bold] = elements('You need an **Account** record.');
     expect(bold.type).toBe('strong');
-    expect(textOf(bold)).toBe('Account');
+    expect(textOf(bold)).toMatchObject([{ props: { children: 'Account' } }]);
+  });
+
+  it('renders a link the model wrapped in bold, rather than its source', () => {
+    // The model is told to link pages and to bold what you press, so it writes
+    // both at once. Read as bold-only this came out as literal `[..](..)`.
+    const [bold] = elements('Look at **[Partner Resources](/partner-resources)**.');
+    expect(bold.type).toBe('strong');
+
+    const [link] = (textOf(bold) as ReactElement[]).filter(
+      node => isValidElement(node) && node.type !== Fragment
+    );
+    expect(link.type).toBe(GuardedLink);
+    expect((link.props as { href: string }).href).toBe('/partner-resources');
+    expect((link.props as { children: unknown }).children).toBe('Partner Resources');
+  });
+
+  it('keeps an external link clickable inside bold', () => {
+    const [bold] = elements('The **[CSA helpdesk](https://helpdesk.civilsurveyapplications.com)** covers it.');
+    const [link] = (textOf(bold) as ReactElement[]).filter(
+      node => isValidElement(node) && node.type !== Fragment
+    );
+    expect(link.type).toBe('a');
+    expect(link.props).toMatchObject({ target: '_blank' });
+  });
+
+  it('still refuses an unsafe target inside bold', () => {
+    const [bold] = elements('Try **[this](javascript:alert(1))**.');
+    const inner = (textOf(bold) as ReactElement[]).filter(
+      node => isValidElement(node) && node.type !== Fragment
+    );
+    expect(inner).toHaveLength(0);
   });
 
   it('handles several links in one answer', () => {

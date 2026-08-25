@@ -7,8 +7,9 @@
  * get to Accounts.
  *
  * This is a deliberately tiny renderer, not a markdown library: links and bold
- * only, which is all the prompt asks the model to produce. Everything else,
- * including the whitespace, is left exactly as written.
+ * only, which is all the prompt asks the model to produce. They nest, because
+ * the model bolds the page names it links. Everything else, including the
+ * whitespace, is left exactly as written.
  *
  * Link handling is fail-closed. In-portal paths (`/accounts`) navigate through
  * GuardedLink so a half-finished order still asks before it is discarded, and
@@ -22,8 +23,19 @@
 import { Fragment, type ReactNode } from 'react';
 import { GuardedLink } from '@/components/GuardedLink';
 
-/** `[label](target)` or `**bold**`. */
-const TOKEN = /\[([^\]\n]+)\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*/g;
+/**
+ * `[label](target)` or `**bold**`.
+ *
+ * Bold is matched before links so `**[Accounts](/accounts)**` — which the model
+ * writes often, since it is told to link pages and to bold the things you press
+ * — is taken as one bold span whose contents are then tokenised again. Matching
+ * the link first would leave the `**` behind as literal asterisks; not
+ * recursing left the whole `[label](path)` sitting inside the bold as text.
+ *
+ * A fresh instance per call: the pattern is stateful (`g`), and the renderer is
+ * now re-entrant.
+ */
+const TOKEN = () => /\*\*([^*\n]+)\*\*|\[([^\]\n]+)\]\(([^)\s]+)\)/g;
 
 const LINK_CLASS =
   'text-csa-accent underline underline-offset-2 hover:opacity-80 transition-opacity';
@@ -54,21 +66,22 @@ function renderLink(label: string, href: string, key: number): ReactNode {
 
 export function renderSupportContent(content: string): ReactNode[] {
   const out: ReactNode[] = [];
+  const pattern = TOKEN();
   let cursor = 0;
   let key = 0;
 
-  TOKEN.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = TOKEN.exec(content)) !== null) {
+  while ((match = pattern.exec(content)) !== null) {
     if (match.index > cursor) {
       out.push(<Fragment key={key++}>{content.slice(cursor, match.index)}</Fragment>);
     }
 
-    const [, label, href, bold] = match;
+    const [, bold, label, href] = match;
     if (bold !== undefined) {
+      // A link inside the bold is still a link, so the contents go round again.
       out.push(
         <strong key={key++} className="font-semibold text-text-primary">
-          {bold}
+          {renderSupportContent(bold)}
         </strong>
       );
     } else {
