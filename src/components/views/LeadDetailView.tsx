@@ -17,6 +17,7 @@ import { GuardedLink } from '@/components/GuardedLink';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
 import CreateEvaluationModal from '../CreateEvaluationModal';
+import CreateEvaluationButton from '../CreateEvaluationButton';
 import EmailHistory from '../EmailHistory';
 import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 
@@ -70,8 +71,19 @@ interface EditableField {
   input: 'text' | 'email' | 'tel' | 'select' | 'lookup';
   options?: readonly string[];
   required?: true;
-  /** Mirrors the `canEdit` prop on this field's InlineEditField. */
-  gate: 'admin' | 'reseller';
+  /**
+   * Mirrors the `canEdit` prop on this field's InlineEditField.
+   *
+   * `record` — the lead's own columns. The partner the lead is assigned to
+   * owns this information and is the one correcting it, so anyone who can see
+   * the record and is not read-only may edit it. The route proves the record is
+   * theirs before the write lands.
+   *
+   * `reseller` — which partner the lead belongs to. Reassignment is not the
+   * assignee's call, so it stays with CSA and with distributors moving a lead
+   * around their own tree.
+   */
+  gate: 'record' | 'reseller';
 }
 
 const SECTIONS = [
@@ -90,17 +102,17 @@ const SECTIONS = [
  * inline path refuses is a permissions hole.
  */
 const LEAD_FIELDS: readonly EditableField[] = [
-  { name: 'First_Name', label: 'First Name', section: 'contact', input: 'text', gate: 'admin' },
-  { name: 'Last_Name', label: 'Last Name', section: 'contact', input: 'text', required: true, gate: 'admin' },
-  { name: 'Email', label: 'Email', section: 'contact', input: 'email', gate: 'admin' },
-  { name: 'Phone', label: 'Phone', section: 'contact', input: 'tel', gate: 'admin' },
-  { name: 'Mobile', label: 'Mobile', section: 'contact', input: 'tel', gate: 'admin' },
-  { name: 'Job_Title3', label: 'Job Title', section: 'contact', input: 'text', gate: 'admin' },
-  { name: 'Company', label: 'Company', section: 'company', input: 'text', required: true, gate: 'admin' },
-  { name: 'Website', label: 'Website', section: 'company', input: 'text', gate: 'admin' },
-  { name: 'Industry', label: 'Industry', section: 'company', input: 'select', options: INDUSTRIES, gate: 'admin' },
-  { name: 'Lead_Status', label: 'Status', section: 'lead', input: 'select', options: LEAD_STATUSES, gate: 'admin' },
-  { name: 'Product_Interest', label: 'Products of Interest', section: 'lead', input: 'select', options: PRODUCTS_OF_INTEREST, gate: 'admin' },
+  { name: 'First_Name', label: 'First Name', section: 'contact', input: 'text', gate: 'record' },
+  { name: 'Last_Name', label: 'Last Name', section: 'contact', input: 'text', required: true, gate: 'record' },
+  { name: 'Email', label: 'Email', section: 'contact', input: 'email', gate: 'record' },
+  { name: 'Phone', label: 'Phone', section: 'contact', input: 'tel', gate: 'record' },
+  { name: 'Mobile', label: 'Mobile', section: 'contact', input: 'tel', gate: 'record' },
+  { name: 'Job_Title3', label: 'Job Title', section: 'contact', input: 'text', gate: 'record' },
+  { name: 'Company', label: 'Company', section: 'company', input: 'text', required: true, gate: 'record' },
+  { name: 'Website', label: 'Website', section: 'company', input: 'text', gate: 'record' },
+  { name: 'Industry', label: 'Industry', section: 'company', input: 'select', options: INDUSTRIES, gate: 'record' },
+  { name: 'Lead_Status', label: 'Status', section: 'lead', input: 'select', options: LEAD_STATUSES, gate: 'record' },
+  { name: 'Product_Interest', label: 'Products of Interest', section: 'lead', input: 'select', options: PRODUCTS_OF_INTEREST, gate: 'record' },
   { name: 'Reseller', label: 'Reseller', section: 'assignment', input: 'lookup', gate: 'reseller' },
 ];
 
@@ -169,7 +181,9 @@ export default function LeadDetailView({
 
   // Convert state
   const [converting, setConverting] = useState(false);
-  const [convertResult, setConvertResult] = useState<{ success: boolean; accountId?: string; error?: string } | null>(null);
+  const [convertResult, setConvertResult] = useState<
+    { success: boolean; accountId?: string | null; error?: string; warning?: string } | null
+  >(null);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
 
   // Asset detail modal
@@ -194,14 +208,24 @@ export default function LeadDetailView({
   const canConvertLeads = !!user?.permissions?.canConvertLeads;
   const hasChildResellers = !!user?.permissions?.canViewChildRecords;
   const canEditReseller = isAdmin || hasChildResellers;
+  /**
+   * Whether this user may correct the lead's own details.
+   *
+   * These used to be admin-only, which left a partner able to see a lead they
+   * own and change nothing about it but who it was assigned to — so a wrong
+   * phone number or a misspelt company had to be emailed to CSA. Whose lead it
+   * is has already been settled by the time the page renders, and again on the
+   * route, so the only question left here is read-only or not.
+   */
+  const canEditRecord = !!user && user.role !== 'viewer';
 
   /** The fields the full form offers: narrowed to the module the record lives
    *  in, then to the gates this user passes. Empty means there is nothing this
    *  user may edit, which is also what hides the Edit affordance. */
   const fields = useMemo(
     () => (source === 'lead' ? LEAD_FIELDS : PROSPECT_FIELDS)
-      .filter(f => (f.gate === 'admin' ? isAdmin : canEditReseller)),
-    [source, isAdmin, canEditReseller],
+      .filter(f => (f.gate === 'record' ? canEditRecord : canEditReseller)),
+    [source, canEditRecord, canEditReseller],
   );
   const canEditAnything = fields.length > 0;
 
@@ -435,10 +459,21 @@ export default function LeadDetailView({
       });
       const data = await res.json();
 
-      if (data.success && data.accountId) {
-        setConvertResult({ success: true, accountId: data.accountId });
+      // Keyed on `success` alone. Requiring an account id as well meant a
+      // conversion Zoho had accepted was reported as a failure whenever the id
+      // could not be read out of the reply — and the obvious response to that
+      // message is to press the button again.
+      if (data.success) {
+        setConvertResult({
+          success: true,
+          accountId: data.accountId ?? null,
+          warning: data.warning,
+        });
       } else {
-        setConvertResult({ success: false, error: data.error || 'Conversion failed' });
+        setConvertResult({
+          success: false,
+          error: data.error || `Zoho rejected the conversion (HTTP ${res.status}).`,
+        });
       }
     } catch (err) {
       setConvertResult({ success: false, error: err instanceof Error ? err.message : 'Conversion failed' });
@@ -809,15 +844,22 @@ export default function LeadDetailView({
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-success">Lead converted to prospect</p>
-                        <p className="text-xs text-text-muted">Prospect account and contact created. Workflows have been triggered.</p>
+                        <p className="text-xs text-text-muted">
+                          {convertResult.warning
+                            || 'Prospect account and contact created. Workflows have been triggered.'}
+                        </p>
                       </div>
                     </div>
+                    {/* No id to link to when the reply did not carry one; the
+                        message above says where to find them instead. */}
                     <GuardedLink
-                      href={buildPath('account-detail', convertResult.accountId!)}
+                      href={convertResult.accountId
+                        ? buildPath('account-detail', convertResult.accountId)
+                        : buildPath('accounts')}
                       className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
                     >
                       <ExternalLink size={14} />
-                      View Account
+                      {convertResult.accountId ? 'View Account' : 'Open Accounts'}
                     </GuardedLink>
                   </div>
                 ) : (
@@ -838,35 +880,35 @@ export default function LeadDetailView({
           <InlineEditFieldProvider>
           <motion.div data-tour="lead-details" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
             <InlineEditField fieldId="company" label="Company" icon={<Building2 size={14} />}
-              value={(lead.Company as string) || ''} type="text" canEdit={isAdmin}
+              value={(lead.Company as string) || ''} type="text" canEdit={canEditRecord}
               onSave={v => saveFields({ Company: v || null })} />
 
             <InlineEditField fieldId="first_name" label="First Name" icon={<User size={14} />}
-              value={(lead.First_Name as string) || ''} type="text" canEdit={isAdmin}
+              value={(lead.First_Name as string) || ''} type="text" canEdit={canEditRecord}
               onSave={v => saveFields({ First_Name: v || null })} />
 
             <InlineEditField fieldId="last_name" label="Last Name" icon={<User size={14} />}
-              value={(lead.Last_Name as string) || ''} type="text" canEdit={isAdmin}
+              value={(lead.Last_Name as string) || ''} type="text" canEdit={canEditRecord}
               onSave={v => saveFields({ Last_Name: v || null })} />
 
             <InlineEditField fieldId="job_title" label="Job Title" icon={<Briefcase size={14} />}
-              value={(lead.Job_Title3 as string) || ''} type="text" canEdit={isAdmin}
+              value={(lead.Job_Title3 as string) || ''} type="text" canEdit={canEditRecord}
               onSave={v => saveFields({ Job_Title3: v || null })} />
 
             <InlineEditField fieldId="email" label="Email" icon={<Mail size={14} />}
-              value={(lead.Email as string) || ''} type="email" canEdit={isAdmin}
+              value={(lead.Email as string) || ''} type="email" canEdit={canEditRecord}
               onSave={v => saveFields({ Email: v || null })} />
 
             <InlineEditField fieldId="phone" label="Phone" icon={<Phone size={14} />}
-              value={(lead.Phone as string) || ''} type="tel" canEdit={isAdmin}
+              value={(lead.Phone as string) || ''} type="tel" canEdit={canEditRecord}
               onSave={v => saveFields({ Phone: v || null })} />
 
             <InlineEditField fieldId="mobile" label="Mobile" icon={<Smartphone size={14} />}
-              value={(lead.Mobile as string) || ''} type="tel" canEdit={isAdmin}
+              value={(lead.Mobile as string) || ''} type="tel" canEdit={canEditRecord}
               onSave={v => saveFields({ Mobile: v || null })} />
 
             <InlineEditField fieldId="website" label="Website" icon={<Globe size={14} />}
-              value={(lead.Website as string) || ''} type="url" canEdit={isAdmin}
+              value={(lead.Website as string) || ''} type="url" canEdit={canEditRecord}
               onSave={v => saveFields({ Website: v || null })} />
 
             <InfoCard label="Country" value={lead.Country as string || '\u2014'} icon={<MapPin size={14} />} />
@@ -874,7 +916,7 @@ export default function LeadDetailView({
             <InlineEditField fieldId="industry" label="Industry" icon={<Factory size={14} />}
               value={(lead.Industry as string) || ''} type="select"
               options={[{ value: '', label: '— None —' }, ...INDUSTRIES.map(i => ({ value: i, label: i }))]}
-              canEdit={isAdmin} onSave={v => saveFields({ Industry: v || null })} />
+              canEdit={canEditRecord} onSave={v => saveFields({ Industry: v || null })} />
 
             <InlineEditField fieldId="lead_status" label="Status" icon={<Tag size={14} />}
               value={leadStatus} type="select"
@@ -884,12 +926,12 @@ export default function LeadDetailView({
                   {leadStatus}
                 </span>
               ) : '\u2014'}
-              canEdit={isAdmin} onSave={v => saveFields({ Lead_Status: v || null })} />
+              canEdit={canEditRecord} onSave={v => saveFields({ Lead_Status: v || null })} />
 
             <InlineEditField fieldId="product_interest" label="Products of Interest" icon={<Package size={14} />}
               value={(lead.Product_Interest as string) || ''} type="select"
               options={[{ value: '', label: '— None —' }, ...PRODUCTS_OF_INTEREST.map(p => ({ value: p, label: p }))]}
-              canEdit={isAdmin} onSave={v => saveFields({ Product_Interest: v || null })} />
+              canEdit={canEditRecord} onSave={v => saveFields({ Product_Interest: v || null })} />
 
             <InfoCard label="Lead Source" value={lead.Lead_Source as string || '\u2014'} icon={<Globe size={14} />} />
 
@@ -1012,15 +1054,11 @@ export default function LeadDetailView({
               <Beaker size={18} className="text-success" />
               Evaluations ({evaluationAssets.length})
             </h2>
-            {user?.permissions?.canCreateEvaluations && (
-              <button
-                onClick={() => setShowEvalModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer"
-              >
-                <Beaker size={13} />
-                Create Evaluation
-              </button>
-            )}
+            <CreateEvaluationButton
+              permissions={user?.permissions}
+              existingCount={evaluationAssets.length}
+              onClick={() => setShowEvalModal(true)}
+            />
           </div>
           {evaluationAssets.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-x-auto">
