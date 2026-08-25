@@ -522,8 +522,8 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'Contacts',
         body:
           'The primary contact is who a new order and Send Keys to Customer go to. ' +
-          'Set As switches a row to Primary or Secondary. Add Contact needs a first ' +
-          'and last name.',
+          'The Role column shows which contact holds which role; Make primary and ' +
+          'Make secondary move it. Add Contact needs a first and last name.',
       },
       {
         id: 'orders',

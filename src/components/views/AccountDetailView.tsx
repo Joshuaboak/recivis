@@ -38,6 +38,7 @@ import { GuardedLink } from '@/components/GuardedLink';
 import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
 import CreateEvaluationModal from '../CreateEvaluationModal';
+import CreateEvaluationButton from '../CreateEvaluationButton';
 import CreateMonthlySubscriptionModal from '../CreateMonthlySubscriptionModal';
 import RenewMonthlySubscriptionsModal, { type RenewableSubscription } from '../RenewMonthlySubscriptionsModal';
 import { isRenewable, renewalBlockReason, renewabilityOf } from '@/lib/renewal-eligibility';
@@ -972,9 +973,13 @@ export default function AccountDetailView({
           {sortedContacts.length > 0 ? (
             <>
               <div className="border border-border-subtle rounded-xl overflow-x-auto">
-                <table className="w-full min-w-[560px]">
+                <table className="w-full min-w-[640px]">
                   <thead><tr className="bg-surface-raised">
-                    <th>Name</th><th>Email</th><th>Phone</th><th>Title</th><th>Set As</th>
+                    {/* "Role" rather than "Set As": the column shows what a
+                        contact currently is, and the buttons in it are the way
+                        to change that. Under "Set As" the two bare words
+                        Primary and Secondary read as labels, not controls. */}
+                    <th>Name</th><th>Email</th><th>Phone</th><th>Title</th><th>Role</th>
                   </tr></thead>
                   <tbody>
                     {paginatedContacts.map((c) => {
@@ -984,8 +989,13 @@ export default function AccountDetailView({
                       return (
                         <tr key={cId}>
                           <td>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-text-primary">{c.Full_Name as string}</span>
+                            <span className="font-semibold text-text-primary">{c.Full_Name as string}</span>
+                          </td>
+                          <td><span className="flex items-center gap-1 text-text-secondary"><Mail size={12} className="text-text-muted" />{c.Email as string || '\u2014'}</span></td>
+                          <td><span className="flex items-center gap-1 text-text-secondary"><Phone size={12} className="text-text-muted" />{c.Phone as string || '\u2014'}</span></td>
+                          <td className="text-text-muted">{c.Title as string || '\u2014'}</td>
+                          <td>
+                            <div className="flex items-center gap-1.5">
                               {isPrimary ? (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-warning/20 text-warning">
                                   <Star size={9} />
@@ -998,29 +1008,24 @@ export default function AccountDetailView({
                                   Secondary
                                 </span>
                               ) : null}
-                            </div>
-                          </td>
-                          <td><span className="flex items-center gap-1 text-text-secondary"><Mail size={12} className="text-text-muted" />{c.Email as string || '\u2014'}</span></td>
-                          <td><span className="flex items-center gap-1 text-text-secondary"><Phone size={12} className="text-text-muted" />{c.Phone as string || '\u2014'}</span></td>
-                          <td className="text-text-muted">{c.Title as string || '\u2014'}</td>
-                          <td>
-                            <div className="flex items-center gap-1">
+                              {/* Verbs, so a control cannot be mistaken for the
+                                  badge beside it. */}
                               {!isPrimary ? (
                                 <button
                                   onClick={() => setContactRole(cId, 'primary')}
                                   disabled={updatingRole === cId + 'primary'}
-                                  className="px-2 py-0.5 text-[10px] font-semibold text-warning/70 hover:text-warning hover:bg-warning/10 rounded transition-colors cursor-pointer disabled:opacity-40"
+                                  className="px-2 py-0.5 text-[10px] font-semibold text-warning/70 border border-warning/25 rounded hover:text-warning hover:bg-warning/10 transition-colors cursor-pointer disabled:opacity-40"
                                 >
-                                  {updatingRole === cId + 'primary' ? '...' : 'Primary'}
+                                  {updatingRole === cId + 'primary' ? 'Saving...' : 'Make primary'}
                                 </button>
                               ) : null}
                               {!isSecondary ? (
                                 <button
                                   onClick={() => setContactRole(cId, 'secondary')}
                                   disabled={updatingRole === cId + 'secondary'}
-                                  className="px-2 py-0.5 text-[10px] font-semibold text-csa-accent/70 hover:text-csa-accent hover:bg-csa-accent/10 rounded transition-colors cursor-pointer disabled:opacity-40"
+                                  className="px-2 py-0.5 text-[10px] font-semibold text-csa-accent/70 border border-csa-accent/25 rounded hover:text-csa-accent hover:bg-csa-accent/10 transition-colors cursor-pointer disabled:opacity-40"
                                 >
-                                  {updatingRole === cId + 'secondary' ? '...' : 'Secondary'}
+                                  {updatingRole === cId + 'secondary' ? 'Saving...' : 'Make secondary'}
                                 </button>
                               ) : null}
                             </div>
@@ -1141,15 +1146,11 @@ export default function AccountDetailView({
               <Beaker size={18} className="text-success" />
               Evaluations ({evaluationAssets.length})
             </h2>
-            {user?.permissions?.canCreateEvaluations && (
-              <button
-                onClick={() => setShowEvalModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer"
-              >
-                <Beaker size={13} />
-                Create Evaluation
-              </button>
-            )}
+            <CreateEvaluationButton
+              permissions={user?.permissions}
+              existingCount={evaluationAssets.length}
+              onClick={() => setShowEvalModal(true)}
+            />
           </div>
           {evaluationAssets.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-x-auto">

@@ -159,8 +159,9 @@ export const HELP_TOPICS: HelpTopic[] = [
     body:
       'Everything about one customer lives here, in panels down the page. ' +
       'Details: their address and contact fields, with Edit Account to change them. ' +
-      'Contacts: New Contact to add one, and Set As to mark which is the primary or ' +
-      'secondary contact — the primary is who orders and licence keys go to. ' +
+      'Contacts: New Contact to add one, and Make primary or Make secondary in the ' +
+      'Role column to mark which is which — the primary is who orders and licence ' +
+      'keys go to. ' +
       'Orders: every order raised for them, and New Product Order to raise another. ' +
       'Evaluations: their trial licences, with Create Evaluation. ' +
       'Active Assets: the licences they currently hold, where you can tick licences and ' +
