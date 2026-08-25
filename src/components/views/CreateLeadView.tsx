@@ -25,10 +25,11 @@ import {
   Save,
   Search,
   AlertTriangle,
-  ExternalLink,
   Briefcase,
   Globe,
   ChevronDown,
+  UserPlus,
+  X,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
@@ -165,6 +166,20 @@ export default function CreateLeadView() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  /**
+   * The answer from /api/leads/domain-check, held while the user decides.
+   *
+   * `mine` is an offer — the company is already theirs, so the person should
+   * become a contact on it rather than a second, parallel record. `other` is a
+   * dead end, and the message says so without naming whose customer it is.
+   */
+  const [domainMatch, setDomainMatch] = useState<
+    { match: 'mine'; account: { id: string; name: string; isProspect: boolean } } | null
+  >(null);
+  const [addingContact, setAddingContact] = useState(false);
+  /** Set once the user has been shown a match and chosen to make a lead anyway. */
+  const [domainChecked, setDomainChecked] = useState(false);
+
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
   const canSelectReseller = isAdmin || user?.permissions?.canViewChildRecords;
 
@@ -233,26 +248,103 @@ export default function CreateLeadView() {
 
   const selectedResellerName = resellers.find(r => r.id === selectedReseller)?.name;
 
-  const canSubmit = firstName.trim() && lastName.trim() && company.trim();
+  const emailLooksValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+
+  /**
+   * Email and country join name and company as required.
+   *
+   * Without an email there is no way to contact the lead and no domain to match
+   * them to an existing customer by; without a country there is no region, and
+   * region is what decides pricing and which CSA office picks the enquiry up.
+   * /api/leads enforces the same four, so this is the courtesy, not the rule.
+   */
+  const canSubmit =
+    firstName.trim() && lastName.trim() && company.trim() && emailLooksValid && country;
+
+  /**
+   * Create this person as a contact on the account that already holds their
+   * domain, then open that account — the offer made when the check comes back
+   * `mine`.
+   */
+  const handleAddAsContact = async () => {
+    if (!domainMatch) return;
+    setAddingContact(true);
+    setError('');
+    try {
+      const res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          First_Name: firstName.trim(),
+          Last_Name: lastName.trim(),
+          Email: email.trim(),
+          ...(phone.trim() ? { Phone: phone.trim() } : {}),
+          ...(jobTitle.trim() ? { Title: jobTitle.trim() } : {}),
+          Account_Name: { id: domainMatch.account.id },
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success !== false) {
+        // A contact is a real record now, so the half-written lead goes.
+        clear();
+        registerDirty('create-lead', false);
+        router.push(buildPath('account-detail', domainMatch.account.id));
+        return;
+      }
+      setError(data.error || 'Failed to create the contact');
+    } catch {
+      setError('Failed to create the contact');
+    }
+    setAddingContact(false);
+  };
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSaving(true);
     setError('');
 
+    // Ask who already holds this email domain before creating anything. Skipped
+    // once the user has seen the answer and chosen to make a lead regardless.
+    if (!domainChecked) {
+      try {
+        const res = await fetch(`/api/leads/domain-check?email=${encodeURIComponent(email.trim())}`);
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || 'Could not check the email domain. Try again.');
+          setSaving(false);
+          return;
+        }
+        setDomainChecked(true);
+        if (data.match === 'other') {
+          setError('That company is assigned to another partner, so it cannot be added as a lead.');
+          setSaving(false);
+          return;
+        }
+        if (data.match === 'mine') {
+          setDomainMatch({ match: 'mine', account: data.account });
+          setSaving(false);
+          return;
+        }
+      } catch {
+        setError('Could not check the email domain. Try again.');
+        setSaving(false);
+        return;
+      }
+    }
+
     try {
       const body: Record<string, string> = {
         Last_Name: lastName.trim(),
         Company: company.trim(),
         Lead_Status: leadStatus,
+        Email: email.trim(),
+        Country: country,
       };
       if (firstName.trim()) body.First_Name = firstName.trim();
-      if (email.trim()) body.Email = email.trim();
       if (phone.trim()) body.Phone = phone.trim();
       if (mobile.trim()) body.Mobile = mobile.trim();
       if (jobTitle.trim()) body.Job_Title3 = jobTitle.trim();
       if (website.trim()) body.Website = website.trim();
-      if (country) body.Country = country;
       if (productInterest) body.Product_Interest = productInterest;
       if (industry) body.Industry = industry;
       if (leadSource) body.Lead_Source = leadSource;
@@ -318,10 +410,23 @@ export default function CreateLeadView() {
                 <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last name" className={inputCls} />
               </div>
               <div>
-                <label className={labelCls}>Email</label>
+                <label className={labelCls}>Email *</label>
                 <div className="relative">
                   <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@company.com" className={`${inputCls} pl-9`} />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => {
+                      setEmail(e.target.value);
+                      // A different address is a different company: the answer
+                      // we already have does not apply to it.
+                      setDomainChecked(false);
+                      setDomainMatch(null);
+                      setError('');
+                    }}
+                    placeholder="email@company.com"
+                    className={`${inputCls} pl-9`}
+                  />
                 </div>
               </div>
               <div>
@@ -374,7 +479,7 @@ export default function CreateLeadView() {
               </div>
               {/* Country with search dropdown */}
               <div className="relative">
-                <label className={labelCls}>Country</label>
+                <label className={labelCls}>Country *</label>
                 <div className="relative">
                   <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                   <input
@@ -473,6 +578,50 @@ export default function CreateLeadView() {
           {error && (
             <div className="mb-5 p-3 bg-error/10 border border-error/30 rounded-xl flex items-center gap-2 text-sm text-error">
               <AlertTriangle size={16} /> {error}
+            </div>
+          )}
+
+          {/* The company is already this partner's, so offer the contact. */}
+          {domainMatch && (
+            <div className="mb-5 p-4 bg-csa-highlight/10 border border-csa-accent/30 rounded-xl">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
+                  <Building2 size={15} className="text-csa-accent" />
+                  {domainMatch.account.name} is already {domainMatch.account.isProspect ? 'a prospect' : 'a customer'} of yours
+                </h3>
+                <button
+                  onClick={() => setDomainMatch(null)}
+                  className="text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+                  aria-label="Dismiss"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+              <p className="text-xs text-text-secondary leading-relaxed mb-3">
+                That email address is on their domain. Adding {firstName.trim() || 'this person'} as a
+                contact keeps their orders, licences and history in one place — a separate lead
+                would have to be merged in by hand later.
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleAddAsContact}
+                  disabled={addingContact}
+                  className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-40"
+                >
+                  {addingContact ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                  {addingContact ? 'Adding...' : 'Add as contact'}
+                </button>
+                {/* Left available on purpose: a genuinely separate enquiry can
+                    share a domain with an existing customer, and the person
+                    filling the form knows which this is. */}
+                <button
+                  onClick={() => { setDomainMatch(null); handleSubmit(); }}
+                  disabled={addingContact}
+                  className="px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl hover:text-text-primary transition-colors cursor-pointer disabled:opacity-40"
+                >
+                  Create a lead anyway
+                </button>
+              </div>
             </div>
           )}
 

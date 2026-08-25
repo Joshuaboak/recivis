@@ -13,6 +13,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { searchAllPages, getAllRecordPages, parseMcpResult, callMcpTool, executeZohoTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
+import { filterToScope, resellerScopeCriteria } from '@/lib/record-access';
+import { accountOwnerForDomain, emailDomain, isMatchableDomain } from '@/lib/email-domain';
 
 const LEAD_FIELDS = 'Company,Full_Name,First_Name,Last_Name,Email,Phone,Country,Lead_Status,Lead_Source,Product_Interest,Reseller,Owner,Created_Time,Record_Status__s,Converted__s';
 const PROSPECT_FIELDS = 'Account_Name,Billing_Country,Reseller,Email_Domain,Owner,Account_Type,Primary_Contact,Created_Time,Record_Status__s';
@@ -70,6 +72,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // The requested filter above is a hint from the UI, not a permission. For
+    // anyone but CSA it is replaced by what they may actually see — otherwise
+    // `?resellerId=` picked the partner, and no filter at all meant every lead
+    // in the CRM.
+    const scoped = resellerScopeCriteria(user);
+    if (scoped !== null) {
+      if (scoped === '') return NextResponse.json({ leads: [] });
+      resellerCriteria = scoped;
+    }
+
     // --- Fetch Zoho Leads (unconverted only) ---
     let zohoLeads: Record<string, unknown>[] = [];
     try {
@@ -105,8 +117,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Filter out trashed and already-converted leads
-    zohoLeads = zohoLeads.filter(
+    // Filter out trashed and already-converted leads. The scope filter runs
+    // here as well as in the criteria because Zoho's `word` search accepts no
+    // criteria at all — a keyword search came back across every partner.
+    zohoLeads = filterToScope(user, 'Leads', zohoLeads).filter(
       (r) => r.Record_Status__s !== 'Trash' && !r.Converted__s
     );
 
@@ -132,7 +146,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    prospectAccounts = prospectAccounts.filter(
+    // Prospects are Accounts, so they scope on the Accounts rule.
+    prospectAccounts = filterToScope(user, 'Accounts', prospectAccounts).filter(
       (r) => r.Record_Status__s !== 'Trash'
     );
 
@@ -279,6 +294,34 @@ export async function POST(request: NextRequest) {
     if (!String(body.Last_Name ?? '').trim()) {
       return NextResponse.json({ error: 'Last name is required' }, { status: 400 });
     }
+    // Email and country are what make a lead workable. Without an email there
+    // is no way to contact them and no domain to match them to a customer by;
+    // without a country there is no region, which is what decides pricing and
+    // which CSA office picks it up.
+    const email = String(body.Email ?? '').trim();
+    if (!email) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return NextResponse.json({ error: 'Enter a valid email address' }, { status: 400 });
+    }
+    if (!String(body.Country ?? '').trim()) {
+      return NextResponse.json({ error: 'Country is required' }, { status: 400 });
+    }
+
+    // A company another partner already holds is not available to be led on,
+    // however the request got here. The form checks this first so it can offer
+    // the contact instead; this is the same rule with no UI attached.
+    const domain = emailDomain(email);
+    if (isMatchableDomain(domain) && !isAdmin(user)) {
+      const owner = await accountOwnerForDomain(user, domain);
+      if (owner.match === 'other') {
+        return NextResponse.json(
+          { error: 'That company is assigned to another partner.' },
+          { status: 403 }
+        );
+      }
+    }
 
     // Build lead record — only allow known fields
     const leadData: Record<string, unknown> = {};
@@ -292,9 +335,18 @@ export async function POST(request: NextRequest) {
       if (body[field] !== undefined) leadData[field] = body[field];
     }
 
-    // Reseller lookup
+    // Reseller lookup. A partner may only file a lead under a partner they can
+    // already see — their own, or a child if they are a distributor. Without
+    // this an id from the request body chose the owner.
     if (body.Reseller) {
-      leadData.Reseller = { id: body.Reseller };
+      const requested = String(body.Reseller);
+      if (!isAdmin(user) && !user.allowedResellerIds.includes(requested)) {
+        return NextResponse.json(
+          { error: 'You cannot assign a lead to another partner.' },
+          { status: 403 }
+        );
+      }
+      leadData.Reseller = { id: requested };
     } else if (!isAdmin(user) && user.resellerId) {
       // Auto-assign to the user's reseller
       leadData.Reseller = { id: user.resellerId };
