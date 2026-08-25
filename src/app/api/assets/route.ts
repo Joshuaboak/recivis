@@ -17,6 +17,20 @@ import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { callZohoFunction } from '@/lib/zoho-functions';
 import { requireAuth } from '@/lib/api-auth';
+import { NOT_YOURS_RECORD, requireRecordAccess } from '@/lib/record-access';
+
+/**
+ * Every handler here is addressed by asset id, and an asset names the partner
+ * it was issued to. Without this check the id was the only credential needed:
+ * any signed-in user could read a stranger's licence, move its renewal date,
+ * or release its activation.
+ */
+async function denyForeignAsset(
+  user: Parameters<typeof requireRecordAccess>[0],
+  assetId: string
+) {
+  return requireRecordAccess(user, 'Assets1', assetId, NOT_YOURS_RECORD);
+}
 
 /**
  * GET /api/assets?id=xxx — get full asset record
@@ -34,6 +48,9 @@ export async function GET(request: NextRequest) {
   if (!id) {
     return NextResponse.json({ error: 'id required' }, { status: 400 });
   }
+
+  const denied = await denyForeignAsset(user, id);
+  if (denied) return denied;
 
   try {
     const result = await executeZohoTool('get_record', {
@@ -62,6 +79,9 @@ export async function POST(request: NextRequest) {
     if (!assetId) {
       return NextResponse.json({ error: 'assetId required' }, { status: 400 });
     }
+
+    const denied = await denyForeignAsset(user, assetId);
+    if (denied) return denied;
 
     const zapikey = process.env.ZOHO_API_KEY;
     if (!zapikey) return NextResponse.json({ error: 'ZOHO_API_KEY not configured' }, { status: 500 });
@@ -123,6 +143,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'assetId required' }, { status: 400 });
     }
 
+    const denied = await denyForeignAsset(user, assetId);
+    if (denied) return denied;
+
     const updateData: Record<string, unknown> = { id: assetId };
     if (body.Renewal_Date) updateData.Renewal_Date = body.Renewal_Date;
     if (body.Status) updateData.Status = body.Status;
@@ -159,6 +182,9 @@ export async function PUT(request: NextRequest) {
     if (!assetId) {
       return NextResponse.json({ error: 'assetId required' }, { status: 400 });
     }
+
+    const denied = await denyForeignAsset(user, assetId);
+    if (denied) return denied;
 
     const result = await callZohoFunction('qlminterfacereleaselicense', { assetID: assetId });
 

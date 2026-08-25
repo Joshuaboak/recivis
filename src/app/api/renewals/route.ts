@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
+import { recordIsVisible } from '@/lib/record-access';
 
 /**
  * POST /api/renewals — generate renewal invoices for selected assets
@@ -46,6 +47,25 @@ export async function POST(request: NextRequest) {
 
     if (!assetIds || assetIds.length === 0) {
       return NextResponse.json({ error: 'No assets selected' }, { status: 400 });
+    }
+
+    // This generates real renewal invoices from whatever ids arrive in the
+    // body, so each one has to be shown to belong to the caller first. The cap
+    // matches the assistant's: a renewal run is a handful of licences, and an
+    // unbounded list is a way to make the check expensive rather than useful.
+    if (assetIds.length > 20) {
+      return NextResponse.json(
+        { error: 'Too many licences in one renewal. Please do 20 or fewer at a time.' },
+        { status: 400 }
+      );
+    }
+    for (const assetId of assetIds) {
+      if (!(await recordIsVisible(user, 'Assets1', assetId))) {
+        return NextResponse.json(
+          { error: 'One or more of those licences belongs to another partner.' },
+          { status: 403 }
+        );
+      }
     }
 
     log('info', 'api', 'Generating renewal invoice', { assetCount: assetIds.length });

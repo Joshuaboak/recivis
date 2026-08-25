@@ -16,6 +16,7 @@ import { log } from '@/lib/logger';
 import { isDemoSession } from '@/lib/demo/guard';
 import { DEMO_ACCOUNTS } from '@/lib/demo/fixtures';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
+import { filterToScope } from '@/lib/record-access';
 
 /**
  * GET /api/accounts?search=term&resellerId=id&resellerIds=id1,id2,id3
@@ -104,7 +105,9 @@ export async function GET(request: NextRequest) {
       allRecords = await getAllRecordPages('Accounts', fields, 'Modified_Time', 'desc');
     }
 
-    const accounts = allRecords.filter(
+    // Scoped again on the way out: the word-search branch above takes no
+    // criteria, so a keyword search returned accounts from every partner.
+    const accounts = filterToScope(user, 'Accounts', allRecords).filter(
       (r) => r.Record_Status__s !== 'Trash' && r.Account_Type !== 'Prospect'
     );
 
@@ -127,6 +130,21 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+
+    // The body reaches Zoho as written, so the partner on it has to be one the
+    // caller may file under — otherwise a new account could be created in a
+    // stranger's name, or handed to them.
+    const requestedReseller = (body.Reseller as { id?: string } | undefined)?.id
+      ?? (typeof body.Reseller === 'string' ? body.Reseller : undefined);
+    if (requestedReseller && !isAdmin(user) && !user.allowedResellerIds.includes(requestedReseller)) {
+      return NextResponse.json(
+        { error: 'You cannot assign an account to another partner.' },
+        { status: 403 }
+      );
+    }
+    if (!requestedReseller && !isAdmin(user) && user.resellerId) {
+      body.Reseller = { id: user.resellerId };
+    }
 
     const result = await executeZohoTool('create_records', {
       module: 'Accounts',

@@ -5,6 +5,12 @@ import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
 import type { AuthUser } from '@/lib/api-auth';
 import { MODULE_SCOPES, WRITABLE_MODULES, recordInScope, scopingAccountId } from '@/lib/tenant-scope';
+import {
+  NOT_YOURS,
+  accountIsVisible,
+  recordIsVisible,
+  visibleAccountIds,
+} from '@/lib/record-access';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -18,78 +24,14 @@ interface ToolCall {
 }
 
 /**
- * The tenant boundary itself lives in lib/tenant-scope.ts so it can be tested
- * and so the support assistant enforces the identical rules. What stays here
- * is only how those rules apply to this route's tools.
+ * The tenant boundary itself lives in lib/tenant-scope.ts so it can be tested,
+ * and the fetching-and-answering half in lib/record-access.ts so every route
+ * enforces the identical rules. What stays here is only how those rules apply
+ * to this route's tools.
  */
 
 const READ_TOOLS = new Set(['search_records', 'get_record']);
 const WRITE_TOOLS = new Set(['create_records', 'update_records']);
-
-/** Read one record from Zoho, or null if it isn't there. */
-async function fetchRecord(moduleName: string, recordId: string): Promise<Record<string, unknown> | null> {
-  try {
-    const result = await executeZohoTool('get_record', { module: moduleName, record_id: recordId });
-    const res = result as { content?: Array<{ text?: string }> };
-    for (const item of res?.content || []) {
-      if (!item.text) continue;
-      const parsed = JSON.parse(item.text);
-      const record = parsed.data?.[0];
-      if (record) return record as Record<string, unknown>;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Whether the caller may see one record, fetching it to find out.
- *
- * Contacts and anything else scoped through an account cost a second lookup,
- * since the contact itself names no partner.
- */
-async function recordIsVisible(user: AuthUser, moduleName: string, recordId: string): Promise<boolean> {
-  const scope = MODULE_SCOPES[moduleName];
-  if (!scope) return false;
-  if (scope.kind === 'catalogue') return true;
-
-  const record = await fetchRecord(moduleName, recordId);
-  if (!record) return false;
-
-  if (scope.kind === 'via-account') {
-    const accountId = scopingAccountId(scope, record);
-    // A contact attached to nothing has no partner to inherit, so it stays
-    // unproven rather than becoming everyone's.
-    if (!accountId) return false;
-    return accountIsVisible(user, accountId);
-  }
-
-  return recordInScope(user, scope, record);
-}
-
-/** Whether the caller may see one account. */
-async function accountIsVisible(user: AuthUser, accountId: string): Promise<boolean> {
-  const account = await fetchRecord('Accounts', accountId);
-  if (!account) return false;
-  return recordInScope(user, MODULE_SCOPES.Accounts, account);
-}
-
-/**
- * Resolve which of a set of accounts the caller may see.
- *
- * Contact searches return many contacts across few accounts, so the distinct
- * accounts are resolved once each rather than once per contact.
- */
-async function visibleAccountIds(user: AuthUser, accountIds: Iterable<string>): Promise<Set<string>> {
-  const allowed = new Set<string>();
-  await Promise.all(
-    Array.from(new Set(accountIds)).map(async id => {
-      if (await accountIsVisible(user, id)) allowed.add(id);
-    })
-  );
-  return allowed;
-}
 
 /**
  * Server-side RBAC on AI tool calls, before execution.
@@ -108,7 +50,7 @@ async function enforceToolRBAC(
 
   // Scoped to no resellers means there is nothing this user may read.
   if (user.allowedResellerIds.length === 0) {
-    return 'Your account is not linked to a partner, so CRM records are not available.';
+    return 'Your account is not linked to a partner, so customer records are not available.';
   }
 
   if ((READ_TOOLS.has(toolName) || WRITE_TOOLS.has(toolName)) && !MODULE_SCOPES[moduleName]) {
@@ -131,7 +73,7 @@ async function enforceToolRBAC(
       return 'A parent module and record id are required to fetch related records.';
     }
     if (!(await recordIsVisible(user, parentModule, parentId))) {
-      return 'That record belongs to another reseller.';
+      return NOT_YOURS;
     }
     return null;
   }
@@ -150,14 +92,14 @@ async function enforceToolRBAC(
         const recordId = typeof rec.id === 'string' ? rec.id : '';
         if (!recordId) return 'An id is required to update a record.';
         if (!(await recordIsVisible(user, moduleName, recordId))) {
-          return 'That record belongs to another reseller.';
+          return NOT_YOURS;
         }
       }
 
       // A record cannot be filed under a partner the caller may not see.
       const resellerId = (rec.Reseller as { id?: string })?.id || rec.Reseller;
       if (typeof resellerId === 'string' && !user.allowedResellerIds.includes(resellerId)) {
-        return 'You cannot assign records to another reseller.';
+        return 'You cannot file records under another partner.';
       }
 
       // Contacts inherit their partner from their account, so the account has
@@ -165,7 +107,7 @@ async function enforceToolRBAC(
       if (moduleName === 'Contacts') {
         const accountId = (rec.Account_Name as { id?: string })?.id;
         if (accountId && !(await accountIsVisible(user, accountId))) {
-          return 'That account belongs to another reseller.';
+          return NOT_YOURS;
         }
       }
 
@@ -197,7 +139,7 @@ async function enforceToolRBAC(
     if (assetIds.length > 20) return 'Too many assets in one renewal. Please do 20 or fewer at a time.';
     for (const assetId of assetIds) {
       if (!(await recordIsVisible(user, 'Assets1', assetId))) {
-        return 'One or more of those assets belongs to another reseller.';
+        return 'One or more of those licences belongs to another partner.';
       }
     }
   }
@@ -251,7 +193,10 @@ async function filterResultsForRBAC(
 
         if (parsed.data.length === 0 && originalCount > 0) {
           // All results were filtered — tell the AI why
-          parsed.message = `The ${moduleName} records matching this search belong to other resellers. This user does not have access to them.`;
+          // Phrased as an instruction because the model reads this, not the
+          // user: left as a bare statement it tends to paraphrase the denial
+          // into something that sounds like a system fault.
+          parsed.message = `Every ${moduleName} record matching this search is assigned to another partner, and this user has access to none of them. Tell the user exactly: "${NOT_YOURS}" Do not describe the search or the filtering.`;
         }
 
         item.text = JSON.stringify(parsed);

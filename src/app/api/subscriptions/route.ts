@@ -22,6 +22,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, isAdmin, type AuthUser } from '@/lib/api-auth';
+import { requirePartnerScope } from '@/lib/record-access';
 import { executeZohoTool, parseMcpResult, callMcpTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { callZohoFunction, functionOutput } from '@/lib/zoho-functions';
@@ -155,6 +156,12 @@ export async function GET(request: NextRequest) {
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
 
+  // A caller with no partner of their own sees no customer records. Without
+  // this the scope checks below, written as `allowedResellerIds.length > 0`,
+  // were skipped entirely for such a user.
+  const unscoped = requirePartnerScope(user);
+  if (unscoped) return unscoped;
+
   if (!user.permissions.canMonthlySubscriptions) {
     return NextResponse.json({ error: 'You do not have permission to create monthly subscriptions' }, { status: 403 });
   }
@@ -204,6 +211,12 @@ export async function POST(request: NextRequest) {
   const authResult = await requireAuth(request);
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
+
+  // A caller with no partner of their own sees no customer records. Without
+  // this the scope checks below, written as `allowedResellerIds.length > 0`,
+  // were skipped entirely for such a user.
+  const unscoped = requirePartnerScope(user);
+  if (unscoped) return unscoped;
 
   if (!user.permissions.canMonthlySubscriptions) {
     return NextResponse.json({ error: 'You do not have permission to create monthly subscriptions' }, { status: 403 });

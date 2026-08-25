@@ -99,6 +99,15 @@ export async function GET(request: NextRequest) {
 
   let resellerIds: string[] | null = null;
   if (resellerFilter) {
+    // The filter is a partner id straight off the query string. Honouring it
+    // unchecked handed any signed-in partner the whole report — accounts,
+    // leads, orders and margins — for any partner whose id they could name.
+    if (!userIsAdmin && !user.allowedResellerIds.includes(resellerFilter)) {
+      return NextResponse.json(
+        { error: "That partner's reports are not available to you." },
+        { status: 403 }
+      );
+    }
     resellerIds = [resellerFilter];
   } else if (!userIsAdmin) {
     if (user.allowedResellerIds.length > 0) {

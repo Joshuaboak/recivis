@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { callMcpTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
+import { requirePartnerScope } from '@/lib/record-access';
 
 interface SearchResult {
   id: string;
@@ -44,6 +45,12 @@ export async function GET(request: NextRequest) {
   const authResult = await requireAuth(request);
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
+
+  // A caller with no partner of their own sees no customer records. Without
+  // this the scope checks below, written as `allowedResellerIds.length > 0`,
+  // were skipped entirely for such a user.
+  const unscoped = requirePartnerScope(user);
+  if (unscoped) return unscoped;
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q')?.trim();

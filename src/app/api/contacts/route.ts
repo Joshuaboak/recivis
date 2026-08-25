@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult, callMcpTool } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
+import { requirePartnerScope } from '@/lib/record-access';
 import { createContactSchema, validateBody } from '@/lib/validation';
 
 /**
@@ -20,6 +21,12 @@ export async function POST(request: NextRequest) {
   const authResult = await requireAuth(request);
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
+
+  // A caller with no partner of their own sees no customer records. Without
+  // this the scope checks below, written as `allowedResellerIds.length > 0`,
+  // were skipped entirely for such a user.
+  const unscoped = requirePartnerScope(user);
+  if (unscoped) return unscoped;
 
   try {
     // Validate request body with Zod schema
@@ -49,6 +56,9 @@ export async function POST(request: NextRequest) {
     };
     if (body.Email) contactData.Email = body.Email;
     if (body.Phone) contactData.Phone = body.Phone;
+    // The schema has always accepted Title; it was being dropped here, so a job
+    // title typed on the form never reached the CRM.
+    if (body.Title) contactData.Title = body.Title;
     if (body.Account_Name?.id) contactData.Account_Name = { id: body.Account_Name.id };
 
     const result = await executeZohoTool('create_records', {
