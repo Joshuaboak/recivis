@@ -67,7 +67,10 @@ export default function InvoicePurchaseOrder({
             <FileText size={14} />
             Purchase Order
           </div>
-          {status === 'Draft' && !editingPO && (
+          {/* Editable until the order is approved, matching the route's lock.
+              Stopping at Draft meant an order already sent for payment could
+              not have its PO number corrected. */}
+          {status !== 'Approved' && !editingPO && (
             <button
               onClick={onStartEditPO}
               className="text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer"

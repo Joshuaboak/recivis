@@ -154,8 +154,15 @@ export default function InvoiceDetailView({
   const [originalListPrices, setOriginalListPrices] = useState<Record<string, number>>({});
 
   // Reseller payment method flags (from Zoho Resellers module)
-  const [canPurchaseOnAccount, setCanPurchaseOnAccount] = useState(false);
-  const [canPurchaseOnCredit, setCanPurchaseOnCredit] = useState(false);
+  /**
+   * The partner's payment methods.
+   *
+   * These were `canPurchaseOnAccount` and `canPurchaseOnCredit`, which is a
+   * trap: "on credit" held the card flag, and account terms *are* credit. Named
+   * for the buttons they turn on instead.
+   */
+  const [payOnAccount, setPayOnAccount] = useState(false);
+  const [payOnCard, setPayOnCard] = useState(false);
 
   // PO
   const [editingPO, setEditingPO] = useState(false);
@@ -187,12 +194,24 @@ export default function InvoiceDetailView({
 
   // Derived permission flags
   const isEditor = user?.role === 'admin' || user?.role === 'ibm';
-  const canEdit = isEditor && invoice?.Status === 'Draft';
+  // Locked at Approved, matching the route. Both used to stop at Draft, which
+  // meant an order sent for payment could not have its PO number corrected —
+  // and correcting it is exactly what somebody does between sending an invoice
+  // and being paid for it.
+  const canEdit = isEditor && invoice?.Status !== 'Approved';
   const isRenewal = invoice?.Invoice_Type === 'Renewal';
-  /** PO is editable by any role on a Draft — matches InvoicePurchaseOrder. */
-  const canEditPO = invoice?.Status === 'Draft';
-  /** Mirrors the PATCH route: `Approved` needs canApproveInvoices or admin/IBM. */
-  const canEditStatus = isEditor || !!user?.permissions?.canApproveInvoices;
+  /** PO is editable by any role until the order is approved. */
+  const canEditPO = invoice?.Status !== 'Approved';
+  /**
+   * Setting a status by hand is CSA's, like the Approve button in the header.
+   *
+   * It was open to anyone with canApproveInvoices, which made the dropdown a
+   * third route to Approved that skipped the purchase order and the account
+   * terms check. The route refuses that now, so leaving the control in place
+   * would only offer a partner an option that fails. Their route is Process
+   * Order, which asks for what it needs first.
+   */
+  const canEditStatus = isEditor;
   /**
    * Whether OrderActions will render a button.
    *
@@ -202,8 +221,8 @@ export default function InvoiceDetailView({
    */
   const hasOrderActions =
     (invoice?.Status === 'Draft' || invoice?.Status === 'Sent') &&
-    ((canPurchaseOnCredit && !!user?.permissions?.canSendInvoices) ||
-      (canPurchaseOnAccount && !!user?.permissions?.canApproveInvoices));
+    ((payOnCard && !!user?.permissions?.canSendInvoices) ||
+      (payOnAccount && !!user?.permissions?.canApproveInvoices));
 
   // -------------------------------------------------------------------
   // Data fetching
@@ -231,10 +250,10 @@ export default function InvoiceDetailView({
               setResellerPercentage(percentage);
 
               // Reseller payment method flags
-              // Pay on Account = Zoho Can_Purchase_on_Credit → Place Order
+              // Pay on Account = Zoho Can_Purchase_on_Credit → Process Order
               // Pay on Card = PostgreSQL pay_on_card → Pay Now / Pay Later
-              setCanPurchaseOnAccount(!!rData.reseller?.Can_Purchase_on_Credit);
-              setCanPurchaseOnCredit(!!rData.payOnCard);
+              setPayOnAccount(!!rData.reseller?.Can_Purchase_on_Credit);
+              setPayOnCard(!!rData.payOnCard);
 
               // Calculate and store original (full) list prices
               // If invoice is currently in reseller mode, current prices ARE discounted
@@ -1197,8 +1216,8 @@ export default function InvoiceDetailView({
             invoice={invoice}
             status={status}
             selectedInvoiceId={invoiceId}
-            canPurchaseOnAccount={canPurchaseOnAccount}
-            canPurchaseOnCredit={canPurchaseOnCredit}
+            payOnAccount={payOnAccount}
+            payOnCard={payOnCard}
             canSend={!!(user?.permissions?.canSendInvoices)}
             canApprove={!!(user?.permissions?.canApproveInvoices)}
             hasPONumber={!!(invoice.Purchase_Order)}

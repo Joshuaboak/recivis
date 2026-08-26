@@ -13,6 +13,12 @@
 
 import { motion } from 'framer-motion';
 import { Send, Loader2 } from 'lucide-react';
+import { orderRecipient } from '@/lib/order-recipients';
+
+// The two routings, described by the same module the confirmation dialogs read,
+// so this panel and the dialog before sending cannot say different things.
+const RESELLER_ROUTE = orderRecipient({ Reseller_Direct_Purchase: true });
+const CUSTOMER_ROUTE = orderRecipient({ Reseller_Direct_Purchase: false });
 
 interface InvoiceSendToProps {
   /** The full invoice record (reads Reseller_Direct_Purchase flag) */
@@ -38,7 +44,15 @@ export default function InvoiceSendTo({
 }: InvoiceSendToProps) {
   const isCustomerMode = !invoice.Reseller_Direct_Purchase;
   const showCustomerOption = allowDirectCustomer || isCustomerMode;
-  const customerSelectable = allowDirectCustomer && status === 'Draft';
+  /**
+   * Routing is settled when the order is, not when it is sent.
+   *
+   * This was Draft-only, so an order sent for payment could no longer have its
+   * recipient corrected — and the recipient is who the licence keys go to when
+   * the order is eventually processed.
+   */
+  const locked = status === 'Approved';
+  const customerSelectable = allowDirectCustomer && !locked;
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-8">
@@ -52,19 +66,19 @@ export default function InvoiceSendTo({
         <div className="flex gap-3">
           {/* Reseller option */}
           <button
-            onClick={() => status === 'Draft' && !updatingDirectPurchase && onToggleDirectPurchase(true)}
-            disabled={updatingDirectPurchase || status !== 'Draft'}
+            onClick={() => !locked && !updatingDirectPurchase && onToggleDirectPurchase(true)}
+            disabled={updatingDirectPurchase || locked}
             className={`flex-1 px-4 py-3 rounded-xl border-2 text-left transition-all ${
               invoice.Reseller_Direct_Purchase
                 ? 'border-csa-accent bg-csa-accent/10'
                 : 'border-border-subtle hover:border-border'
-            } ${status !== 'Draft' ? 'cursor-default' : 'cursor-pointer'}`}
+            } ${locked ? 'cursor-default' : 'cursor-pointer'}`}
           >
             <div className={`text-sm font-semibold mb-0.5 ${invoice.Reseller_Direct_Purchase ? 'text-csa-accent' : 'text-text-secondary'}`}>
               Reseller
             </div>
             <p className="text-xs text-text-muted">
-              Sent to the reseller, CC the CSA Geo Sales Rep
+              Sent to the reseller, CC {RESELLER_ROUTE.copiedTo}
             </p>
           </button>
 
@@ -84,7 +98,7 @@ export default function InvoiceSendTo({
                 Customer
               </div>
               <p className="text-xs text-text-muted">
-                Sent to the customer, CC the reseller and CSA Geo Sales Rep
+                Sent to the customer, CC {CUSTOMER_ROUTE.copiedTo}
               </p>
             </button>
           ) : null}

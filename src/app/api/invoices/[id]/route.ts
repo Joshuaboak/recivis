@@ -14,8 +14,59 @@ import { isDemoSession } from '@/lib/demo/guard';
 import { findDemoRecord } from '@/lib/demo/fixtures';
 import { requireAuth, isAdmin, canManageReseller } from '@/lib/api-auth';
 
-/** Statuses past which an order is committed and stops accepting portal edits. */
-const LOCKED_STATUSES = ['Approved', 'Sent'];
+/**
+ * Statuses past which an order is committed and stops accepting portal edits.
+ *
+ * Approved only. `Sent` used to be here on the reasoning that it was reachable
+ * only through approval, which is not true: sending an order for payment leaves
+ * it unapproved and unpaid, and locking it there meant a partner who had
+ * emailed an invoice could no longer correct the PO number or a line on it —
+ * before anybody had committed to anything.
+ */
+const LOCKED_STATUSES = ['Approved'];
+
+/**
+ * Why this order may not be processed on account, or null when it may.
+ *
+ * Two conditions, both read off records rather than off the request: the
+ * partner has account terms (`Can_Purchase_on_Credit` on their Reseller), and
+ * the order carries a purchase order number. The portal asks for a PO document
+ * too, but the attachment lives outside this record and the number is the part
+ * that is checkable here.
+ */
+async function accountTermsDenial(
+  invoice: Record<string, unknown> | undefined,
+  invoiceId: string
+): Promise<string | null> {
+  if (!String(invoice?.Purchase_Order ?? '').trim()) {
+    return 'A purchase order number is required before this order can be processed.';
+  }
+
+  const resellerId = (invoice?.Reseller as { id?: string } | null)?.id;
+  if (!resellerId) {
+    return 'This order has no partner on it, so it cannot be processed.';
+  }
+
+  try {
+    const result = await executeZohoTool('get_record', {
+      module: 'Resellers',
+      record_id: resellerId,
+    });
+    const reseller = parseMcpResult(result).data[0] as Record<string, unknown> | undefined;
+    if (!reseller?.Can_Purchase_on_Credit) {
+      return 'Your account does not have payment terms, so orders cannot be processed on account. Pay by card, or send the order for payment.';
+    }
+  } catch (error) {
+    // A check that cannot run is not a check that passes: this one stands
+    // between an unpaid order and issued licence keys.
+    log('error', 'api', `Could not read payment terms for invoice ${invoiceId}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return 'Your payment terms could not be confirmed. Please try again.';
+  }
+
+  return null;
+}
 
 /**
  * GET /api/invoices/[id] — get invoice detail with line items
@@ -119,8 +170,7 @@ export async function PATCH(
     // An approved order is locked: it has been committed, licence keys may
     // already exist against it, and the money is settled off its totals.
     // CSA staff keep a way in for corrections, everyone else goes through the
-    // CRM. LOCKED_STATUSES also covers Sent, which is only reachable via
-    // approval.
+    // CRM.
     const currentStatus = (existing?.Status as string) || '';
     if (LOCKED_STATUSES.includes(currentStatus) && !isAdmin(user)) {
       return NextResponse.json({
@@ -148,6 +198,14 @@ export async function PATCH(
     if (body.Status) {
       if (body.Status === 'Approved' && !user.permissions.canApproveInvoices && !isAdmin(user)) {
         return NextResponse.json({ error: 'You do not have permission to approve invoices' }, { status: 403 });
+      }
+      // Processing an order commits CSA to issuing licence keys before any money
+      // has arrived, which is what account terms are. A partner without them
+      // pays by card or is sent an invoice; they do not get to process their own
+      // orders, and a purchase order is what stands in for the payment.
+      if (body.Status === 'Approved' && !isAdmin(user)) {
+        const denial = await accountTermsDenial(existing, id);
+        if (denial) return NextResponse.json({ error: denial }, { status: 403 });
       }
       if (body.Send_Invoice && !user.permissions.canSendInvoices && !isAdmin(user)) {
         return NextResponse.json({ error: 'You do not have permission to send invoices' }, { status: 403 });

@@ -663,17 +663,17 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'end',
         title: 'The buttons at the top',
         body:
-          'Approve and Send Order sit here while the order is a Draft, each asking to ' +
-          'confirm first. Once it is neither, a Locked badge replaces them and only ' +
-          'CSA can change anything.',
+          'Send Order sits here while the order is a Draft, asking to confirm first. ' +
+          'Once the order is approved a Locked badge replaces it and only CSA can ' +
+          'change anything.',
       },
       {
         id: 'po',
         anchor: 'order-po',
         title: 'Purchase Order',
         body:
-          'The pencil sets the PO number while the order is a Draft. Attach PO ' +
-          'Document uploads the file. Place Order needs both before it will run.',
+          'The pencil sets the PO number until the order is approved. Attach PO ' +
+          'Document uploads the file. Process Order needs both before it will run.',
       },
       {
         id: 'send-to',
@@ -681,8 +681,8 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'Where the order and keys go',
         body:
           'Reseller sends to you, copying the CSA Geo Sales Rep. Customer sends to ' +
-          'them, copying you and the rep. Switching also reprices the lines. Draft ' +
-          'only.',
+          'them, copying you and the rep. Switching also reprices the lines. Until ' +
+          'the order is approved.',
       },
       {
         id: 'line-items',
@@ -701,9 +701,9 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'end',
         title: 'Finishing the order',
         body:
-          'Place Order approves it on account terms and issues the keys. Pay Now ' +
-          'opens a Stripe page. Pay Later emails the order for payment; keys follow ' +
-          'the payment. Each asks twice.',
+          'Process Order commits it on account terms and issues the keys, and asks ' +
+          'twice. Pay Now opens a Stripe page. Pay Later emails the invoice only — no ' +
+          'keys until it is paid.',
       },
       {
         id: 'coupon',

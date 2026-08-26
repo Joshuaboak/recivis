@@ -142,7 +142,17 @@ export default function InvoiceHeader({
 
           {/* Approve / Send — only for Draft invoices when not editing */}
           {!editing && status === 'Draft' ? (() => {
-            const canApprove = isEditor || user?.permissions?.canApproveInvoices;
+            /**
+             * Approve here is CSA's override, not a partner action.
+             *
+             * It set Status straight to Approved, which issues licence keys —
+             * skipping both things account terms require: that the partner has
+             * terms at all, and that there is a purchase order to bill against.
+             * Process Order, further down the page, is the partner's route and
+             * enforces both. A partner with no account terms pays by card or is
+             * sent an invoice, and has no business approving their own order.
+             */
+            const canApprove = isEditor;
             const canSend = isEditor || user?.permissions?.canSendInvoices;
             return (
               <>
@@ -172,8 +182,11 @@ export default function InvoiceHeader({
             );
           })() : null}
 
-          {/* Locked badge — non-Draft invoices when not editing */}
-          {!editing && status !== 'Draft' ? (
+          {/* Locked badge — an approved order is the only locked one. It said
+              Locked on a Sent order too, which was not true even then and is
+              certainly not now: sending an invoice for payment commits nobody,
+              and the PO on it may still need correcting. */}
+          {!editing && status === 'Approved' ? (
             <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl">
               <Lock size={14} />
               Locked

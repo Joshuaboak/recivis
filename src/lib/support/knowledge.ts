@@ -239,11 +239,14 @@ export const HELP_TOPICS: HelpTopic[] = [
     path: '/orders',
     requires: ['canApproveInvoices', 'canSendInvoices'],
     body:
-      'An order has to be approved before licence keys exist. Place Order approves it ' +
-      'and generates the keys. Pay Now opens a card payment page and the keys follow ' +
-      'automatically once payment clears. Pay Later sends the order out for payment and ' +
-      'the keys follow when it is paid. Which of these you see depends on whether your ' +
-      'partner account is set up for card payment, account terms, or both.',
+      'An order has to be processed before licence keys exist. Process Order does that ' +
+      'on account terms: it emails the invoice and issues the keys straight away, which ' +
+      'is what account terms buy you, so it needs a purchase order number and document ' +
+      'first and asks you to confirm twice. Pay Now opens a card payment page and the ' +
+      'keys follow once payment clears. Pay Later emails the invoice only — it does not ' +
+      'process the order, and nothing is issued until the money arrives. Which of these ' +
+      'you see depends on whether your partner account is set up for card payment, ' +
+      'account terms, or both. Approving an order outright is CSA staff only.',
   },
   {
     id: 'order-locked',
@@ -251,10 +254,11 @@ export const HELP_TOPICS: HelpTopic[] = [
     where: 'Orders → open an order',
     path: '/orders',
     body:
-      'Once an order is Approved or Sent it is locked and shows a Locked badge. That is ' +
-      'deliberate: licence keys may already have been issued against it and the money is ' +
-      'settled off its totals. If something is wrong on a locked order, contact CSA ' +
-      'rather than trying to work around it.',
+      'An order locks when it is Approved, and shows a Locked badge. That is deliberate: ' +
+      'licence keys have been issued against it and the money is settled off its totals. ' +
+      'An order you have only sent for payment is not locked — the PO number, the ' +
+      'recipient and the lines can all still be corrected while you wait to be paid. If ' +
+      'something is wrong on a locked order, contact CSA rather than working around it.',
   },
   {
     id: 'send-to',
@@ -275,9 +279,11 @@ export const HELP_TOPICS: HelpTopic[] = [
     path: '/orders',
     requires: ['canUploadPO'],
     body:
-      'Placing an order on account terms needs both a purchase order number and an ' +
-      'attached purchase order document. Both go in the Purchase Order panel on the ' +
-      'order, and both have to be there before Place Order will go through.',
+      'Processing an order on account terms needs both a purchase order number and an ' +
+      'attached purchase order document — the PO is what stands in for the payment. ' +
+      'Both go in the Purchase Order panel on the order, and both have to be there ' +
+      'before Process Order will go through. They stay editable until the order is ' +
+      'approved.',
   },
   {
     id: 'order-assistant',
