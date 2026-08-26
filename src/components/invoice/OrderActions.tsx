@@ -143,10 +143,36 @@ export default function OrderActions({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Only show on Draft or Sent invoices
+  // Only show on Draft or Sent invoices. An approved order is finished with,
+  // and nothing here applies to it.
   if (status !== 'Draft' && status !== 'Sent') return null;
-  // Need at least one payment method enabled
-  if (!payOnAccount && !payOnCard) return null;
+
+  /**
+   * Which buttons this partner and this user can actually reach.
+   *
+   * Kept as named values rather than inline conditions because when the answer
+   * is "none of them" the panel has to say why. Rendering nothing at all is
+   * what made an unreachable button indistinguishable from a missing feature —
+   * there was no way to tell, from the page, whether account terms were off,
+   * the user was read-only, or the thing simply had not been built.
+   */
+  const showCardButtons = payOnCard && canSend;
+  const showProcessOrder = payOnAccount && canApprove;
+
+  /** Why there is nothing to press, or null when there is. */
+  const nothingAvailable = (() => {
+    if (showCardButtons || showProcessOrder) return null;
+    if (!payOnAccount && !payOnCard) {
+      return 'No payment method is enabled for your partner account, so this order cannot be paid for or processed here. Ask CSA to enable card payment, account terms, or both.';
+    }
+    if (payOnCard && !canSend) {
+      return 'Your partner account pays by card, but your user account does not have permission to send orders. Ask your administrator for the Send Orders permission.';
+    }
+    if (payOnAccount && !canApprove) {
+      return 'Your partner account has payment terms, but your user account is read-only and cannot commit an order.';
+    }
+    return 'There is nothing to do on this order from here.';
+  })();
 
   const closeDialog = () => setDialog(initialDialog);
 
@@ -303,8 +329,15 @@ export default function OrderActions({
         transition={{ delay: 0.15 }}
         className="mb-8"
       >
+        {nothingAvailable && (
+          <div className="flex items-start gap-2 text-xs text-text-muted bg-surface border border-border-subtle rounded-xl px-4 py-3 max-w-xl ml-auto">
+            <AlertTriangle size={14} className="flex-shrink-0 mt-0.5 text-warning" />
+            <p className="leading-relaxed">{nothingAvailable}</p>
+          </div>
+        )}
+
         <div className="flex items-center justify-end gap-3">
-          {payOnCard && canSend && (
+          {showCardButtons && (
             <>
               <button
                 onClick={handlePayLater}
@@ -325,7 +358,7 @@ export default function OrderActions({
             </>
           )}
 
-          {payOnAccount && canApprove && (
+          {showProcessOrder && (
             <button
               onClick={handleProcessOrder}
               disabled={loading}
