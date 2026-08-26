@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { recipientSentence } from '@/lib/order-recipients';
 import { useTrackRecentItem } from '@/lib/useRecentItems';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
@@ -219,10 +220,19 @@ export default function InvoiceDetailView({
    * when the panel would be empty. Kept here beside the other derived flags
    * rather than inline, where it read as three nested conditions.
    */
+  /**
+   * Whether a partner may commit an order on account terms.
+   *
+   * Not `canApproveInvoices`: that resolves to the user role AND the reseller
+   * role, and every partner-side user role sets its half to false, so no
+   * partner can ever hold it and the button never appeared. Account terms are
+   * the arrangement that grants this; a read-only user still may not use it.
+   */
+  const canProcessOnAccount = payOnAccount && user?.role !== 'viewer';
+
   const hasOrderActions =
     (invoice?.Status === 'Draft' || invoice?.Status === 'Sent') &&
-    ((payOnCard && !!user?.permissions?.canSendInvoices) ||
-      (payOnAccount && !!user?.permissions?.canApproveInvoices));
+    ((payOnCard && !!user?.permissions?.canSendInvoices) || canProcessOnAccount);
 
   // -------------------------------------------------------------------
   // Data fetching
@@ -1219,7 +1229,7 @@ export default function InvoiceDetailView({
             payOnAccount={payOnAccount}
             payOnCard={payOnCard}
             canSend={!!(user?.permissions?.canSendInvoices)}
-            canApprove={!!(user?.permissions?.canApproveInvoices)}
+            canApprove={canProcessOnAccount}
             hasPONumber={!!(invoice.Purchase_Order)}
             hasPOFile={!!uploadResult || !!(invoice.Purchase_Order_Attachment)}
             onRefresh={() => {
@@ -1304,16 +1314,16 @@ export default function InvoiceDetailView({
             <div className="px-5 py-4 border-b border-border-subtle">
               <h2 className="text-base font-bold text-text-primary flex items-center gap-2">
                 {pendingAction === 'approve' ? <CheckCircle2 size={18} className="text-success" /> : <Send size={18} className="text-csa-accent" />}
-                {pendingAction === 'approve' ? 'Approve this order?' : 'Send this order?'}
+                {pendingAction === 'approve'
+                  ? 'Approve this order?'
+                  : status === 'Sent' ? 'Send this order again?' : 'Send this order?'}
               </h2>
             </div>
             <div className="px-5 py-4">
               <p className="text-xs text-text-secondary leading-relaxed">
                 {pendingAction === 'approve'
-                  ? 'Approving generates the licence keys and locks the order — it cannot be edited afterwards.'
-                  : `The order and its licence keys will be emailed to ${invoice.Reseller_Direct_Purchase
-                      ? ((invoice.Reseller as { name?: string } | null)?.name || 'the reseller')
-                      : ((invoice.Contact_Name as { name?: string } | null)?.name || 'the customer')}.`}
+                  ? `Approving generates the licence keys and emails them to ${recipientSentence(invoice)}. The order locks afterwards and cannot be edited.`
+                  : `The order will be emailed to ${recipientSentence(invoice)}${status === 'Sent' ? ' again' : ''}. Licence keys follow when it is paid, not now.`}
               </p>
             </div>
             <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border-subtle">
@@ -1334,7 +1344,9 @@ export default function InvoiceDetailView({
                   pendingAction === 'approve' ? 'bg-success' : 'bg-csa-accent'
                 }`}
               >
-                {pendingAction === 'approve' ? 'Approve Order' : 'Send Order'}
+                {pendingAction === 'approve'
+                  ? 'Approve Order'
+                  : status === 'Sent' ? 'Resend Order' : 'Send Order'}
               </button>
             </div>
           </div>

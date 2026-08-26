@@ -140,8 +140,13 @@ export default function InvoiceHeader({
             </>
           ) : null}
 
-          {/* Approve / Send — only for Draft invoices when not editing */}
-          {!editing && status === 'Draft' ? (() => {
+          {/* Approve / Send — until the order is approved, when not editing.
+              Sent used to be excluded, which left an order that had been
+              emailed for payment with nothing to press: it could not be sent
+              again when the customer said it never arrived, and CSA could not
+              approve it once the money landed. */}
+          {!editing && status !== 'Approved' ? (() => {
+            const alreadySent = status === 'Sent';
             /**
              * Approve here is CSA's override, not a partner action.
              *
@@ -171,11 +176,13 @@ export default function InvoiceHeader({
                   <button
                     onClick={onSend}
                     disabled={approving || sending}
-                    title="Send this order to its recipient"
+                    title={alreadySent ? 'Send this order to its recipient again' : 'Send this order to its recipient'}
                     className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-highlight bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                    {sending ? 'Sending...' : 'Send Order'}
+                    {sending
+                      ? (alreadySent ? 'Resending...' : 'Sending...')
+                      : (alreadySent ? 'Resend Order' : 'Send Order')}
                   </button>
                 ) : null}
               </>

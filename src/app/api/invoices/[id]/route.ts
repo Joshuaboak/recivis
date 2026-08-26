@@ -196,16 +196,28 @@ export async function PATCH(
 
     // Status changes require specific permissions
     if (body.Status) {
-      if (body.Status === 'Approved' && !user.permissions.canApproveInvoices && !isAdmin(user)) {
-        return NextResponse.json({ error: 'You do not have permission to approve invoices' }, { status: 403 });
-      }
-      // Processing an order commits CSA to issuing licence keys before any money
-      // has arrived, which is what account terms are. A partner without them
-      // pays by card or is sent an invoice; they do not get to process their own
-      // orders, and a purchase order is what stands in for the payment.
+      /**
+       * Two ways to be allowed to approve an order, and a partner only ever has
+       * the second.
+       *
+       * `canApproveInvoices` resolves to `user_role.can_approve_invoices AND
+       * reseller_role.can_approve_invoices`, and every partner-side preset sets
+       * the user-role half to false — viewer, standard and manager alike. No
+       * per-reseller override reaches it, because the override only moves the
+       * reseller half. So gating this on that permission alone made processing
+       * an order impossible for every partner, whatever an administrator
+       * toggled on: the button was hidden, and the write would have been
+       * refused if it had somehow been pressed.
+       *
+       * The partner's authority is the arrangement itself: account terms mean
+       * CSA issues keys before the money arrives, and the purchase order stands
+       * in for the payment. That is what `accountTermsDenial` checks.
+       */
       if (body.Status === 'Approved' && !isAdmin(user)) {
         const denial = await accountTermsDenial(existing, id);
-        if (denial) return NextResponse.json({ error: denial }, { status: 403 });
+        if (denial && !user.permissions.canApproveInvoices) {
+          return NextResponse.json({ error: denial }, { status: 403 });
+        }
       }
       if (body.Send_Invoice && !user.permissions.canSendInvoices && !isAdmin(user)) {
         return NextResponse.json({ error: 'You do not have permission to send invoices' }, { status: 403 });

@@ -39,6 +39,7 @@ interface OrderActionsProps {
   /** Card payment: Stripe now, or an emailed invoice to pay later. */
   payOnCard: boolean;
   canSend: boolean;
+  /** Whether this user may commit the order on account terms. */
   canApprove: boolean;
   hasPONumber: boolean;
   hasPOFile: boolean;
@@ -149,6 +150,11 @@ export default function OrderActions({
 
   const closeDialog = () => setDialog(initialDialog);
 
+  // Sending again is fine — /api/invoices/[id]/send resends rather than
+  // no-opping — so the button says which it is doing rather than pretending
+  // the first send never happened.
+  const alreadySent = status === 'Sent';
+
   // ── Pay Now ──────────────────────────────────────────────────────────
 
   const handlePayNow = () => {
@@ -197,9 +203,9 @@ export default function OrderActions({
       step: 1,
       // One step: an invoice can be resent, and nothing is issued by sending it.
       confirmAgain: null,
-      title: 'Send Order for Payment',
-      message: `This emails the invoice to ${recipient} so they can pay it later. It does not process the order — no licence keys are issued until the payment arrives.`,
-      confirmLabel: 'Send Invoice',
+      title: alreadySent ? 'Send the invoice again?' : 'Send Order for Payment',
+      message: `This ${alreadySent ? 'sends the invoice to' : 'emails the invoice to'} ${recipient} ${alreadySent ? 'again' : 'so they can pay it later'}. It does not process the order — no licence keys are issued until the payment arrives.`,
+      confirmLabel: alreadySent ? 'Resend Invoice' : 'Send Invoice',
       confirmColor: 'bg-warning',
       onConfirm: async () => {
         closeDialog();
@@ -306,7 +312,7 @@ export default function OrderActions({
                 className="flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-warning bg-warning/10 border border-warning/30 rounded-xl hover:bg-warning/20 transition-colors cursor-pointer disabled:opacity-40"
               >
                 {loading ? <Loader2 size={14} className="animate-spin" /> : <Clock size={14} />}
-                Pay Later
+                {alreadySent ? 'Resend Invoice' : 'Pay Later'}
               </button>
               <button
                 onClick={handlePayNow}
