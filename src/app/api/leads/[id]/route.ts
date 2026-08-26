@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
-import { NOT_YOURS, requireRecordAccess } from '@/lib/record-access';
+import { NOT_YOURS, fetchRecord, requireRecordAccess } from '@/lib/record-access';
 
 // --- OAuth Token Management (same pattern as attach-file) ---
 
@@ -45,6 +45,23 @@ async function getAccessToken(): Promise<string> {
   cachedToken = { token, expiresAt: Date.now() + 3600 * 1000 };
   log('info', 'auth', 'Got Zoho access token for lead conversion');
   return token;
+}
+
+/**
+ * A record id out of whatever Zoho put in a conversion result slot.
+ *
+ * The slot holds a bare id, a `{ id, name }` lookup, or null depending on the
+ * shape of the day. Anything else is not an id and must not be treated as one:
+ * an object stringifies to `[object Object]`, which is what ended up in the
+ * portal's URL bar.
+ */
+function recordId(value: unknown): string | null {
+  if (typeof value === 'string' && value) return value;
+  if (value && typeof value === 'object') {
+    const id = (value as { id?: unknown }).id;
+    if (typeof id === 'string' && id) return id;
+  }
+  return null;
 }
 
 /**
@@ -288,6 +305,14 @@ export async function POST(
   const denied = await requireRecordAccess(user, 'Leads', id, NOT_YOURS);
   if (denied) return denied;
 
+  // Read before the conversion, because afterwards the lead is converted and
+  // the partner on it is the only thing that says who the new prospect belongs
+  // to. Whether Zoho's field mapping carries Reseller across is configuration,
+  // not something this route can rely on — and a prospect with no partner is
+  // one its own partner cannot open, since an unowned record is denied.
+  const lead = await fetchRecord('Leads', id);
+  const leadResellerId = (lead?.Reseller as { id?: string } | null)?.id || null;
+
   try {
     const body = await request.json().catch(() => ({}));
 
@@ -347,15 +372,15 @@ export async function POST(
 
     // Parse the conversion result.
     //
-    // Zoho returns the new record ids under `details` on this action, and the
-    // older shape put them at the top level. Reading only the top level meant
-    // `accountId` came back null from a conversion that had in fact succeeded,
-    // and the UI reported "Conversion failed" over a converted lead — so the
-    // next click tried to convert it again.
+    // Zoho has three shapes here between versions and modules: the ids sit
+    // under `details` or at the top level, and each is either a bare id string
+    // or a `{ id, name }` lookup object. Reading only the top level returned
+    // null from a conversion that had succeeded; reading only the string form
+    // returned the object, which reached the URL as `[object Object]`.
     const conversionResult = data?.data?.[0] || data;
     const ids = (conversionResult?.details ?? conversionResult) as Record<string, unknown>;
-    const accountId = (ids?.Accounts as string) || null;
-    const contactId = (ids?.Contacts as string) || null;
+    const accountId = recordId(ids?.Accounts);
+    const contactId = recordId(ids?.Contacts);
 
     if (!accountId) {
       // Zoho accepted it, so the lead is converted whatever we can see. Saying
@@ -369,14 +394,46 @@ export async function POST(
         accountId: null,
         contactId,
         warning:
-          'The lead was converted, but the new customer could not be opened automatically. Find them under Accounts.',
+          'The lead was converted, but the new prospect could not be opened automatically. Find them on the Leads page.',
         data: conversionResult,
+      });
+    }
+
+    // Zoho's convert action makes a plain Account. The portal calls this a
+    // prospect — a customer who has been through a trial but not yet ordered —
+    // and that is a field on the record, `Account_Type`, not a separate module.
+    // Left unset, the new record dropped off the Leads page entirely and turned
+    // up under Accounts as though it had already bought something.
+    //
+    // Done after the conversion rather than as part of it because the convert
+    // action takes flags, not field values.
+    let accountTypeSet = true;
+    try {
+      await executeZohoTool('update_records', {
+        module: 'Accounts',
+        records: [{
+          id: accountId,
+          Account_Type: 'Prospect',
+          // Same value Zoho's mapping would have set, when it sets one.
+          ...(leadResellerId ? { Reseller: { id: leadResellerId } } : {}),
+        }],
+        trigger: [],
+      });
+    } catch (err) {
+      // The conversion itself stands. Worth saying so rather than throwing,
+      // because a failure here is a record filed in the wrong list, not a
+      // record that does not exist.
+      accountTypeSet = false;
+      log('warn', 'api', `Converted lead ${id} but could not set Account_Type/Reseller`, {
+        accountId,
+        error: err instanceof Error ? err.message : String(err),
       });
     }
 
     log('info', 'api', `Lead ${id} converted`, {
       accountId,
       contactId,
+      accountTypeSet,
       user: user.email,
     });
 
@@ -384,6 +441,12 @@ export async function POST(
       success: true,
       accountId,
       contactId,
+      ...(accountTypeSet
+        ? {}
+        : {
+            warning:
+              'The lead was converted, but it could not be marked as a prospect. It will show under Accounts rather than Leads.',
+          }),
       data: conversionResult,
     });
   } catch (error) {

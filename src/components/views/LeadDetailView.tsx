@@ -850,16 +850,19 @@ export default function LeadDetailView({
                         </p>
                       </div>
                     </div>
-                    {/* No id to link to when the reply did not carry one; the
-                        message above says where to find them instead. */}
+                    {/* Zoho made an Account; the portal calls it a prospect and
+                        shows it on this same view under ?source=prospect. Linking
+                        to the account page sent people somewhere the record does
+                        not appear as what they just made. No id means no link —
+                        the message above says where to look instead. */}
                     <GuardedLink
                       href={convertResult.accountId
-                        ? buildPath('account-detail', convertResult.accountId)
-                        : buildPath('accounts')}
+                        ? `${buildPath('lead-detail', convertResult.accountId)}?source=prospect`
+                        : buildPath('leads')}
                       className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
                     >
                       <ExternalLink size={14} />
-                      {convertResult.accountId ? 'View Account' : 'Open Accounts'}
+                      {convertResult.accountId ? 'View Prospect' : 'Open Leads'}
                     </GuardedLink>
                   </div>
                 ) : (
