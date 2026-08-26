@@ -76,7 +76,7 @@ export async function GET(
                 perm_view_all_records, perm_view_child_records, perm_modify_prices,
                 perm_upload_po, perm_view_reports, perm_export_data,
                 perm_create_evaluations, perm_max_evaluations_per_account, perm_extend_evaluations,
-                perm_direct_customer_comms, perm_monthly_subscriptions
+                perm_direct_customer_comms, perm_monthly_subscriptions, perm_convert_leads
          FROM resellers WHERE id IN (${dbPlaceholders}) LIMIT 1`,
         dbLookupIds
       );
@@ -208,24 +208,30 @@ export async function PATCH(
         values.push(reseller_role_id);
       }
 
-      const permCols = [
-        'perm_create_invoices', 'perm_approve_invoices', 'perm_send_invoices',
-        'perm_view_all_records', 'perm_view_child_records', 'perm_modify_prices',
-        'perm_upload_po', 'perm_view_reports', 'perm_export_data',
-        'perm_create_evaluations', 'perm_extend_evaluations', 'perm_direct_customer_comms',
-        'perm_monthly_subscriptions',
+      // Paired, not two parallel lists indexed against each other. As two
+      // lists they drifted: `can_convert_leads` was added to the keys and not
+      // to the columns, and since the loop ran to the shorter of the two it
+      // fell off the end. Toggling Convert Leads in the portal wrote nothing
+      // and reported success.
+      const PERM_OVERRIDES: ReadonlyArray<readonly [column: string, key: string]> = [
+        ['perm_create_invoices', 'can_create_invoices'],
+        ['perm_approve_invoices', 'can_approve_invoices'],
+        ['perm_send_invoices', 'can_send_invoices'],
+        ['perm_view_all_records', 'can_view_all_records'],
+        ['perm_view_child_records', 'can_view_child_records'],
+        ['perm_modify_prices', 'can_modify_prices'],
+        ['perm_upload_po', 'can_upload_po'],
+        ['perm_view_reports', 'can_view_reports'],
+        ['perm_export_data', 'can_export_data'],
+        ['perm_create_evaluations', 'can_create_evaluations'],
+        ['perm_extend_evaluations', 'can_extend_evaluations'],
+        ['perm_direct_customer_comms', 'can_direct_customer_comms'],
+        ['perm_monthly_subscriptions', 'can_monthly_subscriptions'],
+        ['perm_convert_leads', 'can_convert_leads'],
       ];
-      const permKeys = [
-        'can_create_invoices', 'can_approve_invoices', 'can_send_invoices',
-        'can_view_all_records', 'can_view_child_records', 'can_modify_prices',
-        'can_upload_po', 'can_view_reports', 'can_export_data',
-        'can_create_evaluations', 'can_extend_evaluations', 'can_direct_customer_comms',
-        'can_monthly_subscriptions',
-        'can_convert_leads',
-      ];
-      for (let i = 0; i < permCols.length; i++) {
-        updates.push(`${permCols[i]} = $${paramIdx++}`);
-        values.push(toNullableBool(permOverrides[permKeys[i]]));
+      for (const [column, key] of PERM_OVERRIDES) {
+        updates.push(`${column} = $${paramIdx++}`);
+        values.push(toNullableBool(permOverrides[key]));
       }
 
       // max_evaluations_per_account — integer, null = use role default
@@ -321,8 +327,9 @@ export async function POST(
     await query(
       `INSERT INTO resellers (id, name, email, region, currency, partner_category, direct_customer_contact, distributor_id, reseller_role_id, is_active,
        perm_create_invoices, perm_approve_invoices, perm_send_invoices, perm_view_all_records, perm_view_child_records, perm_modify_prices, perm_upload_po, perm_view_reports, perm_export_data,
-       perm_create_evaluations, perm_max_evaluations_per_account, perm_extend_evaluations, perm_direct_customer_comms, perm_monthly_subscriptions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
+       perm_create_evaluations, perm_max_evaluations_per_account, perm_extend_evaluations, perm_direct_customer_comms, perm_monthly_subscriptions,
+       perm_convert_leads)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)`,
       [
         id, name, email || null, region || null, currency || null, partner_category || null,
         !!direct_customer_contact, distributor_id || null, reseller_role_id,
@@ -340,6 +347,8 @@ export async function POST(
         toNullableBool(permOverrides.can_extend_evaluations),
         toNullableBool(permOverrides.can_direct_customer_comms),
         toNullableBool(permOverrides.can_monthly_subscriptions),
+        // Was passed as a 24th value against 23 placeholders, so Postgres
+        // ignored it and a Convert Leads choice made at registration was lost.
         toNullableBool(permOverrides.can_convert_leads),
       ]
     );

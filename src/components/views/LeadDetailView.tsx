@@ -156,6 +156,8 @@ export default function LeadDetailView({
   const { registerDirty } = useUnsavedChanges();
 
   const [loading, setLoading] = useState(true);
+  /** Why the record did not load, in the words the route used. */
+  const [loadError, setLoadError] = useState('');
   const [lead, setLead] = useState<Record<string, unknown> | null>(null);
   const [account, setAccount] = useState<Record<string, unknown> | null>(null);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
@@ -277,16 +279,31 @@ export default function LeadDetailView({
     if (!leadId) return;
     setLoading(true);
 
+    setLoadError('');
+
     const fetchAs = (s: 'lead' | 'prospect') =>
-      fetch(`/api/leads/${leadId}?source=${s}`).then(res => res.json());
+      fetch(`/api/leads/${leadId}?source=${s}`).then(async res => ({
+        ok: res.ok,
+        data: await res.json(),
+      }));
 
     // Without a `?source=` param the module is unknown. Ask the Leads
     // module first; a prospect id has no lead record, so an empty answer
     // means the record lives in Accounts.
     (async () => {
       try {
-        let data = await fetchAs(initialSource || 'lead');
-        if (!initialSource && !data?.lead) data = await fetchAs('prospect');
+        let result = await fetchAs(initialSource || 'lead');
+        if (!initialSource && !result.data?.lead) result = await fetchAs('prospect');
+        const { ok, data } = result;
+
+        // A refusal and a missing record are different things, and the route
+        // says which. Rendering both as "not found" sends somebody looking for
+        // a record that is there and simply is not theirs.
+        if (!ok) {
+          setLoadError(data?.error || 'This record could not be loaded. Try again.');
+          setLoading(false);
+          return;
+        }
 
         setSource(data.source || initialSource || 'lead');
         if (data.source === 'prospect') {
@@ -299,7 +316,9 @@ export default function LeadDetailView({
         } else {
           setLead(data.lead);
         }
-      } catch { /* handled by the not-found states below */ }
+      } catch {
+        setLoadError('This record could not be loaded. Try again.');
+      }
       setLoading(false);
     })();
   }, [leadId, initialSource]);
@@ -536,7 +555,7 @@ export default function LeadDetailView({
     if (!editRecord) {
       return (
         <div className="flex flex-col items-center justify-center h-full gap-3">
-          <p className="text-text-muted">{source === 'prospect' ? 'Prospect' : 'Lead'} not found</p>
+          <p className="text-text-muted max-w-md text-center">{loadError || 'This record could not be found.'}</p>
           <button onClick={goBack} className="text-csa-accent text-sm cursor-pointer">Back to Leads</button>
         </div>
       );
@@ -672,7 +691,7 @@ export default function LeadDetailView({
     if (!lead) {
       return (
         <div className="flex flex-col items-center justify-center h-full gap-3">
-          <p className="text-text-muted">Lead not found</p>
+          <p className="text-text-muted max-w-md text-center">{loadError || 'This record could not be found.'}</p>
           <button onClick={goBack} className="text-csa-accent text-sm cursor-pointer">Back to Leads</button>
         </div>
       );
@@ -981,7 +1000,7 @@ export default function LeadDetailView({
   if (!account) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
-        <p className="text-text-muted">Prospect not found</p>
+        <p className="text-text-muted max-w-md text-center">{loadError || 'This record could not be found.'}</p>
         <button onClick={goBack} className="text-csa-accent text-sm cursor-pointer">Back to Leads</button>
       </div>
     );

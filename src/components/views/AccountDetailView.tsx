@@ -78,6 +78,8 @@ export default function AccountDetailView({
   const [archivedAssets, setArchivedAssets] = useState<Record<string, unknown>[]>([]);
   const [invoices, setInvoices] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
+  /** Why the record did not load, in the words the route used. */
+  const [loadError, setLoadError] = useState('');
   const [contactPage, setContactPage] = useState(1);
   const contactPageSize = 10;
 
@@ -166,10 +168,20 @@ export default function AccountDetailView({
   useEffect(() => {
     if (!accountId) return;
     setLoading(true);
+    setLoadError('');
 
     fetch(`/api/accounts/${accountId}`)
-      .then(res => res.json())
-      .then(data => {
+      .then(async res => ({ ok: res.ok, data: await res.json() }))
+      .then(({ ok, data }) => {
+        if (!ok || !data.account) {
+          // The route distinguishes a record that is not there from one this
+          // partner may not see, and says which. Throwing all of that away and
+          // rendering "Account not found" turned every refusal — and every
+          // outage — into a missing customer, which is the one explanation that
+          // sends somebody looking in the wrong place.
+          setLoadError(data.error || 'This customer could not be loaded. Try again.');
+          return;
+        }
         setAccount(data.account);
         setContacts(data.contacts || []);
         setEvaluationAssets(data.evaluationAssets || []);
@@ -177,7 +189,7 @@ export default function AccountDetailView({
         setArchivedAssets(data.archivedAssets || []);
         setInvoices(data.invoices || []);
       })
-      .catch(() => {})
+      .catch(() => setLoadError('This customer could not be loaded. Try again.'))
       .finally(() => setLoading(false));
   }, [accountId]);
 
@@ -559,8 +571,8 @@ export default function AccountDetailView({
 
   if (!account) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3">
-        <p className="text-text-muted">Account not found</p>
+      <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center">
+        <p className="text-text-muted max-w-md">{loadError || 'Account not found'}</p>
         <button onClick={goBack} className="text-csa-accent text-sm cursor-pointer">Back to Accounts</button>
       </div>
     );
