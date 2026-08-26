@@ -11,6 +11,8 @@
  * a rule.
  */
 
+import { MONTHLY_SUBSCRIPTION_TAG } from './subscriptions';
+
 /** The fields a renewal decision is made from, however they were fetched. */
 export interface RenewabilityInput {
   /** Superseded by a newer licence. */
@@ -19,6 +21,15 @@ export interface RenewabilityInput {
   revokedReason?: string | null;
   evaluation?: boolean;
   educational?: boolean;
+  /**
+   * A rolling 30-day subscription, marked by the Monthly Subscription tag.
+   *
+   * These are renewed by charging the next month through the subscription
+   * flow, not by raising a renewal invoice — the two are different billing
+   * events, and putting a monthly licence on a renewal invoice bills a year
+   * for something sold by the month.
+   */
+  monthlySubscription?: boolean;
   /** Product name — some categories are only identifiable from it. */
   productName?: string;
 }
@@ -33,6 +44,9 @@ export interface RenewabilityInput {
 export function renewalBlockReason(asset: RenewabilityInput): string | null {
   if (asset.upgraded) return 'Upgraded assets are not eligible for renewal';
   if (asset.revoked) return `Revoked: ${asset.revokedReason || 'No reason provided'}`;
+  if (asset.monthlySubscription) {
+    return 'Monthly subscriptions are renewed monthly, not by renewal invoice';
+  }
 
   const name = (asset.productName || '').toLowerCase();
   if (asset.evaluation || name.includes('evaluation')) {
@@ -63,7 +77,25 @@ export function renewabilityOf(asset: Record<string, unknown>): RenewabilityInpu
     revokedReason: (asset.Revoked_Reason as string) || null,
     evaluation: !!asset.Evaluation_License,
     educational: !!asset.Educational_License,
+    monthlySubscription: assetTags(asset).includes(MONTHLY_SUBSCRIPTION_TAG),
     productName:
       (asset.Product as { name?: string } | null)?.name || (asset.Name as string) || '',
   };
+}
+
+/**
+ * Tag names off a raw asset.
+ *
+ * Zoho returns tags as objects, but some callers hand this plain strings, so
+ * both are read rather than assuming the shape of the day.
+ */
+export function assetTags(asset: Record<string, unknown>): string[] {
+  const tags = asset.Tag;
+  if (!Array.isArray(tags)) return [];
+  return tags.map(t => (typeof t === 'string' ? t : (t as { name?: string })?.name || ''));
+}
+
+/** True when this asset is a rolling monthly subscription. */
+export function isMonthlySubscription(asset: Record<string, unknown>): boolean {
+  return assetTags(asset).includes(MONTHLY_SUBSCRIPTION_TAG);
 }

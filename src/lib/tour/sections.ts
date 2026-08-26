@@ -592,8 +592,9 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'Monthly subscriptions',
         body:
           'Create Monthly Subscription issues a licence that runs 30 days and renews ' +
-          '30 at a time. Renew Monthly extends all of them at once. Both make you ' +
-          'tick who is billing you and for how much.',
+          '30 at a time. Renew All Monthly Licences extends every one; tick some ' +
+          'instead and press Renew Selected Monthly Assets. Both ask who is billing ' +
+          'you and how much.',
         requires: ['canMonthlySubscriptions'],
       },
     ],

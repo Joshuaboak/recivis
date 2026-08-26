@@ -15,6 +15,14 @@ describe('renewalBlockReason', () => {
     expect(isRenewable({ productName: 'Civil Site Design Pro' })).toBe(true);
   });
 
+  it('refuses a monthly subscription, which is renewed by the month', () => {
+    // Not an exclusion so much as a different billing event: on a renewal
+    // invoice a monthly licence would be charged for a year.
+    expect(renewalBlockReason({ monthlySubscription: true, productName: 'Civil Site Design' }))
+      .toBe('Monthly subscriptions are renewed monthly, not by renewal invoice');
+    expect(isRenewable({ monthlySubscription: true })).toBe(false);
+  });
+
   it('refuses one that has been upgraded', () => {
     expect(renewalBlockReason({ upgraded: true, productName: 'Stringer Topo' }))
       .toBe('Upgraded assets are not eligible for renewal');
@@ -92,8 +100,16 @@ describe('renewabilityOf', () => {
       revokedReason: null,
       evaluation: false,
       educational: false,
+      monthlySubscription: false,
       productName: 'Civil Site Design',
     });
+  });
+
+  it('reads the Monthly Subscription tag, in either shape Zoho returns', () => {
+    expect(renewabilityOf({ Tag: [{ name: 'Monthly Subscription' }] }).monthlySubscription).toBe(true);
+    expect(renewabilityOf({ Tag: ['Monthly Subscription'] }).monthlySubscription).toBe(true);
+    expect(renewabilityOf({ Tag: [{ name: 'Perpetual Purchase Plan' }] }).monthlySubscription).toBe(false);
+    expect(renewabilityOf({}).monthlySubscription).toBe(false);
   });
 
   it('falls back to the record name when there is no product', () => {

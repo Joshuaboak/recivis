@@ -41,7 +41,7 @@ import CreateEvaluationModal from '../CreateEvaluationModal';
 import CreateEvaluationButton from '../CreateEvaluationButton';
 import CreateMonthlySubscriptionModal from '../CreateMonthlySubscriptionModal';
 import RenewMonthlySubscriptionsModal, { type RenewableSubscription } from '../RenewMonthlySubscriptionsModal';
-import { isRenewable, renewalBlockReason, renewabilityOf } from '@/lib/renewal-eligibility';
+import { isRenewable, isMonthlySubscription, renewalBlockReason, renewabilityOf } from '@/lib/renewal-eligibility';
 import { AssetSubscriptionBadges } from '@/components/SubscriptionBadges';
 import { MONTHLY_SUBSCRIPTION_TAG, PERPETUAL_PLAN_TAG } from '@/lib/subscriptions';
 import EmailHistory from '../EmailHistory';
@@ -271,6 +271,31 @@ export default function AccountDetailView({
 
   const allAssetIds = [...activeAssets, ...archivedAssets].map(a => a.id as string);
   const allAssetsMap = Object.fromEntries([...activeAssets, ...archivedAssets].map(a => [a.id as string, a]));
+
+  /**
+   * The selection, split by how the licence is billed.
+   *
+   * A monthly subscription is renewed by charging the next month; everything
+   * else is renewed by raising a renewal invoice. They are different acts on
+   * different billing cycles, so the two buttons are offered one at a time —
+   * and a selection holding both gets neither, with a line saying why, rather
+   * than a button that would do the wrong thing to half of it.
+   */
+  const selectedRecords = Array.from(selectedAssets)
+    .map(id => allAssetsMap[id])
+    .filter(Boolean);
+  const selectedMonthly = selectedRecords.filter(isMonthlySubscription);
+  const selectedNonMonthly = selectedRecords.filter(a => !isMonthlySubscription(a));
+  const selectionIsMixed = selectedMonthly.length > 0 && selectedNonMonthly.length > 0;
+
+  /** The selected monthly assets, in the shape the renewal modal takes. */
+  const selectedMonthlySubscriptions: RenewableSubscription[] = selectedMonthly.map(a => ({
+    id: a.id as string,
+    label: (a.Product as { name?: string } | null)?.name || (a.Name as string) || 'Subscription',
+    productCode: (a.Product_Code as string) || '',
+    perpetualPlan: assetTagNames(a).includes(PERPETUAL_PLAN_TAG),
+    quantity: Number(a.Quantity) || 1,
+  }));
 
   // Check if any selected asset is ineligible for renewal
   const selectedIneligible = Array.from(selectedAssets)
@@ -1227,7 +1252,7 @@ export default function AccountDetailView({
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
                   >
                     <RefreshCw size={13} />
-                    Renew Monthly ({monthlySubscriptions.length})
+                    Renew All Monthly Licences
                   </button>
                 )}
                 <button
@@ -1242,6 +1267,31 @@ export default function AccountDetailView({
             ) : null}
             {selectedAssets.size > 0 ? (
               <div className="flex items-center gap-2">
+                {/* A mixed selection gets neither renewal button. Saying so
+                    beats leaving the toolbar looking short of an option. */}
+                {selectionIsMixed && (
+                  <p className="text-[10px] text-warning max-w-[15rem] leading-relaxed">
+                    Monthly subscriptions and other licences renew differently. Select one kind or
+                    the other to renew.
+                  </p>
+                )}
+
+                {/* Monthly: charge the next month through the subscription flow. */}
+                {!selectionIsMixed && selectedMonthly.length > 0 && user?.permissions?.canMonthlySubscriptions && (
+                  <button
+                    onClick={() => setRenewingSubscriptions(selectedMonthlySubscriptions)}
+                    disabled={sendingKeys}
+                    className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw size={14} />
+                    Renew Selected Monthly Assets ({selectedMonthly.length})
+                  </button>
+                )}
+
+                {/* Everything else: raise a renewal invoice. Hidden entirely
+                    for a monthly selection — a monthly licence on a renewal
+                    invoice bills a year for something sold by the month. */}
+                {!selectionIsMixed && selectedNonMonthly.length > 0 && (
                 <div className="relative group">
                   <button
                     onClick={generateRenewal}
@@ -1261,6 +1311,7 @@ export default function AccountDetailView({
                     </div>
                   )}
                 </div>
+                )}
                 <button
                   onClick={() => setSendKeysConfirm('reseller')}
                   disabled={sendingKeys || generatingRenewal}

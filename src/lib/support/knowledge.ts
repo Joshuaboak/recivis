@@ -165,9 +165,12 @@ export const HELP_TOPICS: HelpTopic[] = [
       'Orders: every order raised for them, and New Product Order to raise another. ' +
       'Evaluations: their trial licences, with Create Evaluation. ' +
       'Active Assets: the licences they currently hold, where you can tick licences and ' +
-      'press Generate Renewal, press Create Monthly Subscription, press Renew Monthly to ' +
-      'renew their rolling subscriptions in one go, and send licence keys out again with ' +
-      'Send Keys to Reseller or Send Keys to Customer. ' +
+      'press Generate Renewal, press Create Monthly Subscription, press Renew All Monthly ' +
+      'Licences to extend their rolling subscriptions in one go or tick some and press ' +
+      'Renew Selected Monthly Assets, and send licence keys out again with ' +
+      'Send Keys to Reseller or Send Keys to Customer. Monthly subscriptions renew by the ' +
+      'month rather than by renewal order, so Generate Renewal does not apply to them and ' +
+      'a selection cannot mix the two. ' +
       'Archived Assets: expired and superseded licences, kept for history. ' +
       'Each table has an export button if you have the export permission. Which buttons ' +
       'appear depends on your permissions.',
@@ -349,9 +352,10 @@ export const HELP_TOPICS: HelpTopic[] = [
       'on a perpetual purchase plan, which costs more per month and works towards owning ' +
       'the licence outright. Renewing extends by 30 days: a subscription still in date ' +
       'extends from its existing renewal date, one that has lapsed extends from today. ' +
-      'Renew one at a time from the Monthly Subscriptions list, or a whole customer at ' +
-      'once with Renew Monthly on their record. The whole feature only appears if your ' +
-      'partner account has monthly subscriptions enabled.',
+      'Renew one at a time from the Monthly Subscriptions list, a chosen few by ticking ' +
+      'them on a customer record and pressing Renew Selected Monthly Assets, or a whole ' +
+      'customer at once with Renew All Monthly Licences. The whole feature only appears ' +
+      'if your partner account has monthly subscriptions enabled.',
   },
 
   // ── Coupons ─────────────────────────────────────────────────────────────
