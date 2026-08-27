@@ -41,13 +41,15 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { CURRENCIES as SUPPORTED_CURRENCIES } from '@/lib/constants';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import { useDraft } from '@/lib/useDraft';
 import { DraftRestoreBar } from '@/components/DraftRestoreBar';
 import SKUBuilder from '../SKUBuilder';
 
-const CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'INR', 'NZD'];
+// From lib/constants so the list cannot drift per view — it already had.
+const CURRENCIES = SUPPORTED_CURRENCIES;
 
 /** Shown on /accounts when this view is opened without an account context. */
 const NO_CONTEXT_MESSAGE = 'Pick an account to start an order';
@@ -117,8 +119,23 @@ export default function CreateInvoiceView() {
   }, [registerDirty, isDirty]);
 
   const [resellerPercentage, setResellerPercentage] = useState<number | null>(null);
+  /**
+   * Whether this order goes to the partner rather than to the end customer.
+   *
+   * The same flag the order page shows as "Order and Licence Keys will be sent
+   * to", and it comes from the partner's own record: a partner whose
+   * Direct_Customer_Contact is false does not deal with customers directly, so
+   * everything goes via them.
+   *
+   * This was never set at all when an order was created, so every new order
+   * arrived with the flag absent — which the order page reads as Customer. A
+   * partner set up to receive everything themselves saw their orders addressed
+   * to their customer, and the prices were the reseller ones regardless, so the
+   * two halves of the same decision disagreed.
+   */
+  const [resellerDirect, setResellerDirect] = useState<boolean | null>(null);
 
-  // Fetch reseller currency and percentage on load
+  // Fetch reseller currency, percentage and routing on load
   useEffect(() => {
     if (!resellerData?.id) return;
     fetch(`/api/resellers/${resellerData.id}`)
@@ -129,6 +146,7 @@ export default function CreateInvoiceView() {
         if (reseller?.Region) setResellerRegion(reseller.Region);
         const pct = reseller?.Reseller_Sale;
         if (pct != null) setResellerPercentage(Number(pct));
+        setResellerDirect(!reseller?.Direct_Customer_Contact);
       })
       .catch(() => {});
   }, [resellerData?.id]);
@@ -182,8 +200,12 @@ export default function CreateInvoiceView() {
   };
 
   const handleProductSelect = (index: number, product: { id: string; name: string; sku: string; unitPrice: number }) => {
-    // Apply reseller discount if applicable (reseller pays 100% - commission%)
-    const discountedPrice = resellerPercentage != null
+    // The reseller discount applies when the reseller is the one buying, which
+    // is what `resellerDirect` says. It used to be applied to every order
+    // regardless, so an order addressed to the end customer still carried the
+    // partner's discounted price — the order page's send-to toggle reprices on
+    // exactly this rule, so the two disagreed until somebody touched it.
+    const discountedPrice = resellerDirect && resellerPercentage != null
       ? Math.round(product.unitPrice * (100 - resellerPercentage) / 100 * 100) / 100
       : product.unitPrice;
 
@@ -243,6 +265,8 @@ export default function CreateInvoiceView() {
         Invoice_Type: 'New Product',
         Currency: currency,
         Reseller_Region: skuRegion,
+        // Absent before, so every new order read as "send to customer".
+        Reseller_Direct_Purchase: resellerDirect ?? false,
         Send_Invoice: false,
         Don_t_Make_Keys: false,
         Automatically_Send_Email: false,

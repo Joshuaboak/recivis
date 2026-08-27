@@ -40,8 +40,14 @@ export const REGION_LABELS: Record<string, string> = {
 // Currencies and partner categories
 // ============================================================
 
-/** Supported invoice currencies. */
-export const CURRENCIES = ['AUD', 'USD', 'EUR', 'INR', 'GBP', 'NZD'] as const;
+/**
+ * Supported invoice currencies.
+ *
+ * The four the CRM actually holds. GBP and NZD were offered here and are not
+ * currencies CSA trades in — neither exists in Zoho, so an order raised in one
+ * had no exchange rate to convert by. New Zealand partners are invoiced in AUD.
+ */
+export const CURRENCIES = ['AUD', 'USD', 'EUR', 'INR'] as const;
 
 /** Valid partner category values in Zoho CRM. */
 export const PARTNER_CATEGORIES = [

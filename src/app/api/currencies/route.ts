@@ -63,8 +63,6 @@ export async function GET(request: NextRequest) {
         { code: 'AUD', symbol: '$', rate: 1, name: 'Australian Dollar' },
         { code: 'USD', symbol: 'US$', rate: 0.65, name: 'US Dollar' },
         { code: 'EUR', symbol: '€', rate: 0.60, name: 'Euro' },
-        { code: 'GBP', symbol: '£', rate: 0.52, name: 'British Pound' },
-        { code: 'NZD', symbol: 'NZ$', rate: 1.10, name: 'New Zealand Dollar' },
         { code: 'INR', symbol: '₹', rate: 54, name: 'Indian Rupee' },
       ]
     });

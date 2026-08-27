@@ -37,11 +37,12 @@ describe('Constants', () => {
     expect(REGION_LABELS).toHaveProperty('AF');
   });
 
-  it('CURRENCIES includes major currencies', () => {
-    expect(CURRENCIES).toContain('AUD');
-    expect(CURRENCIES).toContain('USD');
-    expect(CURRENCIES).toContain('EUR');
-    expect(CURRENCIES.length).toBeGreaterThanOrEqual(4);
+  it('CURRENCIES is the four the CRM holds, and nothing we do not trade in', () => {
+    // Zoho has exactly these four with exchange rates. GBP and NZD were offered
+    // and had no rate to convert by; NZ partners are invoiced in AUD.
+    expect([...CURRENCIES]).toEqual(['AUD', 'USD', 'EUR', 'INR']);
+    expect(CURRENCIES).not.toContain('GBP');
+    expect(CURRENCIES).not.toContain('NZD');
   });
 
   it('PARTNER_CATEGORIES includes base types', () => {

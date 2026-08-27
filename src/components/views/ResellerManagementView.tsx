@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { CURRENCIES as SUPPORTED_CURRENCIES } from '@/lib/constants';
 import { useTrackRecentItem } from '@/lib/useRecentItems';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
@@ -69,7 +70,8 @@ const ALL_ROLES = [
 const MANAGER_ROLES = ['viewer', 'standard', 'manager'];
 const REGION_LABELS: Record<string, string> = { AU: 'Australia', EU: 'Europe', NA: 'North America', AS: 'Asia', NZ: 'New Zealand', WW: 'Worldwide', AF: 'Africa' };
 const REGIONS = Object.entries(REGION_LABELS);
-const CURRENCIES = ['AUD', 'USD', 'EUR', 'INR', 'GBP', 'NZD'];
+// From lib/constants so the list cannot drift per view — it already had.
+const CURRENCIES = SUPPORTED_CURRENCIES;
 const PARTNER_CATEGORIES = ['Reseller', 'Distributor', 'Distributor/Reseller', 'Affiliate', 'Platinum Partner'];
 
 // Permission definitions for the toggle UI

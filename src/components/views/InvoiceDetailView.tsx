@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
+import { CURRENCIES as SUPPORTED_CURRENCIES } from '@/lib/constants';
 import { recipientSentence } from '@/lib/order-recipients';
 import type { OrderAttachment } from '../invoice/InvoicePurchaseOrder';
 import { useTrackRecentItem } from '@/lib/useRecentItems';
@@ -64,7 +65,8 @@ const STATUS_OPTIONS = ['Draft', 'Approved', 'Sent'];
 /** Mirrors the local `CURRENCIES` const in CreateInvoiceView — that one is not
  *  exported, so the list is duplicated here. Worth factoring into one shared
  *  const if a third view ever needs it. */
-const CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'INR', 'NZD'];
+// From lib/constants so the list cannot drift per view — it already had.
+const CURRENCIES = SUPPORTED_CURRENCIES;
 
 /**
  * Line items keyed for comparison, with the edit-only `_originalPrice`
@@ -1022,7 +1024,12 @@ export default function InvoiceDetailView({
                   <div className="relative">
                     <select value={formCurrency} onChange={e => setFormCurrency(e.target.value)}
                       className="w-full bg-surface border-2 border-border-subtle px-4 py-2.5 text-sm text-text-primary outline-none focus:border-csa-accent rounded-xl appearance-none cursor-pointer pr-10">
-                      {(CURRENCIES.includes(formCurrency) || !formCurrency ? CURRENCIES : [formCurrency, ...CURRENCIES]).map(c => (
+                      {/* An order already in a currency we no longer offer keeps
+                          it as an option, so opening that order does not silently
+                          reprice it to the first item in the list. */}
+                      {((CURRENCIES as readonly string[]).includes(formCurrency) || !formCurrency
+                        ? [...CURRENCIES]
+                        : [formCurrency, ...CURRENCIES]).map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>
