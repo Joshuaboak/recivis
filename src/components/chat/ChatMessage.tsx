@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Bot, User, ExternalLink, CheckCircle, Pencil, X, Plus, Trash2 } from 'lucide-react';
+import { Bot, User, CheckCircle, Pencil, X, Plus, Trash2 } from 'lucide-react';
 import type { ChatMessage } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
 import LineItemForm from './LineItemForm';
@@ -9,13 +9,25 @@ import DataForm, { parseFieldList } from './DataForm';
 import POAttachment from './POAttachment';
 import { GuardedLink } from '@/components/GuardedLink';
 
-/** Extract invoice ID from message — only when PO was SET or invoice CREATED (not when asking) */
+/**
+ * The order id in a message, when that message is one the PO drop zone belongs
+ * under — a created order or a set PO number, not a question about one.
+ *
+ * Both link shapes are read. The assistant used to name an order only by its
+ * CRM URL, and that URL is what this looked for; it links to the portal now, so
+ * a portal path has to count as well or the drop zone would vanish the moment
+ * the links changed.
+ */
+const ORDER_ID_PATTERNS = [
+  /\/orders\/(\d+)/i,   // portal path — what the assistant emits now
+  /\/Invoices\/(\d+)/,  // CRM URL — older replies, and CSA staff
+];
+
 function detectInvoiceForAttachment(content: string): string | null {
   const lower = content.toLowerCase();
 
-  // Must have an invoice link AND indicate the PO was set or invoice was created
-  const hasInvoiceLink = /\/Invoices\/\d+/.test(content);
-  if (!hasInvoiceLink) return null;
+  const linkMatch = ORDER_ID_PATTERNS.map(re => content.match(re)).find(Boolean);
+  if (!linkMatch) return null;
 
   const poWasSet = (
     lower.includes('po number has been') ||
@@ -32,8 +44,7 @@ function detectInvoiceForAttachment(content: string): string | null {
   if (isAsking && !poWasSet) return null;
   if (!poWasSet) return null;
 
-  const linkMatch = content.match(/\/Invoices\/(\d+)/);
-  return linkMatch ? linkMatch[1] : null;
+  return linkMatch[1];
 }
 
 type PromptType = 'confirm_create' | 'yes_no_proceed' | 'yes_no' | null;
@@ -352,16 +363,6 @@ function isPortalPath(href: string): boolean {
   return href.startsWith('/') && !href.startsWith('//');
 }
 
-/**
- * A record in the CRM this portal talks to.
- *
- * Host-anchored on purpose: `crm.zoho.com.au` and nothing that merely contains
- * it, so `crm.zoho.com.au.example.com` is not mistaken for it.
- */
-function isCrmUrl(href: string): boolean {
-  return href.startsWith('https://crm.zoho.com.au/');
-}
-
 export function renderInline(text: string): (string | React.ReactElement)[] {
   const parts: (string | React.ReactElement)[] = [];
   const regex = /(\*\*(.+?)\*\*)|(\[(.+?)\]\((.+?)\))|(`(.+?)`)/g;
@@ -395,25 +396,13 @@ export function renderInline(text: string): (string | React.ReactElement)[] {
             {label}
           </GuardedLink>
         );
-      } else if (isCrmUrl(href)) {
-        parts.push(
-          <a
-            key={partKey++}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-csa-accent hover:text-csa-highlight underline underline-offset-2 inline-flex items-center gap-1"
-          >
-            {label}
-            <ExternalLink size={11} className="inline" />
-          </a>
-        );
       } else {
-        // Anything else renders as its label and nothing more. The model has
-        // invented URLs that look plausible and lead nowhere — a portal address
-        // on the CRM's host, for one — and a link is the one piece of output a
-        // reader cannot sanity-check before acting on it. Two destinations are
-        // legitimate; the rest is not a link however confident it looks.
+        // Anything else renders as its label and nothing more. One destination
+        // is legitimate — a page in this portal — and everything else is
+        // either somewhere the reader cannot get into or somewhere the model
+        // made up. It has invented plausible URLs that lead nowhere, and a link
+        // is the one piece of output a reader cannot sanity-check before acting
+        // on it, so the rest is not a link however confident it looks.
         parts.push(label);
       }
     } else if (match[6]) {
