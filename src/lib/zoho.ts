@@ -329,17 +329,23 @@ export async function executeZohoTool(
     }
 
     case 'get_related_records': {
-      const mcpArgs: Record<string, unknown> = {
+      // `fields` is required by the endpoint, not optional: without it Zoho
+      // answers REQUIRED_PARAM_MISSING. Callers wrap this in a try/catch that
+      // degrades to an empty list, so an omission read as "the record has no
+      // related records" rather than as a broken call. Refused loudly here
+      // instead — the caller's own field list is the only place that knows
+      // which fields it wanted.
+      if (!args.fields) {
+        throw new Error('get_related_records requires a fields list');
+      }
+      return callMcpTool('ZohoCRM_getRelatedRecords', {
         path_variables: {
           parentRecordModule: args.parent_module,
           parentRecord: args.parent_id,
           relatedList: args.related_list,
         },
-      };
-      if (args.fields) {
-        mcpArgs.query_params = { fields: args.fields };
-      }
-      return callMcpTool('ZohoCRM_getRelatedRecords', mcpArgs);
+        query_params: { fields: args.fields },
+      });
     }
 
     case 'create_records': {

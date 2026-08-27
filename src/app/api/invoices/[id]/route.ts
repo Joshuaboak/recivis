@@ -160,13 +160,20 @@ export async function GET(
           parent_module: 'Invoices',
           parent_id: id,
           related_list: 'Attachments',
+          // Required, not optional. The related-records endpoint answers
+          // REQUIRED_PARAM_MISSING without it, which the catch below turned
+          // into an empty list — so the first version of this looked like
+          // "the order has no attachments" on an order with two.
+          fields: 'id,File_Name,Size,Created_Time,Owner',
         });
         attachments = parseResult(attachmentResult).map((a: Record<string, unknown>) => ({
           id: a.id as string,
           fileName: (a.File_Name as string) || 'Attachment',
+          // Zoho sends Size as a string.
           size: Number(a.Size) || null,
           createdTime: (a.Created_Time as string) || '',
-          createdBy: ((a.Created_By ?? a.Owner) as { name?: string } | null)?.name || '',
+          // Attachments have an Owner, not a Created_By.
+          createdBy: (a.Owner as { name?: string } | null)?.name || '',
         }));
       } catch (err) {
         log('warn', 'api', `Could not load attachments for invoice ${id}`, {

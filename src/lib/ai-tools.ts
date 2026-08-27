@@ -81,10 +81,10 @@ export const toolDefinitions = [
         },
         fields: {
           type: 'string',
-          description: 'Comma-separated field names to return.',
+          description: 'Comma-separated field names to return. Required — the CRM rejects the call without it.',
         },
       },
-      required: ['parent_module', 'parent_id', 'related_list'],
+      required: ['parent_module', 'parent_id', 'related_list', 'fields'],
     },
   },
   {
