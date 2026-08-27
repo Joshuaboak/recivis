@@ -455,7 +455,10 @@ export const HELP_TOPICS: HelpTopic[] = [
       'layers: what your partner organisation is allowed to do, and what your own user ' +
       'account is allowed to do within it. You need both. That is why a colleague can ' +
       'sometimes do something you cannot even though you work at the same company. Your ' +
-      'partner administrator or CSA can change them.',
+      'partner administrator or CSA can change them. One that catches people out: Open ' +
+      'in CRM only appears if your partner account has CRM Access, which most do not. ' +
+      'It needs a separate CSA system login, and without one the link would only reach ' +
+      'a sign-in page. Everything you need is in the portal.',
   },
   {
     id: 'guided-tutorial',
@@ -497,6 +500,7 @@ const PERMISSION_LABELS: Record<keyof UserPermissions, string> = {
   canExtendEvaluations: 'extend evaluations',
   canDirectCustomerComms: 'send straight to customers',
   canMonthlySubscriptions: 'create and renew monthly subscriptions',
+  canAccessCrm: 'open records in Zoho CRM',
 };
 
 /** True when the permission is held. The evaluation cap is a number, not a flag. */

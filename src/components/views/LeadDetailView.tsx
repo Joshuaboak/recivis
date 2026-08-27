@@ -757,10 +757,12 @@ export default function LeadDetailView({
                   Edit
                 </button>
               )}
+              {user?.permissions?.canAccessCrm ? (
               <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
-                <ExternalLink size={14} />
-                Open in CRM
-              </a>
+                  <ExternalLink size={14} />
+                  Open in CRM
+                </a>
+            ) : null}
             </div>
           </div>
 
@@ -1054,10 +1056,12 @@ export default function LeadDetailView({
                 Edit
               </button>
             )}
-            <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
-              <ExternalLink size={14} />
-              Open in CRM
-            </a>
+            {user?.permissions?.canAccessCrm ? (
+              <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+                <ExternalLink size={14} />
+                Open in CRM
+              </a>
+            ) : null}
           </div>
         </div>
 

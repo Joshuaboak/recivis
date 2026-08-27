@@ -35,6 +35,7 @@ function permissions(overrides: Partial<UserPermissions> = {}): UserPermissions 
     canExtendEvaluations: false,
     canDirectCustomerComms: false,
     canMonthlySubscriptions: false,
+    canAccessCrm: false,
     ...overrides,
   };
 }

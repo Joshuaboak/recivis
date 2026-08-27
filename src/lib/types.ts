@@ -41,6 +41,13 @@ export interface UserPermissions {
   /** Org-level only: may this partner create and renew 30-day monthly
    *  subscription licences. */
   canMonthlySubscriptions: boolean;
+  /**
+   * Org-level only: does this partner have a Zoho CRM login.
+   *
+   * Decides whether the portal offers Open in CRM. Most partners have no CRM
+   * account, so the link was a dead end for them. Defaults off.
+   */
+  canAccessCrm: boolean;
 }
 
 // --- Organisation Model ---

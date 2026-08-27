@@ -329,8 +329,11 @@ export default function Sidebar() {
           </AnimatePresence>
         </div>
 
-        {/* Reports (with submenu) */}
-        {(() => {
+        {/* Reports (with submenu) — the whole section, submenu included, is
+            behind the reports permission. It had no gate at all, so a partner
+            with reports switched off still saw Reports, Dashboard and AI
+            Assistant in the nav and only found out by opening one. */}
+        {user?.permissions?.canViewReports && (() => {
           const isReportsActive = inSection(pathname, PATHS.reports);
           return (
             <div>

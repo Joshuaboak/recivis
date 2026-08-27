@@ -212,6 +212,18 @@ export default function ReportsDashboardView() {
     }
   };
 
+  // Reachable by URL even with the nav entry hidden, so the page checks too.
+  // Ahead of the loading state: without this a partner who cannot see reports
+  // watched a spinner, then read "No report data available", which describes a
+  // quiet month rather than a permission.
+  if (!user?.permissions?.canViewReports) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-text-muted">You do not have permission to view reports.</p>
+      </div>
+    );
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center h-full gap-3"><Loader2 size={24} className="text-csa-accent animate-spin" /><span className="text-sm text-text-muted">Generating reports...</span></div>;
   }

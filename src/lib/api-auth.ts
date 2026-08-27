@@ -83,6 +83,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
               rr.can_extend_evaluations AS rr_extend_eval,
               rr.can_direct_customer_comms AS rr_direct_comms,
               rr.can_monthly_subscriptions AS rr_monthly_subs,
+              rr.can_crm_access AS rr_crm,
               rr.can_convert_leads AS rr_convert,
               r.perm_create_invoices AS ro_create, r.perm_approve_invoices AS ro_approve,
               r.perm_send_invoices AS ro_send, r.perm_view_all_records AS ro_all,
@@ -93,6 +94,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
               r.perm_extend_evaluations AS ro_extend_eval,
               r.perm_direct_customer_comms AS ro_direct_comms,
               r.perm_monthly_subscriptions AS ro_monthly_subs,
+              r.perm_crm_access AS ro_crm,
               r.perm_convert_leads AS ro_convert,
               r.region AS reseller_region
        FROM users u
@@ -124,6 +126,9 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
     const rrExtendEval = row.ro_extend_eval ?? row.rr_extend_eval ?? false;
     const rrDirectComms = row.ro_direct_comms ?? row.rr_direct_comms ?? false;
     const rrMonthlySubs = row.ro_monthly_subs ?? row.rr_monthly_subs ?? false;
+  // Defaults off: most partners have no CRM login, and a link they cannot
+  // follow is worse than no link.
+  const rrCrm = row.ro_crm ?? row.rr_crm ?? false;
     // Defaults true — see auth.ts: ordinary partner work, granted unless taken.
     const rrConvert = row.ro_convert ?? row.rr_convert ?? true;
 
@@ -145,6 +150,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
       // Org-level cap, so no user_role factor — same shape as canViewAllRecords.
       canDirectCustomerComms: isSystemAdmin || rrDirectComms,
       canMonthlySubscriptions: isSystemAdmin || rrMonthlySubs,
+    canAccessCrm: isSystemAdmin || rrCrm,
     };
 
     // Compute allowed reseller IDs

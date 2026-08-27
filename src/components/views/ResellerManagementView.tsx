@@ -88,6 +88,7 @@ const PERMISSION_DEFS = [
   { key: 'can_direct_customer_comms', label: 'Allow Direct Customer Communication', desc: 'Allow orders and licence keys to be sent straight to the customer' },
   { key: 'can_monthly_subscriptions', label: 'Allow Monthly Subscriptions', desc: 'Create and renew 30-day monthly subscription licences' },
   { key: 'can_convert_leads', label: 'Allow Converting Leads', desc: 'Move a lead on to prospect once it has downloaded the trial' },
+  { key: 'can_crm_access', label: 'CRM Access', desc: 'Show Open in CRM links. Only for partners who have a Zoho CRM login' },
 ];
 
 /** Shown wherever "Direct to Customer" is blocked by the permission above. */
@@ -103,6 +104,7 @@ interface RoleWithPerms {
   can_direct_customer_comms: boolean;
   can_monthly_subscriptions: boolean;
   can_convert_leads: boolean;
+  can_crm_access: boolean;
 }
 
 const inputCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg";
@@ -935,9 +937,11 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
                 <Pencil size={14} /> Edit
               </button>
             ) : null}
-            <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
-              <ExternalLink size={14} /> Open in CRM
-            </a>
+            {user?.permissions?.canAccessCrm ? (
+              <a href={crmLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer">
+                <ExternalLink size={14} /> Open in CRM
+              </a>
+            ) : null}
           </div>
         </div>
 

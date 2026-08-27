@@ -91,6 +91,13 @@ export async function GET(request: NextRequest) {
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
 
+  // The permission the sidebar hides Reports behind. /api/partner-reports has
+  // always checked it; this one did not, so the numbers were still one fetch
+  // away from anybody who guessed the URL.
+  if (!user.permissions.canViewReports) {
+    return NextResponse.json({ error: 'You do not have permission to view reports' }, { status: 403 });
+  }
+
   const { searchParams } = new URL(request.url);
   const monthCount = parseInt(searchParams.get('months') || '13');
   const regionFilter = searchParams.get('region') || '';

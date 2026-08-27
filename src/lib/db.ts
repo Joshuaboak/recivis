@@ -65,6 +65,7 @@ export async function initDB() {
         can_create_evaluations BOOLEAN DEFAULT false,
         max_evaluations_per_account INTEGER DEFAULT 0,
         can_extend_evaluations BOOLEAN DEFAULT false,
+        can_crm_access BOOLEAN DEFAULT false,
         is_system_role BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
@@ -231,6 +232,7 @@ export async function initDB() {
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_direct_customer_comms BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_monthly_subscriptions BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_convert_leads BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_crm_access BOOLEAN;
       ALTER TABLE resellers ADD COLUMN IF NOT EXISTS pay_on_card BOOLEAN DEFAULT false;
 
       -- Add evaluation columns to role tables (idempotent)
@@ -256,6 +258,15 @@ export async function initDB() {
       -- before, so unlike the column above there is no backfill: every preset
       -- starts false and an admin opts a partner in.
       ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_monthly_subscriptions BOOLEAN DEFAULT false;
+
+      -- CRM access — org-level cap only. Whether this partner has a Zoho login
+      -- at all, which decides whether the portal offers Open in CRM. Most
+      -- partners have none, so the link was a dead end for them; it defaults
+      -- off and an admin grants it to the few who do.
+      --
+      -- No backfill. The buttons were on show to everybody before this, but a
+      -- link nobody can follow is not a permission being withdrawn.
+      ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_crm_access BOOLEAN DEFAULT false;
 
       -- Converting a lead to a prospect. This was hardcoded to admin/IBM, which
       -- left partners unable to move their own enquiry on when it downloaded the

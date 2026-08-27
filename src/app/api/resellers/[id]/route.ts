@@ -64,7 +64,8 @@ export async function GET(
               can_view_all_records, can_view_child_records, can_modify_prices,
               can_upload_po, can_view_reports, can_export_data,
               can_create_evaluations, max_evaluations_per_account, can_extend_evaluations,
-              can_direct_customer_comms, can_monthly_subscriptions, can_convert_leads
+              can_direct_customer_comms, can_monthly_subscriptions, can_convert_leads,
+              can_crm_access
        FROM reseller_roles WHERE is_system_role = false ORDER BY id`
     );
 
@@ -76,7 +77,8 @@ export async function GET(
                 perm_view_all_records, perm_view_child_records, perm_modify_prices,
                 perm_upload_po, perm_view_reports, perm_export_data,
                 perm_create_evaluations, perm_max_evaluations_per_account, perm_extend_evaluations,
-                perm_direct_customer_comms, perm_monthly_subscriptions, perm_convert_leads
+                perm_direct_customer_comms, perm_monthly_subscriptions, perm_convert_leads,
+                perm_crm_access
          FROM resellers WHERE id IN (${dbPlaceholders}) LIMIT 1`,
         dbLookupIds
       );
@@ -228,6 +230,7 @@ export async function PATCH(
         ['perm_direct_customer_comms', 'can_direct_customer_comms'],
         ['perm_monthly_subscriptions', 'can_monthly_subscriptions'],
         ['perm_convert_leads', 'can_convert_leads'],
+        ['perm_crm_access', 'can_crm_access'],
       ];
       for (const [column, key] of PERM_OVERRIDES) {
         updates.push(`${column} = $${paramIdx++}`);
@@ -328,8 +331,8 @@ export async function POST(
       `INSERT INTO resellers (id, name, email, region, currency, partner_category, direct_customer_contact, distributor_id, reseller_role_id, is_active,
        perm_create_invoices, perm_approve_invoices, perm_send_invoices, perm_view_all_records, perm_view_child_records, perm_modify_prices, perm_upload_po, perm_view_reports, perm_export_data,
        perm_create_evaluations, perm_max_evaluations_per_account, perm_extend_evaluations, perm_direct_customer_comms, perm_monthly_subscriptions,
-       perm_convert_leads)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)`,
+       perm_convert_leads, perm_crm_access)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
       [
         id, name, email || null, region || null, currency || null, partner_category || null,
         !!direct_customer_contact, distributor_id || null, reseller_role_id,
@@ -350,6 +353,7 @@ export async function POST(
         // Was passed as a 24th value against 23 placeholders, so Postgres
         // ignored it and a Convert Leads choice made at registration was lost.
         toNullableBool(permOverrides.can_convert_leads),
+        toNullableBool(permOverrides.can_crm_access),
       ]
     );
 
