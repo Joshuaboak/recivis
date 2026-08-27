@@ -15,15 +15,20 @@ import { findDemoRecord } from '@/lib/demo/fixtures';
 import { requireAuth, isAdmin, canManageReseller } from '@/lib/api-auth';
 
 /**
- * Statuses past which an order is committed and stops accepting portal edits.
+ * The statuses an order can still be edited in.
  *
- * Approved only. `Sent` used to be here on the reasoning that it was reachable
- * only through approval, which is not true: sending an order for payment leaves
- * it unapproved and unpaid, and locking it there meant a partner who had
- * emailed an invoice could no longer correct the PO number or a line on it —
- * before anybody had committed to anything.
+ * An allowlist, not a blocklist. This was "anything but Approved", which let a
+ * Cancelled, Expired, Completed or Delivered order be edited — all of them past
+ * the point where changing a line means anything, and the last two after
+ * licence keys have gone out. Zoho's own picklist holds Created, Cancelled,
+ * Sent, Expired, Submitted For Approval, Approved, Completed and Delivered;
+ * `Draft` is what the portal writes for a new order and appears on real records
+ * alongside them.
+ *
+ * Draft, Created and Sent: raised, maybe emailed for payment, but not
+ * committed. Everything else is finished with, one way or another.
  */
-const LOCKED_STATUSES = ['Approved'];
+const EDITABLE_STATUSES = ['Draft', 'Created', 'Sent'];
 
 /** One file attached to an order, as the portal shows it. */
 export interface Attachment {
@@ -218,12 +223,11 @@ export async function PATCH(
       }
     }
 
-    // An approved order is locked: it has been committed, licence keys may
-    // already exist against it, and the money is settled off its totals.
-    // CSA staff keep a way in for corrections, everyone else goes through the
-    // CRM.
+    // A committed order is locked: licence keys may already exist against it and
+    // the money is settled off its totals. CSA staff keep a way in for
+    // corrections, everyone else goes through the CRM.
     const currentStatus = (existing?.Status as string) || '';
-    if (LOCKED_STATUSES.includes(currentStatus) && !isAdmin(user)) {
+    if (!EDITABLE_STATUSES.includes(currentStatus) && !isAdmin(user)) {
       return NextResponse.json({
         error: `This order is ${currentStatus.toLowerCase()} and can no longer be changed.`,
       }, { status: 409 });

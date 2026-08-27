@@ -194,6 +194,14 @@ export default function InvoiceDetailView({
   const [formPO, setFormPO] = useState('');
   const [formStatus, setFormStatus] = useState('');
   const [formCurrency, setFormCurrency] = useState('');
+  /**
+   * Who the order is addressed to, while it is being edited.
+   *
+   * Held as form state rather than written on the spot, so it saves with the
+   * rest of the edit — the toggle on the read-only page writes immediately,
+   * which would fight with unsaved line changes here.
+   */
+  const [formResellerDirect, setFormResellerDirect] = useState(false);
 
   // Approve / Send. `pendingAction` is the one awaiting confirmation,
   // `actionRunning` the one in flight — both approve and send are irreversible
@@ -205,14 +213,25 @@ export default function InvoiceDetailView({
 
   // Derived permission flags
   const isEditor = user?.role === 'admin' || user?.role === 'ibm';
-  // Locked at Approved, matching the route. Both used to stop at Draft, which
-  // meant an order sent for payment could not have its PO number corrected —
-  // and correcting it is exactly what somebody does between sending an invoice
-  // and being paid for it.
-  const canEdit = isEditor && invoice?.Status !== 'Approved';
+  /**
+   * The statuses an order can still be edited in — the same allowlist the route
+   * enforces. Draft, Created and Sent: raised, maybe emailed for payment, but
+   * not committed. Cancelled, Expired, Completed and Delivered are finished
+   * with, and Approved has licence keys against it.
+   */
+  const isEditableStatus = ['Draft', 'Created', 'Sent'].includes((invoice?.Status as string) || '');
+  /**
+   * Editing an order is a partner's own work, not CSA's.
+   *
+   * This was `isEditor`, so only admin and IBM could correct an order — a
+   * partner who had raised one with the wrong quantity had to ask. They own the
+   * order; they can fix it while it is still open. Viewers are read-only by
+   * definition.
+   */
+  const canEdit = isEditableStatus && !!user && user.role !== 'viewer';
   const isRenewal = invoice?.Invoice_Type === 'Renewal';
-  /** PO is editable by any role until the order is approved. */
-  const canEditPO = invoice?.Status !== 'Approved';
+  /** PO is editable on the same statuses as everything else. */
+  const canEditPO = isEditableStatus;
   /**
    * Setting a status by hand is CSA's, like the Approve button in the header.
    *
@@ -351,8 +370,9 @@ export default function InvoiceDetailView({
 
   /** Every form field, in a stable order, for the pristine comparison. */
   const formState = useMemo(() => JSON.stringify([
-    formInvoiceDate, formDueDate, formPO, formStatus, formCurrency, lineItemFingerprint(editLineItems),
-  ]), [formInvoiceDate, formDueDate, formPO, formStatus, formCurrency, editLineItems]);
+    formInvoiceDate, formDueDate, formPO, formStatus, formCurrency, formResellerDirect,
+    lineItemFingerprint(editLineItems),
+  ]), [formInvoiceDate, formDueDate, formPO, formStatus, formCurrency, formResellerDirect, editLineItems]);
 
   // Only a changed form counts as unsaved work. Opening /edit and pressing Cancel
   // must not prompt. The inline-edit fields in view mode register themselves.
@@ -374,6 +394,7 @@ export default function InvoiceDetailView({
       setFormPO((invoice.Purchase_Order as string) || '');
       setFormStatus((invoice.Status as string) || '');
       setFormCurrency((invoice.Currency as string) || 'AUD');
+      setFormResellerDirect(!!invoice.Reseller_Direct_Purchase);
       // Same editing model as the batch line-item edit, including the
       // `_originalPrice` bookkeeping that drives Contract_Term_Years.
       setEditLineItems(lineItems.map(li => ({ ...li, _originalPrice: li.List_Price })));
@@ -411,7 +432,12 @@ export default function InvoiceDetailView({
   };
 
   /**
-   * Re-price every line for a new currency, from the product's AUD price.
+   * Re-price every line, from the product's AUD price.
+   *
+   * Both things that move a price go through here: the currency, which decides
+   * the rate, and who the order is addressed to, which decides whether the
+   * partner's commission comes off. Two callers, one calculation — the create
+   * form and this page had their own before, and disagreed.
    *
    * The line itself only holds a converted figure, so the AUD original has to
    * come back from the product — which is why this reads them rather than
@@ -422,13 +448,13 @@ export default function InvoiceDetailView({
    * A line whose product will not load is left exactly as it is. Returns null
    * when there is nothing to change, so the caller can leave the payload alone.
    */
-  const repriceLinesForCurrency = async (
-    nextCurrency: string
+  const repriceLines = async (
+    nextCurrency: string,
+    resellerDirect: boolean
   ): Promise<Record<string, unknown>[] | null> => {
     const rate = rateFor(rates, nextCurrency);
     if (rate == null) return null; // no rate — better to leave the numbers alone
 
-    const resellerDirect = !!invoice?.Reseller_Direct_Purchase;
     const priced = await Promise.all(
       editLineItems.map(async li => {
         // Coupon lines are a fixed discount somebody agreed, not a converted
@@ -540,6 +566,7 @@ export default function InvoiceDetailView({
     if (!invoiceId || clearedDate) return;
 
     const body: Record<string, unknown> = {};
+    let currencyChanged = false;
     if (canEdit) {
       if (formInvoiceDate && formInvoiceDate !== ((invoice?.Invoice_Date as string)?.slice(0, 10) || '')) {
         body.Invoice_Date = formInvoiceDate;
@@ -553,8 +580,18 @@ export default function InvoiceDetailView({
       // (which is what happened here before) turns 795 euros into 795 rupees.
       if (formCurrency && formCurrency !== ((invoice?.Currency as string) || 'AUD')) {
         body.Currency = formCurrency;
-        const reconverted = await repriceLinesForCurrency(formCurrency);
-        if (reconverted) body.Invoiced_Items = reconverted;
+        currencyChanged = true;
+      }
+      // Routing changes the price as much as the currency does: list to the
+      // customer, list less commission to the partner.
+      const routingChanged = formResellerDirect !== !!invoice?.Reseller_Direct_Purchase;
+      if (routingChanged) body.Reseller_Direct_Purchase = formResellerDirect;
+      if (currencyChanged || routingChanged) {
+        const repriced = await repriceLines(
+          formCurrency || activeCurrency,
+          formResellerDirect
+        );
+        if (repriced) body.Invoiced_Items = repriced;
       }
       if (lineItemFingerprint(editLineItems) !== lineItemFingerprint(lineItems)) {
         body.Invoiced_Items = buildInvoicedItemsPayload(editLineItems);
@@ -1103,24 +1140,29 @@ export default function InvoiceDetailView({
                     </select>
                     <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
                   </div>
-                  <p className="text-[10px] text-text-muted mt-1">Line item amounts are not converted.</p>
+                  <p className="text-[10px] text-text-muted mt-1">
+                    Changing this reprices the lines from the AUD list price.
+                  </p>
                 </div>
               ) : (
                 <ReadOnlyField label="Currency" value={activeCurrency} icon={<DollarSign size={14} />} />
               )}
-
-              {/* Reseller_Direct_Purchase is writable, but changing it also
-                  reprices every line item. That coupled update lives in the
-                  Send To toggle on the order page; duplicating it here would be
-                  a second pricing model. */}
-              <ReadOnlyField
-                label="Send Order To"
-                value={invoice.Reseller_Direct_Purchase ? 'Reseller' : 'Customer'}
-                icon={<Send size={14} />}
-                note="Change on the order page — it also reprices line items"
-              />
             </div>
           </motion.div>
+
+          {/* Where the order goes, and therefore what it costs — the same panel
+              and the same rules as the create page and the read-only view. It
+              used to be a read-only field here with a note telling people to go
+              and change it somewhere else, which is not an edit form. */}
+          {canEdit && user?.permissions?.canDirectCustomerComms ? (
+            <InvoiceSendTo
+              invoice={{ Reseller_Direct_Purchase: formResellerDirect }}
+              status="Draft"
+              updatingDirectPurchase={false}
+              onToggleDirectPurchase={setFormResellerDirect}
+              allowDirectCustomer
+            />
+          ) : null}
 
           {/* Line items — the existing table and editing model, not a second editor */}
           <InvoiceLineItems
