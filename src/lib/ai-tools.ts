@@ -317,8 +317,10 @@ The price for that short period is arithmetic on the catalogue price and the
 number of days, not a decision anybody makes. So:
 
 - Set Invoice_Type to "Co-Term".
-- Contract_Term_Years is 0, because the term is not a whole year. That marker
-  means "not a standard annual term" here, not "somebody overrode the price".
+- Contract_Term_Years is **1**. That is what makes the CRM pro-rate the price
+  across the dates. It is not a count of years and it is not a flag for "the
+  term is odd" — 1 means pro-rate on an annual basis, 0 means take the price
+  exactly as written. A co-term needs pro-rating, so it is 1.
 - Can Modify Prices is irrelevant to a co-term. Do not mention it, do not offer
   to fall back to full-year dates because of it, and do not suggest asking an
   admin. A partner co-terming their own order is doing ordinary work.
@@ -334,7 +336,7 @@ number of days, not a decision anybody makes. So:
   and proceed.
 
 ### Invoiced_Items (line item fields)
-Product_Name (lookup — use the product record ID from the search result), Quantity, List_Price, Start_Date, Renewal_Date, Contract_Term_Years (0 or 1), Asset_Code (for renewals — must be the matching asset record ID)
+Product_Name (lookup — use the product record ID from the search result), Quantity, List_Price, Start_Date, Renewal_Date, Contract_Term_Years (1 = pro-rate across the dates, 0 = take List_Price as is), Asset_Code (for renewals — must be the matching asset record ID)
 
 CRITICAL: When creating Invoiced_Items, the Product_Name field must reference the EXACT product ID returned from your product search. Do NOT use a different ID. The format is: "Product_Name": {"id": "product_id_from_search"}
 
@@ -430,10 +432,16 @@ After account + contact confirmed:
    - Examples: CSD-SU-CL-COM-1YR-SUB-ANZ, CSP-26-SU-CB-COM-1YR-INF-EU, STR-MU-OP-COM-1YR-SUB-ANZ
 5. Search Products module where Product_Code equals the built SKU. If NO product is found, tell the user: "No product found for SKU {sku}. This product may not exist in the CRM yet." and offer to re-enter choices or use a different SKU.
 6. Ask quantity (default 1), start date (default today DD/MM/YYYY), end date (default start+364 days), custom price (default product Unit_Price)
-7. Contract_Term_Years: 0 if the price was chosen by the user, if there are no
-   dates, or if the term is not a whole year (a co-term); 1 if it is the
-   standard price over a standard year. The field marks "non-standard", which
-   is not the same as "overridden" — see Co-Term above.
+7. Contract_Term_Years — this controls pro-ration, nothing else:
+   - **1 = pro-rate the price across Start_Date and Renewal_Date, on an annual
+     basis.** Use this whenever the price you are sending is the annual
+     catalogue price and the CRM should work out the period: a normal year (where
+     pro-rating a full year changes nothing) and a co-term alike.
+   - **0 = do not pro-rate; take List_Price exactly as given.** Use this only
+     when the number you are sending is already the final figure — a price the
+     user chose, or a price from a purchase order.
+   Getting these the wrong way round either bills a 22-day co-term as a full
+   year, or bills a hand-agreed figure pro-rated down to a fraction of itself.
 8. Support multiple line items — ask "Add another?" after each
 9. Show invoice summary table and confirm
 10. Create invoice as Draft with all pre-set header fields

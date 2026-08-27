@@ -38,10 +38,14 @@ import {
   Plus,
   Trash2,
   Replace,
+  CalendarClock,
+  Info,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
 import { CURRENCIES as SUPPORTED_CURRENCIES } from '@/lib/constants';
+import { orderLinePrice, rateFor, contractTermYears } from '@/lib/pricing';
+import { isRenewable, renewabilityOf } from '@/lib/renewal-eligibility';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import { useDraft } from '@/lib/useDraft';
@@ -50,6 +54,14 @@ import SKUBuilder from '../SKUBuilder';
 
 // From lib/constants so the list cannot drift per view — it already had.
 const CURRENCIES = SUPPORTED_CURRENCIES;
+
+/** A licence a new line's renewal date can be lined up with. */
+interface AlignableAsset {
+  id: string;
+  product: string;
+  renewalDate: string;
+  serialKey: string;
+}
 
 /** Shown on /accounts when this view is opened without an account context. */
 const NO_CONTEXT_MESSAGE = 'Pick an account to start an order';
@@ -134,6 +146,67 @@ export default function CreateInvoiceView() {
    * two halves of the same decision disagreed.
    */
   const [resellerDirect, setResellerDirect] = useState<boolean | null>(null);
+  /**
+   * Exchange rates from the CRM, target-currency-per-AUD.
+   *
+   * Every product price in Zoho is in AUD, so nothing can be priced until
+   * these arrive. Fetched once and re-read whenever the currency changes.
+   */
+  const [rates, setRates] = useState<Array<{ code: string; rate: number }>>([]);
+  /**
+   * Licences on this customer whose renewal date a new line could be lined up
+   * with — active, still in date, and an ordinary commercial licence.
+   *
+   * Aligning is only meaningful against something that is actually running:
+   * an expired licence has no renewal date worth matching, and an evaluation
+   * or an NFR is not on a renewal cycle at all. `isRenewable` already draws
+   * that line for renewals, so alignment uses the same one rather than a
+   * second opinion about what counts as a real licence.
+   */
+  const [alignableAssets, setAlignableAssets] = useState<AlignableAsset[]>([]);
+  /** Which line's alignment picker is open, if any. */
+  const [aligningIndex, setAligningIndex] = useState<number | null>(null);
+  /**
+   * The order type. A co-term is not a different flow, it is this flow with a
+   * renewal date borrowed from an existing licence — so the type follows the
+   * dates rather than being chosen up front.
+   */
+  const [invoiceType, setInvoiceType] = useState('New Product');
+
+  // The customer's licences, for the alignment picker.
+  useEffect(() => {
+    if (!account?.id) return;
+    fetch(`/api/accounts/${account.id}`)
+      .then(res => res.json())
+      .then(data => {
+        const active = (data.activeAssets || []) as Array<Record<string, unknown>>;
+        setAlignableAssets(
+          active
+            .filter(a => {
+              if (!isRenewable(renewabilityOf(a))) return false;
+              const renewal = a.Renewal_Date as string | undefined;
+              // "End date after today" — a licence that lapses today or earlier
+              // has nothing left to line up with.
+              return !!renewal && renewal > today;
+            })
+            .map(a => ({
+              id: a.id as string,
+              product: (a.Product as { name?: string } | null)?.name || (a.Name as string) || 'Licence',
+              renewalDate: a.Renewal_Date as string,
+              serialKey: (a.Serial_Key as string) || '',
+            }))
+            .sort((x, y) => x.renewalDate.localeCompare(y.renewalDate))
+        );
+      })
+      .catch(() => {});
+  }, [account?.id, today]);
+
+  useEffect(() => {
+    fetch('/api/currencies')
+      .then(res => res.json())
+      .then(data => setRates(data.currencies || []))
+      .catch(() => {});
+  }, []);
 
   // Fetch reseller currency, percentage and routing on load
   useEffect(() => {
@@ -187,9 +260,40 @@ export default function CreateInvoiceView() {
       Start_Date: today,
       Renewal_Date: plus364,
       Contract_Term_Years: 1,
-      _unitPrice: 0,
+      _audUnitPrice: 0,
+      _listPrice: 0,
+      _priceEditedByHand: false,
     }]);
   };
+
+  /**
+   * Line a line item up with an existing licence's renewal date.
+   *
+   * Borrowing the date is the whole of it: the period becomes short, the order
+   * becomes a Co-Term, and the CRM pro-rates the price from those dates when
+   * the order is saved. Nothing here works out a price — see the notice this
+   * puts on screen.
+   */
+  const alignLineTo = (index: number, asset: AlignableAsset) => {
+    setLineItems(prev => prev.map((li, i) => (
+      i === index ? { ...li, Renewal_Date: asset.renewalDate, _alignedTo: asset.id } : li
+    )));
+    setInvoiceType('Co-Term');
+    setAligningIndex(null);
+  };
+
+  /** Drop an alignment, and the Co-Term type with it if nothing else is aligned. */
+  const clearAlignment = (index: number) => {
+    setLineItems(prev => {
+      const next = prev.map((li, i) => (
+        i === index ? { ...li, Renewal_Date: plus364, _alignedTo: undefined } : li
+      ));
+      if (!next.some(li => li._alignedTo)) setInvoiceType('New Product');
+      return next;
+    });
+  };
+
+  const anyAligned = lineItems.some(li => li._alignedTo);
 
   const removeLineItem = (index: number) => {
     setLineItems(prev => prev.filter((_, i) => i !== index));
@@ -200,26 +304,53 @@ export default function CreateInvoiceView() {
   };
 
   const handleProductSelect = (index: number, product: { id: string; name: string; sku: string; unitPrice: number }) => {
-    // The reseller discount applies when the reseller is the one buying, which
-    // is what `resellerDirect` says. It used to be applied to every order
-    // regardless, so an order addressed to the end customer still carried the
-    // partner's discounted price — the order page's send-to toggle reprices on
-    // exactly this rule, so the two disagreed until somebody touched it.
-    const discountedPrice = resellerDirect && resellerPercentage != null
-      ? Math.round(product.unitPrice * (100 - resellerPercentage) / 100 * 100) / 100
-      : product.unitPrice;
+    // `unitPrice` off the product is in AUD, whatever region the SKU is for.
+    const priced = orderLinePrice({
+      audListPrice: product.unitPrice,
+      rate: rateFor(rates, currency),
+      resellerPercentage,
+      resellerDirect: !!resellerDirect,
+    });
 
     setLineItems(prev => prev.map((li, i) => {
       if (i !== index) return li;
       return {
         ...li,
         Product_Name: { name: product.name, id: product.id },
-        List_Price: discountedPrice,
-        _unitPrice: product.unitPrice, // Store original for reference
+        List_Price: priced.price,
+        _audUnitPrice: product.unitPrice,
+        _listPrice: priced.listPrice,
+        // Reset: picking a product replaces whatever was in the price field.
+        _priceEditedByHand: false,
       };
     }));
     setSkuBuilderIndex(null);
   };
+
+  /**
+   * Reprice every line that has not been hand-edited.
+   *
+   * Runs when the currency changes or the routing does, because both move the
+   * answer: the rate converts the AUD list price, and the routing decides
+   * whether the partner's commission comes off it. A line somebody has typed a
+   * price into is left alone — that figure was a decision, not a calculation.
+   */
+  useEffect(() => {
+    const rate = rateFor(rates, currency);
+    setLineItems(prev => prev.map(li => {
+      if (li._priceEditedByHand) return li;
+      const aud = Number(li._audUnitPrice);
+      if (!Number.isFinite(aud) || aud <= 0) return li;
+      const priced = orderLinePrice({
+        audListPrice: aud,
+        rate,
+        resellerPercentage,
+        resellerDirect: !!resellerDirect,
+      });
+      if (priced.price === li.List_Price && priced.listPrice === li._listPrice) return li;
+      return { ...li, List_Price: priced.price, _listPrice: priced.listPrice };
+    }));
+  }, [currency, rates, resellerPercentage, resellerDirect]);
 
   const goBack = () => {
     router.push(account?.id ? buildPath('account-detail', account.id) : buildPath('accounts'));
@@ -241,12 +372,13 @@ export default function CreateInvoiceView() {
           Start_Date: li.Start_Date,
           Renewal_Date: li.Renewal_Date,
         };
-        // If price differs from product unit price (manual edit or reseller discount), signal custom pricing
-        if (li.List_Price !== li._unitPrice) {
-          item.Contract_Term_Years = 0;
-        } else {
-          item.Contract_Term_Years = 1;
-        }
+        // 1 pro-rates the price across the dates; 0 bills it exactly as sent.
+        // This used to compare List_Price against the product's Unit_Price and
+        // send 0 whenever they differed — and the reseller discount makes them
+        // differ on every partner order, so pro-ration was switched off across
+        // the board. A discounted price is still a calculated one; only a price
+        // somebody typed is final.
+        item.Contract_Term_Years = contractTermYears(!!li._priceEditedByHand);
         return item;
       });
 
@@ -262,7 +394,7 @@ export default function CreateInvoiceView() {
         Invoice_Date: invoiceDate,
         Due_Date: dueDate,
         Status: 'Draft',
-        Invoice_Type: 'New Product',
+        Invoice_Type: invoiceType,
         Currency: currency,
         Reseller_Region: skuRegion,
         // Absent before, so every new order read as "send to customer".
@@ -416,6 +548,23 @@ export default function CreateInvoiceView() {
             <Package size={18} className="text-csa-accent" />
             Line Items ({lineItems.length})
           </h2>
+
+          {/* Said while the order is being built, not after. The figure on
+              screen is the annual price; the short-period one is worked out by
+              the CRM on save, and somebody who does not know that reads the
+              total as wrong. */}
+          {anyAligned && (
+            <div className="mb-3 flex items-start gap-2 px-4 py-3 bg-csa-highlight/10 border border-csa-accent/30 rounded-xl">
+              <Info size={14} className="text-csa-accent flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-text-secondary leading-relaxed">
+                This order is a <span className="font-semibold text-text-primary">Co-Term</span>: an
+                aligned line runs to the licence&apos;s existing renewal date rather than a full
+                year. The prices shown are the annual ones —{' '}
+                <span className="font-semibold text-text-primary">the pro-rated amount is
+                calculated when the order is saved</span>.
+              </p>
+            </div>
+          )}
           {lineItems.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-x-auto">
               <table className="w-full min-w-[700px]">
@@ -472,6 +621,9 @@ export default function CreateInvoiceView() {
                               onChange={(e) => {
                                 const val = e.target.value.replace(/[^\d.]/g, '');
                                 updateLineItem(i, 'List_Price', val === '' ? 0 : parseFloat(val));
+                                // Typed, so it stops being recalculated and is
+                                // billed as written.
+                                updateLineItem(i, '_priceEditedByHand', true);
                               }}
                               style={{ outline: 'none', boxShadow: 'none' }}
                               className="bg-transparent border-none px-1.5 py-1.5 text-sm text-text-primary w-[80px] text-right"
@@ -487,19 +639,67 @@ export default function CreateInvoiceView() {
                           />
                         </td>
                         <td>
-                          <input
-                            type="date"
-                            value={li.Renewal_Date as string || ''}
-                            onChange={(e) => updateLineItem(i, 'Renewal_Date', e.target.value)}
-                            className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent w-[130px]"
-                          />
+                          <div className="relative">
+                            <input
+                              type="date"
+                              value={li.Renewal_Date as string || ''}
+                              onChange={(e) => updateLineItem(i, 'Renewal_Date', e.target.value)}
+                              className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent w-[130px]"
+                            />
+                            {/* Align to an existing licence. Only offered when
+                                the customer has one still running — with none,
+                                there is no date to line up with. */}
+                            {alignableAssets.length > 0 && (
+                              li._alignedTo ? (
+                                <button
+                                  onClick={() => clearAlignment(i)}
+                                  title="Stop aligning this line and go back to a full year"
+                                  className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer"
+                                >
+                                  <CalendarClock size={10} />
+                                  Aligned — undo
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => setAligningIndex(aligningIndex === i ? null : i)}
+                                  title="Line this up with a licence the customer already holds"
+                                  className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-text-muted hover:text-csa-accent transition-colors cursor-pointer"
+                                >
+                                  <CalendarClock size={10} />
+                                  Align to licence
+                                </button>
+                              )
+                            )}
+                            {aligningIndex === i && (
+                              <div className="absolute right-0 top-full mt-1 z-30 w-72 bg-csa-dark border border-border rounded-xl shadow-lg overflow-hidden">
+                                <p className="px-3 py-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
+                                  Renew together with
+                                </p>
+                                <div className="max-h-[200px] overflow-y-auto">
+                                  {alignableAssets.map(asset => (
+                                    <button
+                                      key={asset.id}
+                                      onClick={() => alignLineTo(i, asset)}
+                                      className="w-full text-left px-3 py-2 hover:bg-surface-raised transition-colors cursor-pointer border-b border-border-subtle last:border-0"
+                                    >
+                                      <span className="block text-xs text-text-primary truncate">{asset.product}</span>
+                                      <span className="block text-[10px] text-text-muted">
+                                        renews {formatDateDisplay(asset.renewalDate)}
+                                        {asset.serialKey ? ` · ${asset.serialKey}` : ''}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="text-right">
                           <span className="relative group/total">
                             <span className="text-text-primary font-semibold">{symbol}{lineTotal.toFixed(2)}</span>
-                            {resellerPercentage != null && (li._unitPrice as number) > 0 && unitPrice !== (li._unitPrice as number) && (
+                            {resellerPercentage != null && (li._listPrice as number) > 0 && unitPrice !== (li._listPrice as number) && (
                               <span className="absolute right-0 top-full mt-1 z-10 bg-csa-dark border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-text-secondary whitespace-nowrap opacity-0 pointer-events-none group-hover/total:opacity-100 transition-opacity shadow-lg">
-                                List: {symbol}{((li._unitPrice as number) * qty).toFixed(2)} &minus; {resellerPercentage}% commission
+                                List: {symbol}{((li._listPrice as number) * qty).toFixed(2)} &minus; {resellerPercentage}% commission
                               </span>
                             )}
                           </span>

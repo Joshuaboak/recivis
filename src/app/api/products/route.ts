@@ -14,18 +14,27 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const sku = searchParams.get('sku');
+  /**
+   * Lookup by record id, for an order line.
+   *
+   * A saved line names its product by id and carries no SKU, so repricing one —
+   * which needs the product's AUD Unit_Price — had no way to ask for it.
+   */
+  const id = searchParams.get('id');
 
-  if (!sku) {
-    return NextResponse.json({ error: 'sku parameter required' }, { status: 400 });
+  if (!sku && !id) {
+    return NextResponse.json({ error: 'sku or id parameter required' }, { status: 400 });
   }
 
   try {
     // Check Redis cache before hitting Zoho API (10-minute TTL)
-    const cacheKey = `products:${sku}`;
+    const cacheKey = `products:${id ? `id:${id}` : sku}`;
     const cached = await cacheGet<{ products: unknown[] }>(cacheKey);
     if (cached) return NextResponse.json(cached);
 
-    const result = await executeZohoTool('search_records', {
+    const result = id
+      ? await executeZohoTool('get_record', { module: 'Products', record_id: id })
+      : await executeZohoTool('search_records', {
       module: 'Products',
       criteria: `(Product_Code:equals:${sku})`,
       fields: 'id,Product_Name,Product_Code,Unit_Price,Product_Active',

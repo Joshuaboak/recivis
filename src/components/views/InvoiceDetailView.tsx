@@ -37,6 +37,7 @@ import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
 import { CURRENCIES as SUPPORTED_CURRENCIES } from '@/lib/constants';
 import { recipientSentence } from '@/lib/order-recipients';
+import { orderLinePrice, rateFor } from '@/lib/pricing';
 import type { OrderAttachment } from '../invoice/InvoicePurchaseOrder';
 import { useTrackRecentItem } from '@/lib/useRecentItems';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
@@ -108,6 +109,8 @@ function buildInvoicedItemsPayload(items: Record<string, unknown>[]): Record<str
     if (!isExisting && product?.id) cleaned.Product_Name = { id: product.id };
     cleaned.Quantity = li.Quantity;
     cleaned.List_Price = li.List_Price;
+    // 0 bills the price exactly as sent; 1 pro-rates it across the dates. A
+    // price somebody edited on this page is final, so it is billed as written.
     cleaned.Contract_Term_Years = priceChanged ? 0 : (li.Contract_Term_Years ?? 1);
     if (li.Start_Date) cleaned.Start_Date = li.Start_Date;
     if (li.Renewal_Date) cleaned.Renewal_Date = li.Renewal_Date;
@@ -156,6 +159,8 @@ export default function InvoiceDetailView({
   // so we can toggle between reseller/customer pricing without losing the base price
   const [resellerPercentage, setResellerPercentage] = useState<number | null>(null);
   const [originalListPrices, setOriginalListPrices] = useState<Record<string, number>>({});
+  /** Exchange rates from the CRM, target-currency-per-AUD. */
+  const [rates, setRates] = useState<Array<{ code: string; rate: number }>>([]);
 
   // Reseller payment method flags (from Zoho Resellers module)
   /**
@@ -242,6 +247,13 @@ export default function InvoiceDetailView({
   // -------------------------------------------------------------------
   // Data fetching
   // -------------------------------------------------------------------
+
+  useEffect(() => {
+    fetch('/api/currencies')
+      .then(res => res.json())
+      .then(data => setRates(data.currencies || []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!invoiceId) return;
@@ -398,6 +410,54 @@ export default function InvoiceDetailView({
     setSkuBuilderIndex(null);
   };
 
+  /**
+   * Re-price every line for a new currency, from the product's AUD price.
+   *
+   * The line itself only holds a converted figure, so the AUD original has to
+   * come back from the product — which is why this reads them rather than
+   * scaling what is on screen: scaling compounds the rounding of whatever
+   * conversion happened last time, and a hand-typed price would be scaled along
+   * with the rest.
+   *
+   * A line whose product will not load is left exactly as it is. Returns null
+   * when there is nothing to change, so the caller can leave the payload alone.
+   */
+  const repriceLinesForCurrency = async (
+    nextCurrency: string
+  ): Promise<Record<string, unknown>[] | null> => {
+    const rate = rateFor(rates, nextCurrency);
+    if (rate == null) return null; // no rate — better to leave the numbers alone
+
+    const resellerDirect = !!invoice?.Reseller_Direct_Purchase;
+    const priced = await Promise.all(
+      editLineItems.map(async li => {
+        // Coupon lines are a fixed discount somebody agreed, not a converted
+        // catalogue price.
+        if ((li.List_Price as number) < 0) return li;
+
+        const productId = (li.Product_Name as { id?: string } | null)?.id;
+        if (!productId) return li;
+        try {
+          const res = await fetch(`/api/products?id=${encodeURIComponent(productId)}`);
+          const data = await res.json();
+          const aud = Number(data.products?.[0]?.Unit_Price);
+          if (!Number.isFinite(aud) || aud <= 0) return li;
+          const { price } = orderLinePrice({
+            audListPrice: aud,
+            rate,
+            resellerPercentage,
+            resellerDirect,
+          });
+          return { ...li, List_Price: price };
+        } catch {
+          return li;
+        }
+      })
+    );
+
+    return buildInvoicedItemsPayload(priced);
+  };
+
   const saveEdits = async () => {
     if (!invoiceId) return;
     setSaving(true);
@@ -487,10 +547,14 @@ export default function InvoiceDetailView({
       if (formDueDate && formDueDate !== ((invoice?.Due_Date as string)?.slice(0, 10) || '')) {
         body.Due_Date = formDueDate;
       }
-      // The route writes Currency only when truthy, which is fine — a currency is
-      // never blank. Line item amounts are not converted; only the currency changes.
+      // Changing the currency reprices the lines. Every product price in Zoho
+      // is in AUD, so the figures on a line only mean anything alongside the
+      // currency they were converted for — leaving them and swapping the label
+      // (which is what happened here before) turns 795 euros into 795 rupees.
       if (formCurrency && formCurrency !== ((invoice?.Currency as string) || 'AUD')) {
         body.Currency = formCurrency;
+        const reconverted = await repriceLinesForCurrency(formCurrency);
+        if (reconverted) body.Invoiced_Items = reconverted;
       }
       if (lineItemFingerprint(editLineItems) !== lineItemFingerprint(lineItems)) {
         body.Invoiced_Items = buildInvoicedItemsPayload(editLineItems);
@@ -808,7 +872,11 @@ export default function InvoiceDetailView({
           const cleaned: Record<string, unknown> = { id: li.id };
           cleaned.Quantity = li.Quantity;
           cleaned.List_Price = newPrice;
-          cleaned.Contract_Term_Years = 0; // Signal custom pricing
+          // Left as it was. This used to force 0, which switches pro-ration
+          // off — so toggling who an order is addressed to silently turned a
+          // co-term into a full-year charge. Nobody typed a price here; the
+          // reseller discount was recalculated, which is still a calculation.
+          cleaned.Contract_Term_Years = li.Contract_Term_Years ?? 1;
           if (li.Start_Date) cleaned.Start_Date = li.Start_Date;
           if (li.Renewal_Date) cleaned.Renewal_Date = li.Renewal_Date;
           return cleaned;
