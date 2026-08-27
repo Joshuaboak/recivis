@@ -239,6 +239,12 @@ export async function initDB() {
       ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_create_evaluations BOOLEAN DEFAULT false;
       ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS max_evaluations_per_account INTEGER DEFAULT 0;
       ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_extend_evaluations BOOLEAN DEFAULT false;
+      -- These two are no longer read. They were added with a default of false
+      -- and no backfill, and the seed that sets them only runs on an empty
+      -- table — so on every existing database they held false, and evaluations
+      -- were ANDed against them and therefore impossible for any partner. The
+      -- permission is the partner's now (see auth.ts). Kept so the column drop
+      -- is a deliberate decision rather than a side effect of this comment.
       ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS can_create_evaluations BOOLEAN DEFAULT false;
       ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS can_extend_evaluations BOOLEAN DEFAULT false;
 

@@ -77,7 +77,6 @@ const USER_PROJECTION_SQL = `SELECT
        ur.can_send_invoices AS ur_send, ur.can_modify_prices AS ur_price,
        ur.can_upload_po AS ur_po, ur.can_manage_users AS ur_users,
        ur.can_view_reports AS ur_reports, ur.can_export_data AS ur_export,
-       ur.can_create_evaluations AS ur_eval, ur.can_extend_evaluations AS ur_extend_eval,
        ur.can_convert_leads AS ur_convert,
        r.id AS reseller_zoho_id, r.name AS reseller_name, r.email AS reseller_email,
        r.region, r.currency, r.partner_category, r.direct_customer_contact, r.distributor_id,
@@ -201,10 +200,27 @@ async function buildUserFromRow(row: UserProjectionRow): Promise<User> {
     canManageUsers: isSystemAdmin || (row.ur_users ?? false),
     canViewReports: isSystemAdmin || ((row.ur_reports ?? false) && rrReports),
     canExportData: isSystemAdmin || ((row.ur_export ?? false) && rrExport),
-    canCreateEvaluations: isSystemAdmin || ((row.ur_eval ?? false) && rrEval),
+    /**
+     * Evaluations are the partner's arrangement, not a user-role capability.
+     *
+     * This was the user role AND the partner role, and the user-role half was
+     * unreachable: `can_create_evaluations` was added to user_roles with a
+     * default of false and never backfilled — the seed that sets it only runs
+     * on an empty table — so on any database that predates the column, every
+     * role holds false and no partner could ever create an evaluation whatever
+     * an administrator switched on.
+     *
+     * It is an org-level cap now, like direct customer comms and monthly
+     * subscriptions: the partner is allowed evaluations or is not. Viewers are
+     * still excluded, because creating one issues a real licence and read-only
+     * has to mean read-only.
+     */
+    canCreateEvaluations: isSystemAdmin || (rrEval && row.user_role_name !== 'viewer'),
     canConvertLeads: isSystemAdmin || ((row.ur_convert ?? true) && rrConvert),
-    maxEvaluationsPerAccount: isSystemAdmin ? -1 : ((row.ur_eval ?? false) && rrEval ? rrMaxEval : 0),
-    canExtendEvaluations: isSystemAdmin || ((row.ur_extend_eval ?? false) && rrExtendEval),
+    maxEvaluationsPerAccount: isSystemAdmin ? -1 : (rrEval ? rrMaxEval : 0),
+    // Same rule as creating one, and for the same reason: its user-role column
+    // was added alongside and never backfilled either.
+    canExtendEvaluations: isSystemAdmin || (rrExtendEval && row.user_role_name !== 'viewer'),
     // Org-level cap, so no user_role factor — same shape as canViewAllRecords.
     canDirectCustomerComms: isSystemAdmin || rrDirectComms,
     canMonthlySubscriptions: isSystemAdmin || rrMonthlySubs,

@@ -37,12 +37,12 @@ describe('evaluationBlockedReason', () => {
     ).toBeNull();
   });
 
-  it('names both halves when the permission is not held', () => {
-    // It is the user role AND the partner role, and an administrator who has
-    // set one needs telling that the other exists.
+  it('points at the partner account, which is the only switch there is', () => {
+    // It used to be ANDed with the user role, whose column was never
+    // backfilled and so was false everywhere. One setting now, named.
     const reason = evaluationBlockedReason(perms({}), 0);
     expect(reason).toContain('partner account');
-    expect(reason).toContain('user role');
+    expect(reason).not.toContain('user role');
   });
 
   it('says the limit is zero rather than blaming the permission', () => {

@@ -37,7 +37,7 @@ export function evaluationBlockedReason(
   existingCount: number
 ): string | null {
   if (!permissions?.canCreateEvaluations) {
-    return 'Your account does not have permission to create evaluations. This needs turning on for your partner account and for your user role — both.';
+    return 'Evaluations are not enabled for your partner account. Ask CSA to turn them on.';
   }
   const max = permissions.maxEvaluationsPerAccount;
   if (max === 0) {
