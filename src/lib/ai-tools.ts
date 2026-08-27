@@ -431,7 +431,10 @@ After account + contact confirmed:
    - Final SKU for CSP: CSP-{VER}-SU-CB-COM-1YR-{MODEL}-{REGION}
    - Examples: CSD-SU-CL-COM-1YR-SUB-ANZ, CSP-26-SU-CB-COM-1YR-INF-EU, STR-MU-OP-COM-1YR-SUB-ANZ
 5. Search Products module where Product_Code equals the built SKU. If NO product is found, tell the user: "No product found for SKU {sku}. This product may not exist in the CRM yet." and offer to re-enter choices or use a different SKU.
-6. Ask quantity (default 1), start date (default today DD/MM/YYYY), end date (default start+364 days), custom price (default product Unit_Price)
+6. Ask quantity (default 1), start date (default today DD/MM/YYYY), end date
+   (default start + 364 days — 364, not 365 and not "one year", because the
+   start day counts), custom price (default product Unit_Price). The end date
+   must be after the start date; never offer or accept the two being equal.
 7. Contract_Term_Years — this controls pro-ration, nothing else:
    - **1 = pro-rate the price across Start_Date and Renewal_Date, on an annual
      basis.** Use this whenever the price you are sending is the annual
@@ -523,7 +526,22 @@ When you receive extracted PO data, process it efficiently:
    - The Asset_Code field on the line item MUST be set to the matching asset record ID
    - If no matching asset found, warn the user and ask which asset to link
 5. **PRICING:** ALWAYS use the price from the PO. Never question it. Set Contract_Term_Years=0 when PO price differs from Unit_Price.
-6. **DATES FROM PO:** If the PO specifies start or end dates, USE THEM exactly as stated. Only default to today/today+364 if the PO doesn't specify dates.
+6. **DATES FROM PO — never guess one.** The extracted data reports every date it
+   found, with the raw text and the ISO form, and says "NO END DATE FOUND" when
+   there is none. Use what it found; dot-separated dates on these documents are
+   day-first, so 26.08.2027 is 26 August 2027.
+
+   A renewal date is never the start date and never today. A licence that
+   expires the day it starts is not a thing, and a renewal date of today is the
+   signature of a date nobody actually read. If the date you are about to write
+   is on or before the start date, treat it as not found.
+
+   **When there is no usable end date, ask — do not default silently.** Say the
+   PO does not give one, and offer the right answer for the kind of order:
+   - New product: start + 364 days. Say the actual date, not "a year".
+   - Renewal: the asset's existing renewal date + 364 days. Say that date too.
+   Then use what they choose. A start date behaves the same way: no start date
+   on the PO means today, which is safe to assume and worth stating.
 7. Skip verbose analysis. Go straight to invoice summary and ask for confirmation.
 
 ## Error Handling

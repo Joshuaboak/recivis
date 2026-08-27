@@ -14,6 +14,7 @@ import { log } from '@/lib/logger';
 import { isDemoSession } from '@/lib/demo/guard';
 import { DEMO_INVOICES, createDemoOrder } from '@/lib/demo/fixtures';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
+import { orderDateProblem } from '@/lib/line-dates';
 
 /**
  * GET /api/invoices?status=Draft&resellerId=id&resellerIds=id1,id2,id3
@@ -109,6 +110,14 @@ export async function POST(request: NextRequest) {
       const order = createDemoOrder(body);
       log('info', 'api', 'Demo order created', { id: order.id, by: user.email });
       return NextResponse.json({ success: true, id: order.id, demo: true });
+    }
+
+    // Dates that cannot describe a period are refused here rather than left to
+    // whoever reads the invoice later. A renewal date equal to the start date is
+    // what a failed date extraction looks like.
+    const dateProblem = orderDateProblem(body.Invoiced_Items as Array<Record<string, unknown>>);
+    if (dateProblem) {
+      return NextResponse.json({ error: dateProblem }, { status: 400 });
     }
 
     // RBAC: Non-admin users can only create invoices for their allowed resellers

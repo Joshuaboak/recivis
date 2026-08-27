@@ -22,8 +22,34 @@ For EACH line item:
 - Total price
 - Any licence type info (perpetual, subscription, maintenance, single user, multi user, cloud, etc.)
 
+DATES — read this part carefully, it is the field most often missed:
+
+Find every date on the document and report each one with the exact words next to
+it. Look for start dates, end dates, renewal dates and expiry dates, and look for
+them in all of these places:
+- beside or beneath a line item, often as a short note such as "end date:
+  26.08.2027" on its own line under the product
+- in the header, as an order date or a document date
+- in the totals block, or in free text and notes
+
+Dates are written in many formats and some of them are ambiguous. Report each one
+BOTH ways:
+- **raw**: exactly the characters on the page, e.g. "26.08.2027"
+- **iso**: the same date as YYYY-MM-DD, e.g. "2027-08-26"
+
+Dot-separated and slash-separated dates on these documents are day-first
+(26.08.2027 is 26 August 2027, not 8 February). Say so if a date is genuinely
+ambiguous rather than guessing silently.
+
+For each date also say what it applies to: the whole order, or a specific line
+item — and which line.
+
+**If the document has no start or end date at all, say so explicitly:
+"NO START DATE FOUND" / "NO END DATE FOUND".** Do not omit the section and do not
+invent a date. A missing date has to be visible, because the alternative is
+somebody being given today's date and not noticing.
+
 Also note:
-- Any dates mentioned (start, end, expiry)
 - Any special notes or instructions
 - Whether this looks like a NEW purchase or a RENEWAL/maintenance
 

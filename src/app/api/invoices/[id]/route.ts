@@ -13,6 +13,7 @@ import { log } from '@/lib/logger';
 import { isDemoSession } from '@/lib/demo/guard';
 import { findDemoRecord } from '@/lib/demo/fixtures';
 import { requireAuth, isAdmin, canManageReseller } from '@/lib/api-auth';
+import { orderDateProblem } from '@/lib/line-dates';
 
 /**
  * The statuses an order can still be edited in.
@@ -245,7 +246,15 @@ export async function PATCH(
     // deliberately restored — dropping it silently was worse than either choice,
     // because the request still returned success and the edit vanished without a word.
     if (body.Currency) updateData.Currency = body.Currency;
-    if (body.Invoiced_Items) updateData.Invoiced_Items = body.Invoiced_Items;
+    if (body.Invoiced_Items) {
+      // Same rule as creation: an edit must not leave a line expiring the day
+      // it starts either.
+      const dateProblem = orderDateProblem(body.Invoiced_Items as Array<Record<string, unknown>>);
+      if (dateProblem) {
+        return NextResponse.json({ error: dateProblem }, { status: 400 });
+      }
+      updateData.Invoiced_Items = body.Invoiced_Items;
+    }
     if (body.Reseller_Direct_Purchase !== undefined) updateData.Reseller_Direct_Purchase = body.Reseller_Direct_Purchase;
     // Aligning a line to an existing licence during an edit makes the order a
     // co-term, so the type has to be writable — it was not, and the order would
