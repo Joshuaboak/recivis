@@ -1,22 +1,21 @@
 /**
- * CreateInvoiceView — Build and submit a new product invoice.
+ * OrderFormView — the order form, for building a new order and for editing one.
  *
- * Pre-populated from newInvoiceContext (set by AccountDetailView):
- * - Account, contact, reseller, owner, billing country
- * - Reseller currency and region (fetched on load)
+ * One component, two jobs, because they were two and drifted: the create page
+ * grew currency conversion, the send-to toggle and licence alignment, while the
+ * edit form was a different set of fields on the order page that still said
+ * "line item amounts are not converted" and offered send-to as a read-only
+ * label. An order raised through one and corrected through the other went
+ * through two different pricing models.
  *
- * Features:
- * - Editable dates (invoice date, due date) and currency selector
- * - Line item builder with SKUBuilder modal for product selection
- * - Per-line editable quantity and list price
- * - Auto-calculated subtotal
- * - On save: creates Draft invoice in Zoho CRM, then navigates to detail view
- * - Unsaved work is drafted per account (see useDraft) and offered back on
- *   return; it is never rehydrated without the user asking.
+ * The only difference between the two is where the save goes: POST a new record
+ * or PATCH an existing one. Everything above that — the fields, the pricing, the
+ * alignment, the validation — is the same code by construction rather than by
+ * anyone remembering to change both.
  *
- * Contract_Term_Years logic: If the user modifies the list price from the
- * product's default unit price, Contract_Term_Years is set to 0 to signal
- * the Zoho workflow that custom pricing was applied.
+ * Create mode is pre-populated from newInvoiceContext (set by AccountDetailView)
+ * and drafts unsaved work per account; edit mode reads the order and its lines
+ * from the CRM, and does not draft, because the record is the persistence.
  */
 
 'use client';
@@ -25,7 +24,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
-  FileText,
   Building2,
   User,
   Calendar,
@@ -40,6 +38,7 @@ import {
   Replace,
   CalendarClock,
   Info,
+  X,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
@@ -87,17 +86,35 @@ const EMPTY_INVOICE_DRAFT: InvoiceDraft = {
   lineItems: [],
 };
 
-export default function CreateInvoiceView() {
+export default function OrderFormView({ invoiceId }: { invoiceId?: string } = {}) {
+  /** Editing an existing order rather than building a new one. */
+  const isEdit = !!invoiceId;
   const { newInvoiceContext, user } = useAppStore();
+  /** The order being edited, once it has loaded. */
+  const [existing, setExisting] = useState<Record<string, unknown> | null>(null);
+  const [loadingOrder, setLoadingOrder] = useState(isEdit);
+  const [loadError, setLoadError] = useState('');
   const router = useGuardedRouter();
   const { registerDirty } = useUnsavedChanges();
 
-  const account = newInvoiceContext?.account as { name?: string; id?: string } | null;
-  const contact = newInvoiceContext?.contact as { name?: string; id?: string } | null;
-  const resellerData = newInvoiceContext?.reseller as { name?: string; id?: string } | null;
+  // In edit mode the parties come off the record; in create mode from the
+  // context the account page set on the way in.
+  const account = (isEdit
+    ? (existing?.Account_Name as { name?: string; id?: string } | null)
+    : (newInvoiceContext?.account as { name?: string; id?: string } | null)) || null;
+  const contact = (isEdit
+    ? (existing?.Contact_Name as { name?: string; id?: string } | null)
+    : (newInvoiceContext?.contact as { name?: string; id?: string } | null)) || null;
+  const resellerData = (isEdit
+    ? (existing?.Reseller as { name?: string; id?: string } | null)
+    : (newInvoiceContext?.reseller as { name?: string; id?: string } | null)) || null;
   const [resellerRegion, setResellerRegion] = useState((newInvoiceContext?.region as string) || 'AU');
-  const ownerData = newInvoiceContext?.owner as { name?: string; id?: string } | null;
-  const billingCountry = newInvoiceContext?.billingCountry as string || '';
+  const ownerData = (isEdit
+    ? (existing?.Owner as { name?: string; id?: string } | null)
+    : (newInvoiceContext?.owner as { name?: string; id?: string } | null)) || null;
+  const billingCountry = (isEdit
+    ? (existing?.Billing_Country as string)
+    : (newInvoiceContext?.billingCountry as string)) || '';
 
   const today = new Date().toISOString().slice(0, 10);
   const plus30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
@@ -120,16 +137,19 @@ export default function CreateInvoiceView() {
   // Currency is stored in the draft but deliberately left out of this test: the
   // reseller fetch below overwrites it, and a form nobody touched must not look
   // dirty or leave a draft behind.
-  const isDirty = lineItems.length > 0 || invoiceDate !== today || dueDate !== plus30;
+  // Editing does not draft: the record is the persistence, and restoring a
+  // stale half-edit over a saved order would be worse than losing it.
+  const isDirty = !isEdit && (lineItems.length > 0 || invoiceDate !== today || dueDate !== plus30);
 
   const { pendingDraft, pendingDraftSavedAt, restore, discard, clear } =
     useDraft<InvoiceDraft>(draftKey, isDirty ? draft : EMPTY_INVOICE_DRAFT);
 
   // Drafts survive browser Back; this makes in-app navigation prompt first.
   useEffect(() => {
-    registerDirty('create-invoice', isDirty, 'this new order');
-    return () => registerDirty('create-invoice', false);
-  }, [registerDirty, isDirty]);
+    const label = isEdit ? 'your changes to this order' : 'this new order';
+    registerDirty('order-form', isDirty, label);
+    return () => registerDirty('order-form', false);
+  }, [registerDirty, isDirty, isEdit]);
 
   const [resellerPercentage, setResellerPercentage] = useState<number | null>(null);
   /**
@@ -182,6 +202,58 @@ export default function CreateInvoiceView() {
    * dates rather than being chosen up front.
    */
   const [invoiceType, setInvoiceType] = useState('New Product');
+
+  /**
+   * Load the order being edited, and the AUD price behind each of its lines.
+   *
+   * The line only stores a converted figure, so repricing it for a new currency
+   * or a new routing needs the product's AUD price back — which is why each
+   * line's product is read here rather than the numbers on screen being scaled.
+   */
+  useEffect(() => {
+    if (!invoiceId) return;
+    setLoadingOrder(true);
+    fetch(`/api/invoices/${invoiceId}`)
+      .then(async res => ({ ok: res.ok, data: await res.json() }))
+      .then(async ({ ok, data }) => {
+        if (!ok || !data.invoice) {
+          setLoadError(data.error || 'This order could not be loaded.');
+          return;
+        }
+        const inv = data.invoice as Record<string, unknown>;
+        setExisting(inv);
+        setInvoiceDate(((inv.Invoice_Date as string) || '').slice(0, 10) || today);
+        setDueDate(((inv.Due_Date as string) || '').slice(0, 10) || plus30);
+        setCurrency((inv.Currency as string) || 'AUD');
+        setInvoiceType((inv.Invoice_Type as string) || 'New Product');
+        setResellerDirect(!!inv.Reseller_Direct_Purchase);
+
+        const lines = (data.lineItems || []) as Record<string, unknown>[];
+        const withAud = await Promise.all(lines.map(async li => {
+          const productId = (li.Product_Name as { id?: string } | null)?.id;
+          let aud = 0;
+          if (productId) {
+            try {
+              const r = await fetch(`/api/products?id=${encodeURIComponent(productId)}`);
+              const d = await r.json();
+              aud = Number(d.products?.[0]?.Unit_Price) || 0;
+            } catch { /* leave at 0 — the line simply will not reprice */ }
+          }
+          return {
+            ...li,
+            _audUnitPrice: aud,
+            _listPrice: li.List_Price,
+            // A saved price is not something this session typed, so it stays
+            // eligible for repricing until somebody edits the field.
+            _priceEditedByHand: false,
+            _alignedTo: (li.Align_to as { id?: string } | null)?.id,
+          };
+        }));
+        setLineItems(withAud);
+      })
+      .catch(() => setLoadError('This order could not be loaded.'))
+      .finally(() => setLoadingOrder(false));
+  }, [invoiceId, today, plus30]);
 
   // The customer's licences, for the alignment picker.
   useEffect(() => {
@@ -246,7 +318,10 @@ export default function CreateInvoiceView() {
   // this route has nothing to build an order from. Send the user back to pick
   // an account rather than showing an empty form.
   useEffect(() => {
-    if (!account) {
+    // Only in create mode: an edit gets its account from the record, so a
+    // missing one there means the order is still loading, not that somebody
+    // arrived without picking a customer.
+    if (!isEdit && !account) {
       router.replace(`${buildPath('accounts')}?notice=${encodeURIComponent(NO_CONTEXT_MESSAGE)}`);
     }
   }, [account, router]);
@@ -290,7 +365,13 @@ export default function CreateInvoiceView() {
    */
   const alignLineTo = (index: number, asset: AlignableAsset) => {
     setLineItems(prev => prev.map((li, i) => (
-      i === index ? { ...li, Renewal_Date: asset.renewalDate, _alignedTo: asset.id } : li
+      i === index
+        // `Align_to` is a lookup to the licence on the line item, and the CRM
+        // fills Renewal_Date from it. The date is set here as well so the form
+        // shows the period it is about to charge for, rather than leaving a
+        // blank until the record comes back.
+        ? { ...li, Align_to: { id: asset.id }, Renewal_Date: asset.renewalDate, _alignedTo: asset.id }
+        : li
     )));
     setInvoiceType('Co-Term');
     setAligningIndex(null);
@@ -300,18 +381,34 @@ export default function CreateInvoiceView() {
   const clearAlignment = (index: number) => {
     setLineItems(prev => {
       const next = prev.map((li, i) => (
-        i === index ? { ...li, Renewal_Date: plus364, _alignedTo: undefined } : li
+        i === index
+          ? { ...li, Align_to: null, Renewal_Date: plus364, _alignedTo: undefined }
+          : li
       ));
       if (!next.some(li => li._alignedTo)) setInvoiceType('New Product');
       return next;
     });
   };
 
-  const anyAligned = lineItems.some(li => li._alignedTo);
+  const anyAligned = lineItems.some(li => li._alignedTo && !li._deleted);
 
+  /**
+   * Remove a line.
+   *
+   * A line that has never been saved just goes. One that exists in the CRM is
+   * marked instead, because a subform is updated by id: dropping it from the
+   * array leaves it on the record, and the removal would appear to work and
+   * then not have. It is filtered out of the display and sent as a deletion.
+   */
   const removeLineItem = (index: number) => {
-    setLineItems(prev => prev.filter((_, i) => i !== index));
+    setLineItems(prev => prev.flatMap((li, i) => {
+      if (i !== index) return [li];
+      return li.id ? [{ ...li, _deleted: true }] : [];
+    }));
   };
+
+  /** The lines on screen — everything except the ones queued for deletion. */
+  const visibleLineItems = lineItems.filter(li => !li._deleted);
 
   const updateLineItem = (index: number, field: string, value: unknown) => {
     setLineItems(prev => prev.map((li, i) => i === index ? { ...li, [field]: value } : li));
@@ -352,7 +449,9 @@ export default function CreateInvoiceView() {
   useEffect(() => {
     const rate = rateFor(rates, currency);
     setLineItems(prev => prev.map(li => {
-      if (li._priceEditedByHand) return li;
+      // A line queued for deletion is about to stop existing; repricing it
+      // would only put a changed figure into the delete payload.
+      if (li._deleted || li._priceEditedByHand) return li;
       const aud = Number(li._audUnitPrice);
       if (!Number.isFinite(aud) || aud <= 0) return li;
       const priced = orderLinePrice({
@@ -367,11 +466,17 @@ export default function CreateInvoiceView() {
   }, [currency, rates, resellerPercentage, resellerDirect]);
 
   const goBack = () => {
+    // Leaving an edit goes back to the order, not to the customer: the order is
+    // where you came from and what you were looking at.
+    if (isEdit && invoiceId) {
+      router.push(buildPath('invoice-detail', invoiceId));
+      return;
+    }
     router.push(account?.id ? buildPath('account-detail', account.id) : buildPath('accounts'));
   };
 
   const createInvoice = async () => {
-    if (lineItems.length === 0 || !account?.id) return;
+    if (visibleLineItems.length === 0 || !account?.id) return;
     setSaving(true);
 
     try {
@@ -379,13 +484,22 @@ export default function CreateInvoiceView() {
       const subject = `${account.name} - Order - ${invoiceDateFormatted}`;
 
       const invoicedItems = lineItems.map(li => {
+        // An existing line the user removed. Zoho takes the id and the flag.
+        if (li._deleted) return { id: li.id, _delete: true };
+
         const item: Record<string, unknown> = {
-          Product_Name: li.Product_Name,
           Quantity: li.Quantity,
           List_Price: li.List_Price,
           Start_Date: li.Start_Date,
           Renewal_Date: li.Renewal_Date,
         };
+        // An existing line is updated by id; Zoho rejects a product change on
+        // one, so the lookup only goes up for a line being added.
+        if (li.id) item.id = li.id;
+        else item.Product_Name = li.Product_Name;
+        // The licence this line renews alongside, when one was picked.
+        if (li.Align_to !== undefined) item.Align_to = li.Align_to;
+        if (li.Asset_Code) item.Asset_Code = li.Asset_Code;
         // 1 pro-rates the price across the dates; 0 bills it exactly as sent.
         // This used to compare List_Price against the product's Unit_Price and
         // send 0 whenever they differed — and the reseller discount makes them
@@ -402,63 +516,89 @@ export default function CreateInvoiceView() {
       };
       const skuRegion = REGION_MAP[resellerRegion] || resellerRegion;
 
+      // What both modes write. An edit sends only these: the record already
+      // has its subject, parties and status, and the PATCH route accepts a
+      // deliberately short list of fields anyway.
       const invoiceData: Record<string, unknown> = {
-        Subject: subject,
-        Account_Name: { id: account.id },
         Invoice_Date: invoiceDate,
         Due_Date: dueDate,
-        Status: 'Draft',
-        Invoice_Type: invoiceType,
         Currency: currency,
-        Reseller_Region: skuRegion,
-        // Absent before, so every new order read as "send to customer".
         Reseller_Direct_Purchase: resellerDirect ?? false,
-        Send_Invoice: false,
-        Don_t_Make_Keys: false,
-        Automatically_Send_Email: false,
         Invoiced_Items: invoicedItems,
       };
 
-      if (contact?.id) invoiceData.Contact_Name = { id: contact.id };
-      if (resellerData?.id) invoiceData.Reseller = { id: resellerData.id };
-      if (ownerData?.id) invoiceData.Owner = { id: ownerData.id };
-      if (billingCountry) invoiceData.Billing_Country = billingCountry;
+      if (!isEdit) {
+        invoiceData.Subject = subject;
+        invoiceData.Account_Name = { id: account.id };
+        invoiceData.Status = 'Draft';
+        invoiceData.Invoice_Type = invoiceType;
+        invoiceData.Reseller_Region = skuRegion;
+        invoiceData.Send_Invoice = false;
+        invoiceData.Don_t_Make_Keys = false;
+        invoiceData.Automatically_Send_Email = false;
+        if (contact?.id) invoiceData.Contact_Name = { id: contact.id };
+        if (resellerData?.id) invoiceData.Reseller = { id: resellerData.id };
+        if (ownerData?.id) invoiceData.Owner = { id: ownerData.id };
+        if (billingCountry) invoiceData.Billing_Country = billingCountry;
+      } else if (invoiceType !== ((existing?.Invoice_Type as string) || '')) {
+        // Aligning a line during an edit turns the order into a co-term, so
+        // the type has to travel with it.
+        invoiceData.Invoice_Type = invoiceType;
+      }
 
-      const res = await fetch('/api/invoices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(invoiceData),
-      });
+      // The one difference between the two modes: update the record, or make
+      // one. Everything above this line is identical either way.
+      const res = await fetch(
+        isEdit ? `/api/invoices/${invoiceId}` : '/api/invoices',
+        {
+          method: isEdit ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(invoiceData),
+        }
+      );
 
       const data = await res.json();
-      if (data.id) {
-        // It's a real record now — drop the draft and the dirty flag so the
-        // navigation below doesn't prompt.
+      const savedId = isEdit ? invoiceId : data.id;
+      if (res.ok && savedId) {
         clear();
-        registerDirty('create-invoice', false);
-        // Navigate to the created invoice
-        router.push(buildPath('invoice-detail', data.id));
+        registerDirty('order-form', false);
+        router.push(buildPath('invoice-detail', savedId));
       } else {
-        // Creating an order needs canCreateInvoices, which is enforced on the
-        // server and not on this button. Saying so beats the spinner simply
-        // stopping, which is what used to happen.
-        setCreateError(data.error || 'The order could not be created.');
+        // Both routes permission-check on the server rather than on this
+        // button, so saying what came back beats the spinner simply stopping.
+        setCreateError(
+          data.error || (isEdit ? 'The order could not be saved.' : 'The order could not be created.')
+        );
         setSaving(false);
       }
     } catch {
-      setCreateError('The order could not be created. Please try again.');
+      setCreateError(
+        isEdit ? 'The order could not be saved. Please try again.'
+               : 'The order could not be created. Please try again.'
+      );
       setSaving(false);
     }
   };
 
-  const subtotal = lineItems.reduce((sum, li) => {
+  const subtotal = visibleLineItems.reduce((sum, li) => {
     const qty = (li.Quantity as number) || 0;
     const price = (li.List_Price as number) || 0;
     return sum + qty * price;
   }, 0);
 
-  // Redirecting — see the effect above.
-  if (!account) {
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center">
+        <p className="text-text-muted max-w-md">{loadError}</p>
+        <button onClick={() => router.push(buildPath('draft-invoices'))} className="text-csa-accent text-sm cursor-pointer">
+          Back to Orders
+        </button>
+      </div>
+    );
+  }
+
+  // Loading the record, or redirecting because no customer was picked.
+  if (loadingOrder || !account) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 size={24} className="text-csa-accent animate-spin" />
@@ -471,7 +611,7 @@ export default function CreateInvoiceView() {
       <div className="max-w-6xl mx-auto px-6 py-6">
         {/* Never rehydrated silently — a stale order that reappears on its own
             gets submitted by accident. The user chooses. */}
-        {pendingDraft && pendingDraftSavedAt !== null ? (
+        {!isEdit && pendingDraft && pendingDraftSavedAt !== null ? (
           <DraftRestoreBar
             savedAt={pendingDraftSavedAt}
             label="unsaved order"
@@ -495,7 +635,9 @@ export default function CreateInvoiceView() {
             </button>
 
             <div className="flex items-center gap-2 px-3 py-1.5 bg-csa-accent/10 border border-csa-accent/30 rounded-xl">
-              <span className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider">New Order</span>
+              <span className="text-[10px] font-semibold text-csa-accent uppercase tracking-wider">
+                {isEdit ? `Editing #${(existing?.Reference_Number as string) || ''}` : 'New Order'}
+              </span>
               <span className="text-sm font-bold text-csa-accent">New Product</span>
             </div>
 
@@ -507,11 +649,13 @@ export default function CreateInvoiceView() {
 
             <button
               onClick={() => { setCreateError(''); createInvoice(); }}
-              disabled={saving || lineItems.length === 0 || lineItems.some(li => !li.Product_Name)}
+              disabled={saving || visibleLineItems.length === 0 || visibleLineItems.some(li => !li.Product_Name)}
               className="flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl hover:bg-success/20 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {saving ? 'Creating...' : 'Create Order'}
+              {saving
+                ? (isEdit ? 'Saving...' : 'Creating...')
+                : (isEdit ? 'Save Changes' : 'Create Order')}
             </button>
           </div>
 
@@ -519,12 +663,18 @@ export default function CreateInvoiceView() {
             <p className="ml-12 mt-2 text-xs text-error">{createError}</p>
           ) : null}
 
-          <h1
-            className="text-2xl font-bold text-text-primary ml-12 truncate"
-            title={`${account.name} - Order - ${formatDateDisplay(invoiceDate)}`}
-          >
-            {account.name} - Order - {formatDateDisplay(invoiceDate)}
-          </h1>
+          {/* An existing order keeps the subject it was saved with; a new one
+              is titled the way it is about to be. */}
+          {(() => {
+            const heading = isEdit
+              ? ((existing?.Subject as string) || `${account.name} - Order`)
+              : `${account.name} - Order - ${formatDateDisplay(invoiceDate)}`;
+            return (
+              <h1 className="text-2xl font-bold text-text-primary ml-12 truncate" title={heading}>
+                {heading}
+              </h1>
+            );
+          })()}
         </div>
 
         {/* Invoice Info Cards */}
@@ -575,7 +725,7 @@ export default function CreateInvoiceView() {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
           <h2 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
             <Package size={18} className="text-csa-accent" />
-            Line Items ({lineItems.length})
+            Line Items ({visibleLineItems.length})
           </h2>
 
           {/* Said while the order is being built, not after. The figure on
@@ -594,9 +744,13 @@ export default function CreateInvoiceView() {
               </p>
             </div>
           )}
-          {lineItems.length > 0 ? (
-            <div className="border border-border-subtle rounded-xl overflow-x-auto">
-              <table className="w-full min-w-[700px]">
+          {/* The table carries no scroller of its own: an order has a handful of
+              lines and all of them should be on screen. The overflow that used
+              to be here clipped the alignment popover and turned the panel into
+              a scrolling box. */}
+          {visibleLineItems.length > 0 ? (
+            <div className="border border-border-subtle rounded-xl">
+              <table className="w-full">
                 <thead>
                   <tr className="bg-surface-raised">
                     <th>Product</th>
@@ -610,6 +764,10 @@ export default function CreateInvoiceView() {
                 </thead>
                 <tbody>
                   {lineItems.map((li, i) => {
+                    // Mapped over the full list so `i` still addresses the line
+                    // the handlers will update; the removed ones just do not
+                    // render.
+                    if (li._deleted) return null;
                     const product = li.Product_Name as { name?: string } | null;
                     const qty = li.Quantity as number;
                     const unitPrice = li.List_Price as number;
@@ -668,59 +826,37 @@ export default function CreateInvoiceView() {
                           />
                         </td>
                         <td>
-                          <div className="relative">
+                          {/* The align control sits beside the date, not under
+                              it: stacked, it grew the row and shifted the date
+                              up whenever a customer had a licence to align to. */}
+                          <div className="flex items-center gap-2">
+                            {alignableAssets.length > 0 && (
+                              li._alignedTo ? (
+                                <button
+                                  onClick={() => clearAlignment(i)}
+                                  title="Stop aligning this line and go back to a full year"
+                                  aria-label="Stop aligning this line"
+                                  className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-success/20 border border-success/50 text-success hover:bg-success/30 transition-colors cursor-pointer"
+                                >
+                                  <CalendarClock size={13} />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => setAligningIndex(i)}
+                                  title="Line this up with a licence the customer already holds"
+                                  aria-label="Align to an existing licence"
+                                  className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-success/10 border border-success/30 text-success/70 hover:bg-success/20 hover:text-success transition-colors cursor-pointer"
+                                >
+                                  <CalendarClock size={13} />
+                                </button>
+                              )
+                            )}
                             <input
                               type="date"
                               value={li.Renewal_Date as string || ''}
                               onChange={(e) => updateLineItem(i, 'Renewal_Date', e.target.value)}
                               className="bg-surface border border-csa-accent/50 rounded-lg px-2 py-1 text-sm text-text-primary outline-none focus:border-csa-accent w-[130px]"
                             />
-                            {/* Align to an existing licence. Only offered when
-                                the customer has one still running — with none,
-                                there is no date to line up with. */}
-                            {alignableAssets.length > 0 && (
-                              li._alignedTo ? (
-                                <button
-                                  onClick={() => clearAlignment(i)}
-                                  title="Stop aligning this line and go back to a full year"
-                                  className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-csa-accent hover:text-csa-highlight transition-colors cursor-pointer"
-                                >
-                                  <CalendarClock size={10} />
-                                  Aligned — undo
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => setAligningIndex(aligningIndex === i ? null : i)}
-                                  title="Line this up with a licence the customer already holds"
-                                  className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-text-muted hover:text-csa-accent transition-colors cursor-pointer"
-                                >
-                                  <CalendarClock size={10} />
-                                  Align to licence
-                                </button>
-                              )
-                            )}
-                            {aligningIndex === i && (
-                              <div className="absolute right-0 top-full mt-1 z-30 w-72 bg-csa-dark border border-border rounded-xl shadow-lg overflow-hidden">
-                                <p className="px-3 py-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                                  Renew together with
-                                </p>
-                                <div className="max-h-[200px] overflow-y-auto">
-                                  {alignableAssets.map(asset => (
-                                    <button
-                                      key={asset.id}
-                                      onClick={() => alignLineTo(i, asset)}
-                                      className="w-full text-left px-3 py-2 hover:bg-surface-raised transition-colors cursor-pointer border-b border-border-subtle last:border-0"
-                                    >
-                                      <span className="block text-xs text-text-primary truncate">{asset.product}</span>
-                                      <span className="block text-[10px] text-text-muted">
-                                        renews {formatDateDisplay(asset.renewalDate)}
-                                        {asset.serialKey ? ` · ${asset.serialKey}` : ''}
-                                      </span>
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </td>
                         <td className="text-right">
@@ -756,7 +892,7 @@ export default function CreateInvoiceView() {
         </motion.div>
 
         {/* Totals */}
-        {lineItems.length > 0 ? (
+        {visibleLineItems.length > 0 ? (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-8">
             <div className="max-w-sm ml-auto bg-surface border border-border-subtle rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 bg-surface-raised">
@@ -775,6 +911,60 @@ export default function CreateInvoiceView() {
           onSelect={(product) => handleProductSelect(skuBuilderIndex, product)}
           onCancel={() => setSkuBuilderIndex(null)}
         />
+      ) : null}
+
+      {/* Licence alignment picker.
+          A dialog rather than a dropdown in the cell: inside the table it was
+          clipped by the row and turned the line items into a scrolling panel,
+          and a customer can hold several licences worth showing properly. */}
+      {aligningIndex !== null ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAligningIndex(null)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="relative bg-csa-dark border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100vh-4rem)] flex flex-col"
+          >
+            <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border-subtle">
+              <div>
+                <h2 className="text-base font-bold text-text-primary flex items-center gap-2">
+                  <CalendarClock size={16} className="text-success" />
+                  Renew together with
+                </h2>
+                <p className="text-xs text-text-muted mt-1">
+                  The new licence will run to the date you pick, and the price is pro-rated
+                  when the order is saved.
+                </p>
+              </div>
+              <button
+                onClick={() => setAligningIndex(null)}
+                className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-surface-raised transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <X size={16} className="text-text-muted" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-3 space-y-2">
+              {alignableAssets.map(asset => (
+                <button
+                  key={asset.id}
+                  onClick={() => alignLineTo(aligningIndex, asset)}
+                  className="w-full text-left px-4 py-3 bg-surface border border-border-subtle rounded-xl hover:border-success/50 hover:bg-success/5 transition-colors cursor-pointer"
+                >
+                  <span className="block text-sm font-semibold text-text-primary">{asset.product}</span>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-text-muted">
+                    <span className="flex items-center gap-1">
+                      <CalendarClock size={11} />
+                      Renews {formatDateDisplay(asset.renewalDate)}
+                    </span>
+                    {asset.serialKey ? <span className="font-mono">{asset.serialKey}</span> : null}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        </div>
       ) : null}
     </div>
   );

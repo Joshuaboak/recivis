@@ -247,6 +247,10 @@ export async function PATCH(
     if (body.Currency) updateData.Currency = body.Currency;
     if (body.Invoiced_Items) updateData.Invoiced_Items = body.Invoiced_Items;
     if (body.Reseller_Direct_Purchase !== undefined) updateData.Reseller_Direct_Purchase = body.Reseller_Direct_Purchase;
+    // Aligning a line to an existing licence during an edit makes the order a
+    // co-term, so the type has to be writable — it was not, and the order would
+    // have kept saying New Product while its dates said otherwise.
+    if (body.Invoice_Type) updateData.Invoice_Type = body.Invoice_Type;
     if (body.Purchase_Order !== undefined) updateData.Purchase_Order = body.Purchase_Order;
 
     // Status changes require specific permissions
