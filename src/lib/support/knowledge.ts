@@ -263,14 +263,17 @@ export const HELP_TOPICS: HelpTopic[] = [
   {
     id: 'send-to',
     title: 'Who the order and keys get emailed to',
-    where: 'Orders → open an order → Order and Licence Keys will be sent to',
+    where: 'New Order, and Orders → open an order → Order and Licence Keys will be sent to',
     path: '/orders',
     requires: ['canDirectCustomerComms'],
     body:
       'Reseller sends everything to you, copying the CSA sales rep. Customer sends it ' +
-      'straight to the end customer, copying you and the CSA rep. The Customer option ' +
-      'only appears if your partner account is allowed to communicate directly with ' +
-      'customers; if you cannot see it, that setting is off.',
+      'straight to the end customer, copying you and the CSA rep. It also sets the ' +
+      'price: Reseller charges you the list price less your commission, Customer ' +
+      'charges the customer list price, and switching it recalculates the lines. It ' +
+      'starts on whichever your partner account prefers. The Customer option only ' +
+      'appears if your partner account is allowed to deal with customers directly; if ' +
+      'you cannot see it, everything goes via you and the prices are yours.',
   },
   {
     id: 'purchase-orders',

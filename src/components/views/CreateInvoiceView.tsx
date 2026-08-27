@@ -46,6 +46,7 @@ import { buildPath } from '@/lib/routes';
 import { CURRENCIES as SUPPORTED_CURRENCIES } from '@/lib/constants';
 import { orderLinePrice, rateFor, contractTermYears } from '@/lib/pricing';
 import { isRenewable, renewabilityOf } from '@/lib/renewal-eligibility';
+import InvoiceSendTo from '../invoice/InvoiceSendTo';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import { useDraft } from '@/lib/useDraft';
@@ -87,7 +88,7 @@ const EMPTY_INVOICE_DRAFT: InvoiceDraft = {
 };
 
 export default function CreateInvoiceView() {
-  const { newInvoiceContext } = useAppStore();
+  const { newInvoiceContext, user } = useAppStore();
   const router = useGuardedRouter();
   const { registerDirty } = useUnsavedChanges();
 
@@ -146,6 +147,15 @@ export default function CreateInvoiceView() {
    * two halves of the same decision disagreed.
    */
   const [resellerDirect, setResellerDirect] = useState<boolean | null>(null);
+  /**
+   * Whether this user may address an order to the end customer at all.
+   *
+   * Without it there is only one routing and only one price, so the toggle is
+   * not rendered — a control with one reachable value is just something to
+   * misread. The prices are the reseller ones in that case, which is what
+   * routing everything via the partner means.
+   */
+  const canChooseCustomer = !!user?.permissions?.canDirectCustomerComms;
   /**
    * Exchange rates from the CRM, target-currency-per-AUD.
    *
@@ -219,10 +229,14 @@ export default function CreateInvoiceView() {
         if (reseller?.Region) setResellerRegion(reseller.Region);
         const pct = reseller?.Reseller_Sale;
         if (pct != null) setResellerPercentage(Number(pct));
-        setResellerDirect(!reseller?.Direct_Customer_Contact);
+        // The partner's own preference sets the default: one that does not deal
+        // with customers directly takes everything itself. A partner without
+        // the direct-customer permission has no choice to make, so the default
+        // is the only answer — see `canChooseCustomer`.
+        setResellerDirect(canChooseCustomer ? !reseller?.Direct_Customer_Contact : true);
       })
       .catch(() => {});
-  }, [resellerData?.id]);
+  }, [resellerData?.id, canChooseCustomer]);
   const [saving, setSaving] = useState(false);
   /** Why the last Create Order attempt failed, shown beside the button. */
   const [createError, setCreateError] = useState('');
@@ -541,6 +555,21 @@ export default function CreateInvoiceView() {
           {ownerData ? <InfoCard label="Owner" value={ownerData.name || '\u2014'} icon={<User size={14} />} /> : null}
           {billingCountry ? <InfoCard label="Billing Country" value={billingCountry} icon={<MapPin size={14} />} /> : null}
         </motion.div>
+
+        {/* Where the order goes — and therefore what it costs. Shown here rather
+            than only on the saved order, because it decides whether the prices
+            below are list or the partner's, and reading them without it is
+            reading half the answer. Hidden entirely for a partner who may not
+            address an order to a customer: one reachable value is not a choice. */}
+        {canChooseCustomer && resellerDirect !== null && (
+          <InvoiceSendTo
+            invoice={{ Reseller_Direct_Purchase: resellerDirect }}
+            status="Draft"
+            updatingDirectPurchase={false}
+            onToggleDirectPurchase={setResellerDirect}
+            allowDirectCustomer={canChooseCustomer}
+          />
+        )}
 
         {/* Line Items */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
