@@ -22,19 +22,26 @@ import type { UserPermissions } from '@/lib/types';
  * Why this partner cannot create an evaluation here, or null when they can.
  *
  * The cap mirrors the check in /api/evaluations: -1 is unlimited, and 0 is the
- * value the permission resolution uses for "not allowed at all", so it reads as
- * a permission problem rather than an exhausted allowance.
+ * value the permission resolution uses for "not allowed at all".
+ *
+ * A limit of zero used to be reported as "no permission", which sent
+ * administrators to the wrong switch. The two are genuinely different and one
+ * of them is a trap: the Restricted Reseller preset ships with the permission
+ * off *and* a limit of zero, so turning the permission on for a partner leaves
+ * the limit inheriting zero — granted and impossible at the same time. It says
+ * which now, because "ask your administrator to enable it" is unhelpful advice
+ * when they already did.
  */
 export function evaluationBlockedReason(
   permissions: UserPermissions | undefined,
   existingCount: number
 ): string | null {
   if (!permissions?.canCreateEvaluations) {
-    return 'Your account does not have permission to create evaluations. Ask your administrator to enable it.';
+    return 'Your account does not have permission to create evaluations. This needs turning on for your partner account and for your user role — both.';
   }
   const max = permissions.maxEvaluationsPerAccount;
   if (max === 0) {
-    return 'Your account does not have permission to create evaluations. Ask your administrator to enable it.';
+    return 'Evaluations are enabled for your partner account but its limit is set to 0, so none can be created. Ask your administrator to raise the evaluation limit.';
   }
   if (max !== -1 && existingCount >= max) {
     return `This customer already has the maximum of ${max} evaluation${max === 1 ? '' : 's'}. Ask your administrator to raise the limit.`;

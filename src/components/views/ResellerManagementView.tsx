@@ -1635,6 +1635,20 @@ function PermissionToggles({
         );
       })}
       </div>
+      {/* Enabled with a limit of zero is granted and impossible at once, and it
+          happens by inheritance rather than by choice: the Restricted preset
+          ships with the permission off and the limit at 0, so turning the
+          permission on for a partner leaves the limit at 0 behind it. Said
+          here, where it can be fixed in the same breath. */}
+      {evalEnabled && onMaxEvalsChange && effectiveMaxEvals === 0 && (
+        <div className="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-lg border border-warning/40 bg-warning/10">
+          <span className="text-warning text-sm leading-none mt-0.5">&#9888;</span>
+          <p className="text-[11px] text-text-secondary leading-relaxed">
+            Evaluations are enabled but the limit is <span className="font-semibold text-text-primary">0</span>,
+            so none can be created. Set a number below, or tick Unlimited.
+          </p>
+        </div>
+      )}
       {evalEnabled && onMaxEvalsChange && (
         <div className="mt-3 flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border-subtle bg-surface">
           <div className="min-w-0 flex-1">

@@ -88,7 +88,12 @@ export async function POST(request: NextRequest) {
 
       if (evalCount >= maxEvals) {
         return NextResponse.json({
-          error: `Maximum evaluations per account reached (${maxEvals}). Contact your administrator.`,
+          // Zero is not an exhausted allowance, it is a limit nobody set. The
+          // Restricted preset ships with one, so a partner granted the
+          // permission without a limit is granted nothing.
+          error: maxEvals === 0
+            ? 'Evaluations are enabled for your partner account but its limit is set to 0, so none can be created. Ask your administrator to raise the evaluation limit.'
+            : `Maximum evaluations per account reached (${maxEvals}). Contact your administrator.`,
         }, { status: 403 });
       }
     }
