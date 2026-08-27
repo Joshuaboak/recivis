@@ -7,6 +7,7 @@ import { useAppStore } from '@/lib/store';
 import LineItemForm from './LineItemForm';
 import DataForm, { parseFieldList } from './DataForm';
 import POAttachment from './POAttachment';
+import { GuardedLink } from '@/components/GuardedLink';
 
 /** Extract invoice ID from message — only when PO was SET or invoice CREATED (not when asking) */
 function detectInvoiceForAttachment(content: string): string | null {
@@ -343,7 +344,25 @@ function renderMarkdown(content: string, onOptionClick?: (text: string) => void)
   return <>{elements}</>;
 }
 
-function renderInline(text: string): (string | React.ReactElement)[] {
+/**
+ * A path inside the portal, and not a protocol-relative URL like
+ * `//evil.example` which only looks like one.
+ */
+function isPortalPath(href: string): boolean {
+  return href.startsWith('/') && !href.startsWith('//');
+}
+
+/**
+ * A record in the CRM this portal talks to.
+ *
+ * Host-anchored on purpose: `crm.zoho.com.au` and nothing that merely contains
+ * it, so `crm.zoho.com.au.example.com` is not mistaken for it.
+ */
+function isCrmUrl(href: string): boolean {
+  return href.startsWith('https://crm.zoho.com.au/');
+}
+
+export function renderInline(text: string): (string | React.ReactElement)[] {
   const parts: (string | React.ReactElement)[] = [];
   const regex = /(\*\*(.+?)\*\*)|(\[(.+?)\]\((.+?)\))|(`(.+?)`)/g;
   let lastIndex = 0;
@@ -362,18 +381,41 @@ function renderInline(text: string): (string | React.ReactElement)[] {
         </strong>
       );
     } else if (match[3]) {
-      parts.push(
-        <a
-          key={partKey++}
-          href={match[5]}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-csa-accent hover:text-csa-highlight underline underline-offset-2 inline-flex items-center gap-1"
-        >
-          {match[4]}
-          <ExternalLink size={11} className="inline" />
-        </a>
-      );
+      const [, , , , label, href] = match;
+      if (isPortalPath(href)) {
+        // Stays in the portal: navigating rather than opening a tab keeps the
+        // sidebar, the session and any half-finished work, and the
+        // external-link icon would be a lie.
+        parts.push(
+          <GuardedLink
+            key={partKey++}
+            href={href}
+            className="text-csa-accent hover:text-csa-highlight underline underline-offset-2"
+          >
+            {label}
+          </GuardedLink>
+        );
+      } else if (isCrmUrl(href)) {
+        parts.push(
+          <a
+            key={partKey++}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-csa-accent hover:text-csa-highlight underline underline-offset-2 inline-flex items-center gap-1"
+          >
+            {label}
+            <ExternalLink size={11} className="inline" />
+          </a>
+        );
+      } else {
+        // Anything else renders as its label and nothing more. The model has
+        // invented URLs that look plausible and lead nowhere — a portal address
+        // on the CRM's host, for one — and a link is the one piece of output a
+        // reader cannot sanity-check before acting on it. Two destinations are
+        // legitimate; the rest is not a link however confident it looks.
+        parts.push(label);
+      }
     } else if (match[6]) {
       parts.push(
         <code key={partKey++} className="px-1.5 py-0.5 bg-surface-raised text-csa-highlight text-xs font-mono rounded">

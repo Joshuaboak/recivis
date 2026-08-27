@@ -8,6 +8,7 @@ import { MODULE_SCOPES, WRITABLE_MODULES, recordInScope, scopingAccountId } from
 import {
   NOT_YOURS,
   accountIsVisible,
+  fetchRecord,
   recordIsVisible,
   visibleAccountIds,
 } from '@/lib/record-access';
@@ -32,6 +33,41 @@ interface ToolCall {
 
 const READ_TOOLS = new Set(['search_records', 'get_record']);
 const WRITE_TOOLS = new Set(['create_records', 'update_records']);
+
+/** Prices within a cent are the same price; floats and currency rounding differ. */
+const PRICE_TOLERANCE = 0.01;
+
+/**
+ * The first line item priced away from its product's catalogue price, by
+ * product name, or null when every line matches.
+ *
+ * A line whose price cannot be checked — no product, or a product that will not
+ * load — counts as repriced. The alternative is letting an unverifiable price
+ * through the one check standing between a partner and a discount they may not
+ * give.
+ */
+async function firstRepricedLine(
+  lineItems: Array<Record<string, unknown>> | undefined
+): Promise<string | null> {
+  for (const line of lineItems || []) {
+    const productId = (line.Product_Name as { id?: string } | null)?.id;
+    if (!productId) return 'A line with no product on it';
+
+    const product = await fetchRecord('Products', productId);
+    const catalogue = Number(product?.Unit_Price);
+    if (!product || !Number.isFinite(catalogue)) {
+      return (line.Product_Name as { name?: string } | null)?.name || 'A line';
+    }
+
+    // Quantity multiplies the line, not the unit price Zoho holds.
+    const asked = Number(line.List_Price);
+    if (!Number.isFinite(asked)) continue; // no price named — the catalogue one stands
+    if (Math.abs(asked - catalogue) > PRICE_TOLERANCE) {
+      return (product.Product_Name as string) || 'That line';
+    }
+  }
+  return null;
+}
 
 /**
  * Server-side RBAC on AI tool calls, before execution.
@@ -118,13 +154,23 @@ async function enforceToolRBAC(
         if (rec.Send_Invoice === true && !user.permissions.canSendInvoices) {
           return 'You do not have permission to send invoices.';
         }
-        // Contract_Term_Years of 0 is this codebase's marker for a hand-set
-        // price (see CreateInvoiceView and the subscription routes), so it is
-        // the exact signal that a line is being priced away from the catalogue.
+        // What this permission protects is a price somebody *chose* — a
+        // discount, a negotiated figure. It used to be inferred from
+        // Contract_Term_Years being 0, which marks "not a standard annual
+        // term" and catches a co-term along with an override: a co-termed
+        // licence runs to the customer's existing renewal date, so its term is
+        // short by definition. That refused partners a co-term they were
+        // entitled to raise, and told them to find somebody with pricing
+        // authority for a figure the CRM works out itself.
+        //
+        // So compare the price instead of guessing from the term. A line at
+        // the catalogue price is not an override however odd its dates are,
+        // and the CRM pro-rates a short period from those dates on creation.
         if (!user.permissions.canModifyPrices) {
           const lineItems = rec.Invoiced_Items as Array<Record<string, unknown>> | undefined;
-          if (lineItems?.some(li => Number(li.Contract_Term_Years) === 0)) {
-            return 'You do not have permission to set custom prices on line items.';
+          const overridden = await firstRepricedLine(lineItems);
+          if (overridden) {
+            return `You do not have permission to change line item prices. ${overridden} is priced away from the catalogue.`;
           }
         }
       }
