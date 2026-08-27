@@ -1,8 +1,13 @@
 /**
- * InvoicePurchaseOrder — The PO number field and file upload section.
+ * InvoicePurchaseOrder — The PO number field, its documents, and the uploader.
  *
- * Allows editing the PO number (inline edit with save/cancel) and
- * uploading PO documents as attachments to the invoice record in Zoho.
+ * Allows editing the PO number (inline edit with save/cancel) and uploading PO
+ * documents as attachments to the invoice record in Zoho.
+ *
+ * The documents already on the order are listed, which they were not before:
+ * the panel only ever acknowledged an upload it had watched happen, so
+ * reopening the order made its purchase order look missing. They are links —
+ * a purchase order nobody can open is a filename, not a document.
  */
 'use client';
 
@@ -15,7 +20,25 @@ import {
   Loader2,
   Upload,
   Check,
+  Paperclip,
 } from 'lucide-react';
+
+/** One file already attached to this order. */
+export interface OrderAttachment {
+  id: string;
+  fileName: string;
+  size: number | null;
+  createdTime: string;
+  createdBy: string;
+}
+
+/** Bytes as something a person reads, or empty when Zoho gave no size. */
+function formatSize(bytes: number | null): string {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 interface InvoicePurchaseOrderProps {
   /** The full invoice record */
@@ -32,6 +55,10 @@ interface InvoicePurchaseOrderProps {
   uploadingFile: boolean;
   /** Result message after file upload (e.g. "invoice.pdf attached") */
   uploadResult: string | null;
+  /** Documents already attached to this order in the CRM. */
+  attachments: OrderAttachment[];
+  /** Record id, for building download links. */
+  invoiceId: string;
   /** Start editing the PO number */
   onStartEditPO: () => void;
   /** Cancel PO editing */
@@ -52,6 +79,8 @@ export default function InvoicePurchaseOrder({
   savingPO,
   uploadingFile,
   uploadResult,
+  attachments,
+  invoiceId,
   onStartEditPO,
   onCancelEditPO,
   onChangePONumber,
@@ -102,6 +131,30 @@ export default function InvoicePurchaseOrder({
           <p className="text-sm text-text-primary mb-3">
             {invoice.Purchase_Order as string || <span className="text-text-muted">No PO number set</span>}
           </p>
+        )}
+
+        {/* Documents already on the order */}
+        {attachments.length > 0 && (
+          <div className="border-t border-border-subtle pt-3 mb-3">
+            <ul className="space-y-1.5">
+              {attachments.map(file => (
+                <li key={file.id}>
+                  <a
+                    href={`/api/attachments?module=Invoices&recordId=${encodeURIComponent(invoiceId)}&attachmentId=${encodeURIComponent(file.id)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs text-csa-accent hover:text-csa-highlight transition-colors group"
+                  >
+                    <Paperclip size={12} className="flex-shrink-0" />
+                    <span className="truncate underline underline-offset-2">{file.fileName}</span>
+                    {formatSize(file.size) ? (
+                      <span className="text-text-muted flex-shrink-0">{formatSize(file.size)}</span>
+                    ) : null}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {/* File Upload */}

@@ -17,35 +17,9 @@ import { executeZohoTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
 import { NOT_YOURS, fetchRecord, requireRecordAccess } from '@/lib/record-access';
+import { getZohoToken, clearZohoToken } from '@/lib/zoho-token';
 
 // --- OAuth Token Management (same pattern as attach-file) ---
-
-function getTokenUrl(): string {
-  const key = process.env.ZOHO_API_KEY;
-  if (!key) throw new Error('ZOHO_API_KEY not set');
-  return `https://www.zohoapis.com.au/crm/v7/functions/getresellerzohotoken/actions/execute?auth_type=apikey&zapikey=${key}&arguments=%7B%22resellerName%22%3A%22Civil%20Survey%20Applications%22%7D`;
-}
-
-let cachedToken: { token: string; expiresAt: number } | null = null;
-
-async function getAccessToken(): Promise<string> {
-  if (cachedToken && Date.now() < cachedToken.expiresAt - 60000) {
-    return cachedToken.token;
-  }
-
-  const res = await fetch(getTokenUrl(), { method: 'POST' });
-  if (!res.ok) throw new Error(`Token fetch failed: ${res.status}`);
-
-  const data = await res.json();
-  const token = data?.details?.output;
-  if (!token || token.startsWith('ERROR')) {
-    throw new Error(`Token error: ${token || 'no output'}`);
-  }
-
-  cachedToken = { token, expiresAt: Date.now() + 3600 * 1000 };
-  log('info', 'auth', 'Got Zoho access token for lead conversion');
-  return token;
-}
 
 /**
  * A record id out of whatever Zoho put in a conversion result slot.
@@ -320,7 +294,7 @@ export async function POST(
     // thrown away — a round trip per conversion for nothing. Zoho picks the
     // layout and mapping itself when the payload omits them, which is what the
     // payload below does.
-    const accessToken = await getAccessToken();
+    const accessToken = await getZohoToken();
 
     // Omit Accounts/Contacts to let Zoho create new records from the lead data
     const convertData: Record<string, unknown>[] = [{
@@ -354,7 +328,7 @@ export async function POST(
     }
 
     if (!res.ok) {
-      if (res.status === 401) cachedToken = null;
+      if (res.status === 401) clearZohoToken();
       log('error', 'api', `Lead conversion failed for ${id}`, {
         status: res.status,
         response: responseText.slice(0, 500),

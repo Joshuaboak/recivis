@@ -228,9 +228,9 @@ export const HELP_TOPICS: HelpTopic[] = [
       'change line item quantities and prices while it is still a Draft; apply a coupon ' +
       'code in the Coupon panel; choose whether the order and keys go to you or to the ' +
       'customer in the Send To panel; enter a purchase order number and attach the ' +
-      'purchase order document; change the status; and finish the order with Place ' +
-      'Order, Pay Now or Pay Later. Editing prices needs the change-prices permission — ' +
-      'without it the prices are shown but fixed.',
+      'purchase order document; and finish the order with Process Order, Pay Now or ' +
+      'Pay Later. Editing prices needs the change-prices permission — without it the ' +
+      'prices are shown but fixed. Setting the status by hand is CSA staff only.',
   },
   {
     id: 'sending-an-order',
@@ -282,8 +282,9 @@ export const HELP_TOPICS: HelpTopic[] = [
       'Processing an order on account terms needs both a purchase order number and an ' +
       'attached purchase order document — the PO is what stands in for the payment. ' +
       'Both go in the Purchase Order panel on the order, and both have to be there ' +
-      'before Process Order will go through. They stay editable until the order is ' +
-      'approved.',
+      'before Process Order will go through. Documents already attached are listed in ' +
+      'that panel and open when you click them, whoever uploaded them and whenever. ' +
+      'Both stay editable until the order is approved.',
   },
   {
     id: 'order-assistant',

@@ -25,6 +25,16 @@ import { requireAuth, isAdmin, canManageReseller } from '@/lib/api-auth';
  */
 const LOCKED_STATUSES = ['Approved'];
 
+/** One file attached to an order, as the portal shows it. */
+export interface Attachment {
+  id: string;
+  fileName: string;
+  /** Bytes, when Zoho reports them. */
+  size: number | null;
+  createdTime: string;
+  createdBy: string;
+}
+
 /**
  * Why this order may not be processed on account, or null when it may.
  *
@@ -131,7 +141,41 @@ export async function GET(
     // Extract line items from the invoice record's Invoiced_Items subform
     const lineItems = (invoice?.Invoiced_Items as Record<string, unknown>[] | undefined) || [];
 
-    return NextResponse.json({ invoice, lineItems });
+    /**
+     * Attachments are a related list on the record, not a field on it.
+     *
+     * Nothing fetched them, so the order page only knew about a document if it
+     * had watched the upload happen in that same session. Reopen the order, or
+     * open one somebody else raised, and the purchase order it plainly had
+     * looked missing — which also blocked Process Order, since that requires
+     * the document.
+     *
+     * Failure here is not failure of the order: the page still loads, with an
+     * empty list, rather than 500ing over a related list.
+     */
+    let attachments: Attachment[] = [];
+    if (invoice) {
+      try {
+        const attachmentResult = await executeZohoTool('get_related_records', {
+          parent_module: 'Invoices',
+          parent_id: id,
+          related_list: 'Attachments',
+        });
+        attachments = parseResult(attachmentResult).map((a: Record<string, unknown>) => ({
+          id: a.id as string,
+          fileName: (a.File_Name as string) || 'Attachment',
+          size: Number(a.Size) || null,
+          createdTime: (a.Created_Time as string) || '',
+          createdBy: ((a.Created_By ?? a.Owner) as { name?: string } | null)?.name || '',
+        }));
+      } catch (err) {
+        log('warn', 'api', `Could not load attachments for invoice ${id}`, {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return NextResponse.json({ invoice, lineItems, attachments });
   } catch (error) {
     log('error', 'api', `Invoice detail failed for ${id}`, {
       error: error instanceof Error ? error.message : String(error),

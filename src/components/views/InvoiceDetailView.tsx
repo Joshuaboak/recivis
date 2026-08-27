@@ -36,6 +36,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
 import { recipientSentence } from '@/lib/order-recipients';
+import type { OrderAttachment } from '../invoice/InvoicePurchaseOrder';
 import { useTrackRecentItem } from '@/lib/useRecentItems';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
@@ -171,6 +172,8 @@ export default function InvoiceDetailView({
   const [savingPO, setSavingPO] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadResult, setUploadResult] = useState<string | null>(null);
+  /** Documents already on this order in the CRM, fetched with the order. */
+  const [attachments, setAttachments] = useState<OrderAttachment[]>([]);
 
   // Full-page edit form (/orders/[id]/edit) — URL-driven, never local state.
   const formEditing = mode === 'edit';
@@ -248,6 +251,7 @@ export default function InvoiceDetailView({
       .then(data => {
         setInvoice(data.invoice);
         setLineItems(data.lineItems || []);
+        setAttachments(data.attachments || []);
 
         // Fetch reseller percentage, then calculate original list prices
         const resellerId = (data.invoice?.Reseller as { id?: string })?.id;
@@ -617,6 +621,12 @@ export default function InvoiceDetailView({
         });
         if (res.ok) {
           setUploadResult(`${file.name} attached`);
+          // Re-read the order so the new document joins the list rather than
+          // living only in `uploadResult` until the next page load.
+          fetch(`/api/invoices/${invoiceId}`)
+            .then(r => r.json())
+            .then(d => setAttachments(d.attachments || []))
+            .catch(() => {});
         } else {
           setUploadResult('Upload failed');
         }
@@ -1161,6 +1171,8 @@ export default function InvoiceDetailView({
           savingPO={savingPO}
           uploadingFile={uploadingFile}
           uploadResult={uploadResult}
+          attachments={attachments}
+          invoiceId={invoiceId}
           onStartEditPO={() => { setEditPONumber(invoice.Purchase_Order as string || ''); setEditingPO(true); }}
           onCancelEditPO={() => setEditingPO(false)}
           onChangePONumber={setEditPONumber}
@@ -1231,12 +1243,16 @@ export default function InvoiceDetailView({
             canSend={!!(user?.permissions?.canSendInvoices)}
             canApprove={canProcessOnAccount}
             hasPONumber={!!(invoice.Purchase_Order)}
-            hasPOFile={!!uploadResult || !!(invoice.Purchase_Order_Attachment)}
+            hasPOFile={attachments.length > 0}
             onRefresh={() => {
               // Reload invoice data
               fetch(`/api/invoices/${invoiceId}`)
                 .then(res => res.json())
-                .then(data => { setInvoice(data.invoice); setLineItems(data.lineItems || []); })
+                .then(data => {
+                  setInvoice(data.invoice);
+                  setLineItems(data.lineItems || []);
+                  setAttachments(data.attachments || []);
+                })
                 .catch(() => {});
             }}
           />

@@ -673,7 +673,8 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'Purchase Order',
         body:
           'The pencil sets the PO number until the order is approved. Attach PO ' +
-          'Document uploads the file. Process Order needs both before it will run.',
+          'Document uploads the file, and anything already attached is listed here ' +
+          'to open. Process Order needs both.',
       },
       {
         id: 'send-to',
