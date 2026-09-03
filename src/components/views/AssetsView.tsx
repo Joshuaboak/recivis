@@ -22,7 +22,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Package, Loader2, Search, ChevronDown, ChevronRight, RefreshCw,
-  AlertTriangle, CalendarClock, Building2, Eye, FileText,
+  AlertTriangle, CalendarClock, Building2, Eye, FileText, ExternalLink,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
@@ -53,6 +53,13 @@ interface AssetRow {
   isEvaluation: boolean;
   /** Why this licence cannot be renewed, or null when it can. */
   renewalBlockedReason: string | null;
+  /**
+   * This year's renewal order, or null when one has not been generated.
+   *
+   * The server clears the id when Zoho's Renewal Invoice lookup still points
+   * at an earlier cycle, so a value here is always the current renewal.
+   */
+  renewalOrderId: string | null;
 }
 
 interface AccountGroup {
@@ -202,6 +209,12 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
    */
   const canGenerateRenewals =
     (scope === 'renewals' || scope === 'expired') && !!user?.permissions?.canCreateInvoices;
+
+  /**
+   * The Renewal Order column, on Due for Renewal only. Elsewhere the renewal
+   * being looked at is not the one the lookup points to.
+   */
+  const showRenewalOrder = scope === 'renewals';
 
   const selectedIn = (accountId: string): Set<string> => selected[accountId] ?? EMPTY_SELECTION;
 
@@ -429,6 +442,9 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
                             <th className="px-4 py-2 text-[10px] font-bold text-text-muted uppercase tracking-wider">Status</th>
                             <th className="px-4 py-2 text-[10px] font-bold text-text-muted uppercase tracking-wider">Renewal</th>
                             <th className="px-4 py-2 text-[10px] font-bold text-text-muted uppercase tracking-wider">Serial Key</th>
+                            {showRenewalOrder && (
+                              <th className="px-4 py-2 text-[10px] font-bold text-text-muted uppercase tracking-wider">Renewal Order</th>
+                            )}
                             <th className="px-4 py-2 w-24" />
                           </tr>
                         </thead>
@@ -468,6 +484,22 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
                                   <span className="block text-[10px] text-text-muted">{relativeDays(asset.daysToRenewal)}</span>
                                 </td>
                                 <td className="px-4 py-2.5 text-xs font-mono text-text-muted">{asset.serialKey || '—'}</td>
+                                {showRenewalOrder && (
+                                  <td className="px-4 py-2.5 text-sm">
+                                    {asset.renewalOrderId ? (
+                                      <GuardedLink
+                                        href={buildPath('invoice-detail', asset.renewalOrderId)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-csa-accent hover:underline cursor-pointer"
+                                      >
+                                        View order <ExternalLink size={12} />
+                                      </GuardedLink>
+                                    ) : (
+                                      <span className="text-text-muted">Renewal not generated</span>
+                                    )}
+                                  </td>
+                                )}
                                 <td className="px-4 py-2.5">
                                   <div className="flex items-center justify-end gap-1">
                                     {canRenew && asset.isMonthlySubscription && (

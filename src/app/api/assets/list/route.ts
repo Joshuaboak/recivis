@@ -31,8 +31,22 @@ const ASSET_FIELDS = [
   'id', 'Name', 'Account', 'Product', 'Product_Code', 'Status', 'Quantity',
   'Serial_Key', 'Start_Date', 'Renewal_Date', 'Days_to_Renewal', 'Reseller',
   'Evaluation_License', 'Educational_License', 'Upgraded_To_Key', 'Revoked',
-  'Revoked_Reason', 'Tag', 'Asset_Type', 'Record_Status__s',
+  'Revoked_Reason', 'Tag', 'Asset_Type', 'Record_Status__s', 'Renewal_Invoice',
 ].join(',');
+
+/**
+ * How close to the renewal date a renewal order has to be dated to count as
+ * this year's.
+ *
+ * Zoho's Renewal Invoice lookup is only overwritten when the NEXT renewal is
+ * raised, so an asset that renewed last year still points at last year's
+ * order. Renewals are raised inside the 60-day window, so anything dated more
+ * than four months before the renewal date belongs to an earlier cycle.
+ */
+const RENEWAL_ORDER_MAX_LEAD_DAYS = 120;
+
+/** Zoho caps a search criteria at 15 conditions. */
+const ID_CRITERIA_CHUNK = 15;
 
 export type AssetScope = 'all' | 'renewals' | 'expired' | 'subscriptions';
 
@@ -55,6 +69,8 @@ interface AssetRow {
   isEvaluation: boolean;
   /** Why this licence cannot be renewed, or null when it can. */
   renewalBlockedReason: string | null;
+  /** This year's renewal order, or null when one has not been generated. */
+  renewalOrderId: string | null;
 }
 
 interface AccountGroup {
@@ -107,7 +123,46 @@ function toRow(asset: Record<string, unknown>, todayMs: number): AssetRow {
     // customer page must agree on what is renewable, and the fields the rules
     // read are not all sent to the browser.
     renewalBlockedReason: renewalBlockReason(renewabilityOf(asset)),
+    // Raw for now — whether it is this year's order or last year's leftover
+    // can only be told from the invoice's date. See pruneStaleRenewalOrders.
+    renewalOrderId: (asset.Renewal_Invoice as { id?: string } | null)?.id || null,
   };
+}
+
+/**
+ * Clear every renewalOrderId that points at an earlier renewal cycle.
+ *
+ * Mutates the rows in place. The invoice dates are one extra round trip
+ * because the asset does not carry them, so this is only worth doing on the
+ * view that shows the column.
+ */
+async function pruneStaleRenewalOrders(rows: AssetRow[]): Promise<void> {
+  const ids = [...new Set(rows.map(r => r.renewalOrderId).filter((id): id is string => !!id))];
+  if (ids.length === 0) return;
+
+  const invoiceDates = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += ID_CRITERIA_CHUNK) {
+    const chunk = ids.slice(i, i + ID_CRITERIA_CHUNK);
+    const criteria = `(${chunk.map(id => `(id:equals:${id})`).join('or')})`;
+    const found = await searchAllPages('Invoices', criteria, 'id,Invoice_Date');
+    for (const invoice of found) {
+      const date = invoice.Invoice_Date as string | undefined;
+      if (date) invoiceDates.set(invoice.id as string, date);
+    }
+  }
+
+  for (const row of rows) {
+    if (!row.renewalOrderId) continue;
+    const invoiceDate = invoiceDates.get(row.renewalOrderId);
+    const renewalMs = row.renewalDate ? Date.parse(`${row.renewalDate}T00:00:00Z`) : NaN;
+    const invoiceMs = invoiceDate ? Date.parse(`${invoiceDate}T00:00:00Z`) : NaN;
+    // An order we cannot date is treated as missing: showing a link to last
+    // year's order is worse than saying nothing was generated.
+    const leadDays = (renewalMs - invoiceMs) / 86400000;
+    if (Number.isNaN(leadDays) || leadDays > RENEWAL_ORDER_MAX_LEAD_DAYS) {
+      row.renewalOrderId = null;
+    }
+  }
 }
 
 /** Build the reseller-scoped Zoho criteria, or null when the caller sees everything. */
@@ -135,7 +190,7 @@ export async function GET(request: NextRequest) {
     // Practice sessions group and filter the demo assets through the same
     // scope logic below, so every Assets view behaves identically.
     if (isDemoSession(user)) {
-      return NextResponse.json(groupAssets(DEMO_ASSETS, scope, statusFilter, search));
+      return NextResponse.json(await withRenewalOrders(groupAssets(DEMO_ASSETS, scope, statusFilter, search)));
     }
 
     const criteria = isAdmin(user) ? null : resellerCriteria(user.allowedResellerIds);
@@ -150,7 +205,7 @@ export async function GET(request: NextRequest) {
       ? await searchAllPages('Assets1', criteria, ASSET_FIELDS, 'desc')
       : await getAllRecordPages('Assets1', ASSET_FIELDS, 'Modified_Time', 'desc');
 
-    return NextResponse.json(groupAssets(raw, scope, statusFilter, search));
+    return NextResponse.json(await withRenewalOrders(groupAssets(raw, scope, statusFilter, search)));
   } catch (error) {
     log('error', 'api', 'Asset list failed', {
       scope,
@@ -158,6 +213,21 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json({ error: 'Failed to load assets' }, { status: 500 });
   }
+}
+
+/**
+ * Resolve the renewal-order column, which only the Due for Renewal view shows.
+ */
+async function withRenewalOrders<T extends { groups: AccountGroup[]; scope: AssetScope }>(result: T): Promise<T> {
+  const rows = result.groups.flatMap(g => g.assets);
+  if (result.scope === 'renewals') {
+    await pruneStaleRenewalOrders(rows);
+  } else {
+    // Nobody else renders it, and an unresolved id is last year's order as
+    // often as this year's — so it does not leave the server unchecked.
+    for (const row of rows) row.renewalOrderId = null;
+  }
+  return result;
 }
 
 /**
