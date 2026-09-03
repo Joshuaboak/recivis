@@ -33,6 +33,7 @@ import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
 import { useTrackRecentItem } from '@/lib/useRecentItems';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
+import { useSearchParams } from 'next/navigation';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import { GuardedLink } from '@/components/GuardedLink';
 import Pagination from '../Pagination';
@@ -69,6 +70,7 @@ export default function AccountDetailView({
   mode?: 'view' | 'edit';
 }) {
   const router = useGuardedRouter();
+  const searchParams = useSearchParams();
   const { registerDirty } = useUnsavedChanges();
   const { user, setNewInvoiceContext } = useAppStore();
   const [account, setAccount] = useState<Record<string, unknown> | null>(null);
@@ -192,6 +194,25 @@ export default function AccountDetailView({
       .catch(() => setLoadError('This customer could not be loaded. Try again.'))
       .finally(() => setLoading(false));
   }, [accountId]);
+
+  /**
+   * `?asset=<id>` opens that licence's panel — how a licence-key search lands
+   * here, since a licence has no page of its own.
+   *
+   * The modal fetches the record itself, so the id is enough: the licence does
+   * not have to be on the page of assets currently rendered, and a customer
+   * with three pages of them still opens the right one.
+   *
+   * Fired once. Without the guard, closing the panel would reopen it, because
+   * the query is still in the URL and nothing about it has changed.
+   */
+  const openedFromQuery = useRef<string | null>(null);
+  const assetParam = searchParams.get('asset');
+  useEffect(() => {
+    if (!assetParam || openedFromQuery.current === assetParam) return;
+    openedFromQuery.current = assetParam;
+    setViewingAsset({ id: assetParam });
+  }, [assetParam]);
 
   // Feed the header's Recent Items menu once the record has a name.
   useTrackRecentItem(account ? {

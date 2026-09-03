@@ -9,6 +9,9 @@
  *   all           — every asset the caller can see, newest renewal first
  *   renewals      — active, renewing within 60 days, soonest first
  *   expired       — lapsed within the last 60 days, most recent first
+ *
+ * The two renewal scopes carry commercial licences only, and resolve this
+ * year's renewal order for each. See RENEWAL_SCOPES.
  *   subscriptions — assets tagged Monthly Subscription
  *
  * Tag filtering happens here rather than in the Zoho query: tags are not a
@@ -22,10 +25,20 @@ import { log } from '@/lib/logger';
 import { isDemoSession } from '@/lib/demo/guard';
 import { DEMO_ASSETS } from '@/lib/demo/fixtures';
 import { MONTHLY_SUBSCRIPTION_TAG, PERPETUAL_PLAN_TAG } from '@/lib/subscriptions';
-import { renewalBlockReason, renewabilityOf } from '@/lib/renewal-eligibility';
+import { renewalBlockReason, renewabilityOf, isCommercialLicence } from '@/lib/renewal-eligibility';
 
 /** How far ahead "due for renewal" looks, and how far back "recently expired" reaches. */
 const WINDOW_DAYS = 60;
+
+/**
+ * The two renewal views, which share a shape: commercial licences only, and a
+ * Renewal Order column.
+ *
+ * Both exist to answer "what needs renewing" — so an evaluation, an NFR or a
+ * home-use licence is noise on either. All Assets still shows the whole
+ * estate, because that is what it is for.
+ */
+const RENEWAL_SCOPES: ReadonlySet<AssetScope> = new Set<AssetScope>(['renewals', 'expired']);
 
 const ASSET_FIELDS = [
   'id', 'Name', 'Account', 'Product', 'Product_Code', 'Status', 'Quantity',
@@ -220,7 +233,7 @@ export async function GET(request: NextRequest) {
  */
 async function withRenewalOrders<T extends { groups: AccountGroup[]; scope: AssetScope }>(result: T): Promise<T> {
   const rows = result.groups.flatMap(g => g.assets);
-  if (result.scope === 'renewals') {
+  if (RENEWAL_SCOPES.has(result.scope)) {
     await pruneStaleRenewalOrders(rows);
   } else {
     // Nobody else renders it, and an unresolved id is last year's order as
@@ -245,6 +258,10 @@ function groupAssets(
 
     let rows = raw
       .filter(a => a.Record_Status__s !== 'Trash')
+      // Evaluations, educational, NFR and home-use licences are never renewed,
+      // so they are left off the renewal views entirely rather than listed with
+      // a reason nobody can act on.
+      .filter(a => !RENEWAL_SCOPES.has(scope) || isCommercialLicence(renewabilityOf(a)))
       .map(a => toRow(a, todayMs));
 
     if (scope === 'renewals') {

@@ -7,7 +7,13 @@
  * after the customer has been told a price.
  */
 import { describe, it, expect } from 'vitest';
-import { renewalBlockReason, isRenewable, renewabilityOf } from '@/lib/renewal-eligibility';
+import {
+  renewalBlockReason,
+  isRenewable,
+  renewabilityOf,
+  isCommercialLicence,
+  nonCommercialCategory,
+} from '@/lib/renewal-eligibility';
 
 describe('renewalBlockReason', () => {
   it('allows an ordinary commercial licence', () => {
@@ -119,5 +125,44 @@ describe('renewabilityOf', () => {
   it('treats a missing field as not set rather than as unknown', () => {
     // Zoho omits false booleans, so an absent Revoked means "not revoked".
     expect(isRenewable(renewabilityOf({ Product: { name: 'Corridor EZ' } }))).toBe(true);
+  });
+});
+
+describe('isCommercialLicence', () => {
+  // The renewal views list only what CSA sells. Evaluations, educational,
+  // NFR and home-use licences are not renewed at any price, so listing them
+  // beside real renewals is a column of rows nobody can act on.
+
+  it('accepts an ordinary commercial licence', () => {
+    expect(isCommercialLicence({ productName: 'Civil Site Design Pro' })).toBe(true);
+    expect(nonCommercialCategory({ productName: 'Civil Site Design Pro' })).toBeNull();
+  });
+
+  it('rejects each non-commercial category, by flag or by name', () => {
+    expect(nonCommercialCategory({ evaluation: true })).toBe('evaluation');
+    expect(nonCommercialCategory({ productName: 'Stringer Evaluation' })).toBe('evaluation');
+    expect(nonCommercialCategory({ educational: true })).toBe('educational');
+    expect(nonCommercialCategory({ productName: 'Stringer Topo Educational' })).toBe('educational');
+    expect(nonCommercialCategory({ productName: 'Corridor EZ NFR' })).toBe('nfr');
+    expect(nonCommercialCategory({ productName: 'Civil Site Design Home Use' })).toBe('home-use');
+  });
+
+  it('keeps the Civil Site Design Plus home-use bundle, which is a commercial product', () => {
+    expect(isCommercialLicence({ productName: 'Civil Site Design Plus Home Use' })).toBe(true);
+  });
+
+  it('does not exclude a licence merely because it cannot be renewed today', () => {
+    // Upgraded, revoked and monthly licences are commercial. They are blocked
+    // from a renewal order for reasons of their own, and the views still show
+    // them — with the reason — rather than hiding the customer's licence.
+    expect(isCommercialLicence({ upgraded: true, productName: 'Civil Site Design' })).toBe(true);
+    expect(isCommercialLicence({ revoked: true, productName: 'Civil Site Design' })).toBe(true);
+    expect(isCommercialLicence({ monthlySubscription: true, productName: 'Civil Site Design' })).toBe(true);
+  });
+
+  it('treats a licence with no product name as commercial', () => {
+    // Nothing proves otherwise, and hiding a customer's licence on a guess is
+    // worse than showing one that turns out not to be renewable.
+    expect(isCommercialLicence({})).toBe(true);
   });
 });

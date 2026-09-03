@@ -77,12 +77,12 @@ const SCOPE_META: Record<AssetScope, { title: string; blurb: string; empty: stri
   },
   renewals: {
     title: 'Due for Renewal',
-    blurb: 'Active licences renewing within the next 60 days, soonest first.',
+    blurb: 'Commercial licences renewing within the next 60 days, soonest first.',
     empty: 'Nothing is due for renewal in the next 60 days.',
   },
   expired: {
     title: 'Recently Expired',
-    blurb: 'Licences that lapsed in the last 60 days, most recent first.',
+    blurb: 'Commercial licences that lapsed in the last 60 days, most recent first.',
     empty: 'Nothing has expired in the last 60 days.',
   },
   subscriptions: {
@@ -211,10 +211,11 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
     (scope === 'renewals' || scope === 'expired') && !!user?.permissions?.canCreateInvoices;
 
   /**
-   * The Renewal Order column, on Due for Renewal only. Elsewhere the renewal
-   * being looked at is not the one the lookup points to.
+   * The Renewal Order column, on the two renewal views. All Assets and
+   * Subscriptions do not resolve it: an unresolved lookup is last year's
+   * order as often as this year's, so the server sends null there.
    */
-  const showRenewalOrder = scope === 'renewals';
+  const showRenewalOrder = scope === 'renewals' || scope === 'expired';
 
   const selectedIn = (accountId: string): Set<string> => selected[accountId] ?? EMPTY_SELECTION;
 

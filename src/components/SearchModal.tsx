@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Search, X, Loader2, Building2, UserSearch, User, FileText, ExternalLink, Users } from 'lucide-react';
+import { Search, X, Loader2, Building2, UserSearch, User, FileText, ExternalLink, Users, Key } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
 import { GuardedLink } from '@/components/GuardedLink';
@@ -13,6 +13,8 @@ interface SearchResult {
   title: string;
   subtitle: string;
   meta?: string;
+  /** The customer to open for a result that has no page of its own. */
+  accountId?: string;
 }
 
 const MODULE_CONFIG: Record<string, { icon: typeof Building2; color: string; label: string; badgeColor: string }> = {
@@ -21,10 +23,11 @@ const MODULE_CONFIG: Record<string, { icon: typeof Building2; color: string; lab
   Prospects: { icon: Building2,  color: 'text-csa-purple',  label: 'Prospect',  badgeColor: 'bg-csa-purple/15 text-csa-purple' },
   Contacts:  { icon: User,      color: 'text-success',     label: 'Contact',   badgeColor: 'bg-success/15 text-success' },
   Invoices:  { icon: FileText,   color: 'text-csa-purple',  label: 'Order',     badgeColor: 'bg-csa-purple/15 text-csa-purple' },
+  Assets:    { icon: Key,       color: 'text-success',     label: 'Licence',   badgeColor: 'bg-success/15 text-success' },
   Resellers: { icon: Users,     color: 'text-warning',     label: 'Partner',   badgeColor: 'bg-warning/15 text-warning' },
 };
 
-const MODULE_FILTER_ORDER = ['Accounts', 'Prospects', 'Leads', 'Contacts', 'Invoices', 'Resellers'];
+const MODULE_FILTER_ORDER = ['Accounts', 'Prospects', 'Leads', 'Contacts', 'Invoices', 'Assets', 'Resellers'];
 
 /**
  * The record's detail route, or null for modules the portal has no page for
@@ -40,6 +43,12 @@ function resultHref(result: SearchResult): string | null {
       return `${buildPath('lead-detail', result.id)}?source=prospect`;
     case 'Invoices':
       return buildPath('invoice-detail', result.id);
+    case 'Assets':
+      // A licence has no page of its own — it is a panel on its customer's.
+      // The id in the query opens that panel once the customer has loaded.
+      return result.accountId
+        ? `${buildPath('account-detail', result.accountId)}?asset=${result.id}`
+        : null;
     case 'Resellers':
       return buildPath('reseller-detail', result.id);
     default:
@@ -145,7 +154,7 @@ export default function SearchModal({ onClose }: SearchModalProps) {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
-            placeholder={selectedModule ? `Search ${MODULE_CONFIG[selectedModule]?.label || selectedModule}s...` : 'Search everything...'}
+            placeholder={selectedModule ? `Search ${MODULE_CONFIG[selectedModule]?.label || selectedModule}s...` : 'Search everything, or paste a licence key...'}
             className="flex-1 bg-transparent text-base text-text-primary placeholder-text-muted/40 outline-none"
           />
           {loading ? (

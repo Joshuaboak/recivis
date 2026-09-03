@@ -4,15 +4,19 @@
  * GET ?q=term                    → Search all modules
  * GET ?q=term&modules=Accounts   → Search specific module(s), comma-separated
  *
- * Supported modules: Accounts, Leads, Prospects, Contacts, Invoices, Resellers
- * Applies reseller-based RBAC filtering. Admin/IBM only for Resellers.
+ * Supported modules: Accounts, Leads, Prospects, Contacts, Invoices, Resellers,
+ * Assets. Applies reseller-based RBAC filtering. Admin/IBM only for Resellers.
+ *
+ * Assets are matched on serial key rather than by keyword: a licence key is
+ * the one thing about an asset somebody types in verbatim, usually off a
+ * customer's email, and it is the only field worth a global search.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { callMcpTool, parseMcpResult } from '@/lib/zoho';
 import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
-import { requirePartnerScope } from '@/lib/record-access';
+import { requirePartnerScope, visibleAccountIds } from '@/lib/record-access';
 
 interface SearchResult {
   id: string;
@@ -20,6 +24,8 @@ interface SearchResult {
   title: string;
   subtitle: string;
   meta?: string;
+  /** The customer to open for a result that has no page of its own. */
+  accountId?: string;
 }
 
 async function searchModule(
@@ -39,7 +45,56 @@ async function searchModule(
   }
 }
 
-const ALL_MODULES = ['Accounts', 'Leads', 'Prospects', 'Contacts', 'Invoices', 'Resellers'];
+const ALL_MODULES = ['Accounts', 'Leads', 'Prospects', 'Contacts', 'Invoices', 'Assets', 'Resellers'];
+
+/**
+ * The searchable form of a licence key.
+ *
+ * The term is interpolated into a Zoho criteria string, where an unescaped
+ * bracket or colon changes what is being asked rather than what is being
+ * matched — so everything a key cannot contain is dropped rather than quoted.
+ * Keys are alphanumerics in dash-separated groups, and Zoho matches them
+ * case-insensitively.
+ */
+function serialKeyTerm(q: string): string | null {
+  const cleaned = q.replace(/[^A-Za-z0-9-]/g, '');
+  // The global minimum is two characters, which is fine for a name and far too
+  // little for a key prefix: every search for "ab" would drag back a page of
+  // licences to permission-check. One whole group of a key is four or five.
+  return cleaned.length >= 5 ? cleaned : null;
+}
+
+/**
+ * How many key matches are permission-checked.
+ *
+ * Each distinct customer behind a match costs a Zoho read, so an undiscriminating
+ * prefix would turn one search into a hundred of them. A whole key matches one
+ * licence; anything returning more than a screenful was not a key.
+ */
+const MAX_KEY_MATCHES = 25;
+
+/**
+ * Assets whose serial key begins with the term.
+ *
+ * `starts_with` rather than an exact match so a partial key pasted from an
+ * email still finds the licence; Zoho search offers no substring operator, so
+ * a fragment from the middle of a key will not match.
+ */
+async function searchAssetsBySerialKey(term: string): Promise<Record<string, unknown>[]> {
+  try {
+    const result = await callMcpTool('ZohoCRM_searchRecords', {
+      path_variables: { module: 'Assets1' },
+      query_params: {
+        criteria: `(Serial_Key:starts_with:${term})`,
+        fields: 'Name,Serial_Key,Product,Account,Record_Status__s',
+        page: 1,
+      },
+    });
+    return parseMcpResult(result).data;
+  } catch {
+    return [];
+  }
+}
 
 export async function GET(request: NextRequest) {
   const authResult = await requireAuth(request);
@@ -101,6 +156,11 @@ export async function GET(request: NextRequest) {
     if (requestedModules.includes('Resellers')) {
       searches.push(searchModule('Resellers', q, 'Name,Region,Partner_Category,Record_Status__s'));
       searchKeys.push('resellers');
+    }
+    const keyTerm = requestedModules.includes('Assets') ? serialKeyTerm(q) : null;
+    if (keyTerm) {
+      searches.push(searchAssetsBySerialKey(keyTerm));
+      searchKeys.push('assets');
     }
 
     const searchResults = await Promise.all(searches);
@@ -225,6 +285,40 @@ export async function GET(request: NextRequest) {
           title: (inv.Subject as string) || (inv.Reference_Number as string) || '',
           subtitle: (inv.Account_Name as { name?: string })?.name || '',
           meta: `${inv.Status as string || ''} ${total ? `${symbol}${total.toFixed(2)}` : ''}`.trim(),
+        });
+      }
+    }
+
+    // --- Assets, by serial key ---
+    //
+    // Scoped on the customer rather than on the asset's own Reseller field:
+    // the result's only destination is the customer's page, so a licence whose
+    // account this partner cannot open has nowhere to go and is not theirs to
+    // see. The distinct accounts are resolved once each.
+    if (dataMap.assets) {
+      const live = dataMap.assets
+        .filter(a => a.Record_Status__s !== 'Trash')
+        .slice(0, MAX_KEY_MATCHES);
+      const allowedAccounts = await visibleAccountIds(
+        user,
+        live
+          .map(a => (a.Account as { id?: string } | null)?.id)
+          .filter((id): id is string => !!id)
+      );
+
+      for (const asset of live) {
+        const account = asset.Account as { id?: string; name?: string } | null;
+        // A licence attached to no customer has no page to open and no owner
+        // to check, so it stays out rather than becoming everyone's.
+        if (!account?.id || !allowedAccounts.has(account.id)) continue;
+
+        results.push({
+          id: asset.id as string,
+          module: 'Assets',
+          title: (asset.Product as { name?: string } | null)?.name || (asset.Name as string) || '',
+          subtitle: (asset.Serial_Key as string) || '',
+          meta: account.name,
+          accountId: account.id,
         });
       }
     }

@@ -34,12 +34,52 @@ export interface RenewabilityInput {
   productName?: string;
 }
 
+/** A licence category that was never sold commercially. */
+export type NonCommercialCategory = 'evaluation' | 'educational' | 'nfr' | 'home-use';
+
+/** How each category is described to a partner. */
+const NON_COMMERCIAL_LABELS: Record<NonCommercialCategory, string> = {
+  evaluation: 'Evaluation',
+  educational: 'Educational',
+  nfr: 'NFR',
+  'home-use': 'Home Use',
+};
+
 /**
- * Why this licence cannot be renewed, or null when it can.
+ * Which non-commercial category this licence falls into, or null for an
+ * ordinary commercial one.
  *
  * Product name is checked as well as the flags because educational and
  * evaluation licences are not always flagged as such — some carry it only in
  * the product name, and NFR and home-use licences have no flag at all.
+ *
+ * One question, two callers: renewal eligibility refuses these, and the
+ * renewal views leave them off the list entirely. Two copies of the naming
+ * rules would drift, and a licence hidden from one screen but offered on the
+ * other is the drift nobody notices until a partner quotes a price for it.
+ */
+export function nonCommercialCategory(asset: RenewabilityInput): NonCommercialCategory | null {
+  const name = (asset.productName || '').toLowerCase();
+  if (asset.evaluation || name.includes('evaluation')) return 'evaluation';
+  if (asset.educational || name.includes('educational')) return 'educational';
+  if (name.includes('nfr')) return 'nfr';
+  // Home Use licences are not commercial, except the Civil Site Design Plus
+  // bundle, which happens to carry "home use" in its name.
+  if (name.includes('home use') && !name.includes('civil site design plus')) return 'home-use';
+  return null;
+}
+
+/** True for a licence CSA actually sells — the only kind the renewal views list. */
+export function isCommercialLicence(asset: RenewabilityInput): boolean {
+  return nonCommercialCategory(asset) === null;
+}
+
+/**
+ * Why this licence cannot be renewed, or null when it can.
+ *
+ * The states that are about this particular licence — upgraded, revoked, billed
+ * monthly — are reported ahead of the category, because they are the ones with
+ * something to do about them.
  */
 export function renewalBlockReason(asset: RenewabilityInput): string | null {
   if (asset.upgraded) return 'Upgraded assets are not eligible for renewal';
@@ -48,19 +88,8 @@ export function renewalBlockReason(asset: RenewabilityInput): string | null {
     return 'Monthly subscriptions are renewed monthly, not by renewal invoice';
   }
 
-  const name = (asset.productName || '').toLowerCase();
-  if (asset.evaluation || name.includes('evaluation')) {
-    return 'Evaluation assets are not eligible for renewal';
-  }
-  if (asset.educational || name.includes('educational')) {
-    return 'Educational assets are not eligible for renewal';
-  }
-  if (name.includes('nfr')) return 'NFR assets are not eligible for renewal';
-  // Home Use licences are not renewable, except the Civil Site Design Plus
-  // bundle, which happens to carry "home use" in its name.
-  if (name.includes('home use') && !name.includes('civil site design plus')) {
-    return 'Home Use assets are not eligible for renewal';
-  }
+  const category = nonCommercialCategory(asset);
+  if (category) return `${NON_COMMERCIAL_LABELS[category]} assets are not eligible for renewal`;
   return null;
 }
 
