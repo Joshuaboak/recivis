@@ -1074,7 +1074,59 @@ export default function LeadDetailView({
           <InfoCard label="Email Domain" value={account.Email_Domain as string || '\u2014'} icon={<Mail size={14} />} />
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-8" data-tour="lead-evaluations">
+        <motion.div data-tour="prospect-contacts" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-8">
+          <h2 className="text-lg font-bold text-text-primary flex items-center gap-2 mb-3">
+            <User size={18} className="text-csa-accent" />
+            Contacts ({contacts.length})
+          </h2>
+          {sortedContacts.length > 0 ? (
+            <>
+              <div className="border border-border-subtle rounded-xl overflow-x-auto">
+                <table className="w-full min-w-[560px]">
+                  <thead><tr className="bg-surface-raised">
+                    <th>Name</th><th>Email</th><th>Phone</th><th>Title</th>
+                  </tr></thead>
+                  <tbody>
+                    {paginatedContacts.map((c) => {
+                      const cId = c.id as string;
+                      const isPrimary = primaryContact?.id && cId === primaryContact.id;
+                      const isSecondary = secondaryContact?.id && cId === secondaryContact.id;
+                      return (
+                        <tr key={cId}>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-text-primary">{c.Full_Name as string}</span>
+                              {isPrimary && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-warning/20 text-warning">
+                                  <Star size={9} /> Primary
+                                </span>
+                              )}
+                              {isSecondary && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-csa-accent/20 text-csa-accent">
+                                  <Star size={9} /> Secondary
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td><span className="flex items-center gap-1 text-text-secondary"><Mail size={12} className="text-text-muted" />{c.Email as string || '\u2014'}</span></td>
+                          <td><span className="flex items-center gap-1 text-text-secondary"><Phone size={12} className="text-text-muted" />{c.Phone as string || '\u2014'}</span></td>
+                          <td className="text-text-muted">{c.Title as string || '\u2014'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-2">
+                <Pagination currentPage={contactSafePage} totalItems={sortedContacts.length} pageSize={contactPageSize} onPageChange={setContactPage} />
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-text-muted py-4">No contacts found</p>
+          )}
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8" data-tour="lead-evaluations">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
               <Beaker size={18} className="text-success" />
@@ -1125,58 +1177,6 @@ export default function LeadDetailView({
             </div>
           ) : (
             <p className="text-sm text-text-muted py-4">No evaluation licences</p>
-          )}
-        </motion.div>
-
-        <motion.div data-tour="prospect-contacts" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
-          <h2 className="text-lg font-bold text-text-primary flex items-center gap-2 mb-3">
-            <User size={18} className="text-csa-accent" />
-            Contacts ({contacts.length})
-          </h2>
-          {sortedContacts.length > 0 ? (
-            <>
-              <div className="border border-border-subtle rounded-xl overflow-x-auto">
-                <table className="w-full min-w-[560px]">
-                  <thead><tr className="bg-surface-raised">
-                    <th>Name</th><th>Email</th><th>Phone</th><th>Title</th>
-                  </tr></thead>
-                  <tbody>
-                    {paginatedContacts.map((c) => {
-                      const cId = c.id as string;
-                      const isPrimary = primaryContact?.id && cId === primaryContact.id;
-                      const isSecondary = secondaryContact?.id && cId === secondaryContact.id;
-                      return (
-                        <tr key={cId}>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-text-primary">{c.Full_Name as string}</span>
-                              {isPrimary && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-warning/20 text-warning">
-                                  <Star size={9} /> Primary
-                                </span>
-                              )}
-                              {isSecondary && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-csa-accent/20 text-csa-accent">
-                                  <Star size={9} /> Secondary
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td><span className="flex items-center gap-1 text-text-secondary"><Mail size={12} className="text-text-muted" />{c.Email as string || '\u2014'}</span></td>
-                          <td><span className="flex items-center gap-1 text-text-secondary"><Phone size={12} className="text-text-muted" />{c.Phone as string || '\u2014'}</span></td>
-                          <td className="text-text-muted">{c.Title as string || '\u2014'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-2">
-                <Pagination currentPage={contactSafePage} totalItems={sortedContacts.length} pageSize={contactPageSize} onPageChange={setContactPage} />
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-text-muted py-4">No contacts found</p>
           )}
         </motion.div>
 
