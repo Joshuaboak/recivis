@@ -47,6 +47,7 @@ import { orderLinePrice, rateFor, contractTermYears } from '@/lib/pricing';
 import { isRenewable, renewabilityOf } from '@/lib/renewal-eligibility';
 import InvoiceSendTo from '../invoice/InvoiceSendTo';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
+import { useAssignableResellers } from '@/lib/useAssignableResellers';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import { useDraft } from '@/lib/useDraft';
 import { DraftRestoreBar } from '@/components/DraftRestoreBar';
@@ -105,9 +106,22 @@ export default function OrderFormView({ invoiceId }: { invoiceId?: string } = {}
   const contact = (isEdit
     ? (existing?.Contact_Name as { name?: string; id?: string } | null)
     : (newInvoiceContext?.contact as { name?: string; id?: string } | null)) || null;
-  const resellerData = (isEdit
+  /**
+   * Who the order is billed through.
+   *
+   * Defaults to the account's reseller either way. A distributor may move it to
+   * itself or one of its children and CSA staff anywhere, so the choice lives in
+   * state and overrides the inherited value once made. Everything downstream —
+   * currency, region, commission, routing — reads `resellerData` and refetches
+   * off its id, so a change cascades on its own.
+   */
+  const [resellerOverride, setResellerOverride] = useState<{ name?: string; id?: string } | null>(null);
+  const inheritedReseller = (isEdit
     ? (existing?.Reseller as { name?: string; id?: string } | null)
     : (newInvoiceContext?.reseller as { name?: string; id?: string } | null)) || null;
+  const resellerData = resellerOverride || inheritedReseller;
+  const { options: resellerOptions, canChoose: canChooseReseller } = useAssignableResellers(user);
+  const canPickReseller = canChooseReseller && resellerOptions.length > 1;
   const [resellerRegion, setResellerRegion] = useState((newInvoiceContext?.region as string) || 'AU');
   const ownerData = (isEdit
     ? (existing?.Owner as { name?: string; id?: string } | null)
@@ -540,7 +554,16 @@ export default function OrderFormView({ invoiceId }: { invoiceId?: string } = {}
         if (resellerData?.id) invoiceData.Reseller = { id: resellerData.id };
         if (ownerData?.id) invoiceData.Owner = { id: ownerData.id };
         if (billingCountry) invoiceData.Billing_Country = billingCountry;
-      } else if (invoiceType !== ((existing?.Invoice_Type as string) || '')) {
+      } else {
+        // A reassignment during an edit. Only sent when it actually moved: the
+        // PATCH route rejects a reseller outside the user's scope, and there is
+        // no reason to re-send the one already on the record.
+        const originalResellerId = (existing?.Reseller as { id?: string } | null)?.id;
+        if (resellerData?.id && resellerData.id !== originalResellerId) {
+          invoiceData.Reseller = { id: resellerData.id };
+        }
+      }
+      if (isEdit && invoiceType !== ((existing?.Invoice_Type as string) || '')) {
         // Aligning a line during an edit turns the order into a co-term, so
         // the type has to travel with it.
         invoiceData.Invoice_Type = invoiceType;
@@ -681,7 +704,34 @@ export default function OrderFormView({ invoiceId }: { invoiceId?: string } = {}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           <InfoCard label="Account" value={account.name || '\u2014'} icon={<Building2 size={14} />} />
           <InfoCard label="Contact" value={contact?.name || '\u2014'} icon={<User size={14} />} />
-          <InfoCard label="Reseller" value={resellerData?.name || '\u2014'} icon={<Globe size={14} />} />
+          {canPickReseller ? (
+            <div className="bg-surface border border-csa-accent/50 rounded-xl px-4 py-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-csa-accent uppercase tracking-wider mb-1">
+                <Globe size={14} />
+                Reseller
+              </div>
+              <select
+                value={resellerData?.id || ''}
+                onChange={(e) => {
+                  const picked = resellerOptions.find(o => o.value === e.target.value);
+                  if (picked) setResellerOverride({ id: picked.value, name: picked.label });
+                }}
+                className="bg-transparent border-none text-sm text-text-primary outline-none w-full cursor-pointer"
+              >
+                {/* The order's current reseller may sit outside the list while it
+                    loads, or if it was assigned before this user's scope changed.
+                    Keep it selectable so the field never shows the wrong partner. */}
+                {resellerData?.id && !resellerOptions.some(o => o.value === resellerData.id) && (
+                  <option value={resellerData.id}>{resellerData.name}</option>
+                )}
+                {resellerOptions.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <InfoCard label="Reseller" value={resellerData?.name || '\u2014'} icon={<Globe size={14} />} />
+          )}
 
           <EditDateCard label="Order Date" value={invoiceDate} onChange={setInvoiceDate} icon={<Calendar size={14} />} />
           <EditDateCard label="Due Date" value={dueDate} onChange={setDueDate} icon={<Calendar size={14} />} />

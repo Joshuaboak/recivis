@@ -256,6 +256,27 @@ export async function PATCH(
       updateData.Invoiced_Items = body.Invoiced_Items;
     }
     if (body.Reseller_Direct_Purchase !== undefined) updateData.Reseller_Direct_Purchase = body.Reseller_Direct_Purchase;
+    /**
+     * Reassigning the order to another reseller. A distributor may move an order
+     * between itself and its children, and CSA staff may move it anywhere; the
+     * same `canManageReseller` test the ownership check above uses, applied to
+     * the incoming id so the order cannot be handed to a stranger.
+     *
+     * Deliberately checked rather than filtered: silently dropping the field
+     * would return success on a save that did nothing.
+     */
+    if (body.Reseller !== undefined) {
+      const nextResellerId = (body.Reseller as { id?: string } | null)?.id || (body.Reseller as string | null);
+      if (!nextResellerId || typeof nextResellerId !== 'string') {
+        return NextResponse.json({ error: 'A reseller is required.' }, { status: 400 });
+      }
+      if (!canManageReseller(user, nextResellerId)) {
+        return NextResponse.json({
+          error: 'You cannot assign this order to that reseller.',
+        }, { status: 403 });
+      }
+      updateData.Reseller = { id: nextResellerId };
+    }
     // Aligning a line to an existing licence during an edit makes the order a
     // co-term, so the type has to be writable — it was not, and the order would
     // have kept saying New Product while its dates said otherwise.

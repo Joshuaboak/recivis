@@ -40,6 +40,7 @@ import { recipientSentence } from '@/lib/order-recipients';
 import { orderLinePrice, rateFor } from '@/lib/pricing';
 import type { OrderAttachment } from '../invoice/InvoicePurchaseOrder';
 import { useTrackRecentItem } from '@/lib/useRecentItems';
+import { useAssignableResellers } from '@/lib/useAssignableResellers';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { useUnsavedChanges } from '@/components/UnsavedChangesProvider';
 import { GuardedLink } from '@/components/GuardedLink';
@@ -132,6 +133,7 @@ export default function InvoiceDetailView({
   mode?: 'view' | 'edit';
 }) {
   const { user } = useAppStore();
+  const { options: resellerOptions, canChoose: canChooseReseller, reload: reloadResellers } = useAssignableResellers(user);
   const router = useGuardedRouter();
   const { registerDirty } = useUnsavedChanges();
   const [invoice, setInvoice] = useState<Record<string, unknown> | null>(null);
@@ -158,6 +160,9 @@ export default function InvoiceDetailView({
   // Reseller pricing — originalListPrices stores the FULL list prices keyed by line item id
   // so we can toggle between reseller/customer pricing without losing the base price
   const [resellerPercentage, setResellerPercentage] = useState<number | null>(null);
+  /** Bumped after a reseller reassignment so the load effect refetches: the
+   *  commission percentage and payment flags all hang off the reseller. */
+  const [resellerReloadKey, setResellerReloadKey] = useState(0);
   const [originalListPrices, setOriginalListPrices] = useState<Record<string, number>>({});
   /** Exchange rates from the CRM, target-currency-per-AUD. */
   const [rates, setRates] = useState<Array<{ code: string; rate: number }>>([]);
@@ -328,7 +333,7 @@ export default function InvoiceDetailView({
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [invoiceId]);
+  }, [invoiceId, resellerReloadKey]);
 
   // Feed the header's Recent Items menu once the record has loaded.
   useTrackRecentItem(invoice ? {
@@ -1236,7 +1241,30 @@ export default function InvoiceDetailView({
             <InfoCard label="Account" value={account?.name || '\u2014'} icon={<Building2 size={14} />} />
           )}
           <InfoCard label="Contact" value={contact?.name || '\u2014'} icon={<User size={14} />} />
-          <InfoCard label="Reseller" value={reseller?.name || '\u2014'} icon={<Globe size={14} />} />
+          {canChooseReseller && resellerOptions.length > 1 ? (
+            <InlineEditField
+              fieldId="reseller"
+              label="Reseller"
+              icon={<Globe size={14} />}
+              value={reseller?.id || ''}
+              displayValue={reseller?.name || '\u2014'}
+              type="lookup"
+              options={resellerOptions}
+              placeholder="Search resellers"
+              canEdit={!!canEdit && !editing}
+              onOpenEdit={reloadResellers}
+              onSave={async v => {
+                if (!v) throw new Error('A reseller is required.');
+                await saveFields({ Reseller: { id: v } });
+                // Commission, currency and the payment-method flags all come
+                // off the reseller, so the record has to come back from the
+                // server rather than be patched in place.
+                setResellerReloadKey(k => k + 1);
+              }}
+            />
+          ) : (
+            <InfoCard label="Reseller" value={reseller?.name || '\u2014'} icon={<Globe size={14} />} />
+          )}
 
           <InlineEditField
             fieldId="invoice_date"
