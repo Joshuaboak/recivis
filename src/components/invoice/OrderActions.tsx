@@ -79,7 +79,7 @@ export default function OrderActions({
   const [dialog, setDialog] = useState<ConfirmDialogState>(initialDialog);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [successPopup, setSuccessPopup] = useState<string | null>(null);
+  const [successPopup, setSuccessPopup] = useState<{ title: string; message: string } | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const paymentWindowRef = useRef(false);
 
@@ -103,7 +103,10 @@ export default function OrderActions({
           pollingRef.current = null;
           paymentWindowRef.current = false;
           const recipient = getRecipientLabel();
-          setSuccessPopup(`The licence keys and a copy of the order have been sent to ${recipient}.`);
+          setSuccessPopup({
+            title: 'Payment Complete!',
+            message: `The licence keys and a copy of the order have been sent to ${recipient}.`,
+          });
           onRefresh();
         }
       } catch { /* continue polling */ }
@@ -297,6 +300,13 @@ export default function OrderActions({
             const data = await res.json();
             setError(data.error || 'Could not process the order');
           } else {
+            // Processing is irreversible and its effects all happen elsewhere —
+            // keys issued, an email sent. Refreshing the status badge on its own
+            // left people unsure whether the button had done anything.
+            setSuccessPopup({
+              title: 'Order Processed',
+              message: `The order is committed. The invoice and licence keys are on their way to ${getRecipientLabel()}.`,
+            });
             onRefresh();
           }
         } catch {
@@ -448,8 +458,8 @@ export default function OrderActions({
                 >
                   <CheckCircle2 size={56} className="text-success mb-4" />
                 </motion.div>
-                <h2 className="text-xl font-bold text-text-primary mb-2">Payment Complete!</h2>
-                <p className="text-sm text-text-secondary leading-relaxed">{successPopup}</p>
+                <h2 className="text-xl font-bold text-text-primary mb-2">{successPopup.title}</h2>
+                <p className="text-sm text-text-secondary leading-relaxed">{successPopup.message}</p>
               </div>
               <div className="flex items-center justify-center px-6 pb-6">
                 <button
