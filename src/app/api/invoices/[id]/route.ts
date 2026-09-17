@@ -14,6 +14,8 @@ import { isDemoSession } from '@/lib/demo/guard';
 import { findDemoRecord } from '@/lib/demo/fixtures';
 import { requireAuth, isAdmin, canManageReseller } from '@/lib/api-auth';
 import { orderDateProblem } from '@/lib/line-dates';
+import { CSA_INTERNAL_ID, CSA_ZOHO_ID } from '@/lib/constants';
+import type { AuthUser } from '@/lib/api-auth';
 
 /**
  * The statuses an order can still be edited in.
@@ -44,24 +46,31 @@ export interface Attachment {
 /**
  * Why this order may not be processed on account, or null when it may.
  *
- * Two conditions, both read off records rather than off the request: the
- * partner has account terms (`Can_Purchase_on_Credit` on their Reseller), and
- * the order carries a purchase order number. The portal asks for a PO document
- * too, but the attachment lives outside this record and the number is the part
- * that is checkable here.
+ * Two conditions. The purchase order number is a fact about the order — the
+ * portal asks for a PO document too, but the attachment lives outside this
+ * record and the number is the part that is checkable here.
+ *
+ * Account terms are a fact about the *caller*, not the order. They are the
+ * arrangement under which CSA issues keys before the money arrives, and the
+ * party who owes that money is whoever is placing the order. This used to read
+ * `Can_Purchase_on_Credit` off the order's Reseller, so a distributor ordering
+ * for a child partner was judged on the child's terms — and a child with no
+ * portal account has none, which denied the distributor their own arrangement.
  */
 async function accountTermsDenial(
   invoice: Record<string, unknown> | undefined,
-  invoiceId: string
+  invoiceId: string,
+  user: AuthUser
 ): Promise<string | null> {
   if (!String(invoice?.Purchase_Order ?? '').trim()) {
     return 'A purchase order number is required before this order can be processed.';
   }
 
-  const resellerId = (invoice?.Reseller as { id?: string } | null)?.id;
-  if (!resellerId) {
-    return 'This order has no partner on it, so it cannot be processed.';
+  if (!user.resellerId) {
+    return 'Your account is not linked to a partner, so orders cannot be processed on account.';
   }
+  // CSA's own partner row is keyed differently either side of the fence.
+  const resellerId = user.resellerId === CSA_INTERNAL_ID ? CSA_ZOHO_ID : user.resellerId;
 
   try {
     const result = await executeZohoTool('get_record', {
@@ -303,7 +312,7 @@ export async function PATCH(
        * in for the payment. That is what `accountTermsDenial` checks.
        */
       if (body.Status === 'Approved' && !isAdmin(user)) {
-        const denial = await accountTermsDenial(existing, id);
+        const denial = await accountTermsDenial(existing, id, user);
         if (denial && !user.permissions.canApproveInvoices) {
           return NextResponse.json({ error: denial }, { status: 403 });
         }
