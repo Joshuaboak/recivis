@@ -26,6 +26,12 @@ describe('buildMonthlySku', () => {
   it('passes through regions that map to themselves', () => {
     expect(buildMonthlySku('CEZ', 'NA')).toBe('CEZ-SU-CL-COM-1YR-SUB-NA');
   });
+
+  // Reads like a currency code, and has been 'corrected' to AS before. No
+  // product code ends in -AS; the Asia SKUs end in -INR with Product_Geo AS.
+  it('uses INR as the Asia SKU segment', () => {
+    expect(buildMonthlySku('CSD', 'AS')).toBe('CSD-SU-CL-COM-1YR-SUB-INR');
+  });
 });
 
 describe('monthlyListPrice', () => {

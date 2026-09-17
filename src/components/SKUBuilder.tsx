@@ -58,8 +58,10 @@ const MODELS = [
 ];
 
 // Region code mapping for SKUs
+// Asia's SKU segment is INR, not AS — it reads like a currency code but it is
+// the region suffix Zoho uses on those products (CSD-SU-CB-COM-1YR-INF-INR).
 const REGION_MAP: Record<string, string> = {
-  AU: 'ANZ', NZ: 'ANZ', AF: 'AF', AS: 'AS', EU: 'EU', NA: 'NA', WW: 'WW',
+  AU: 'ANZ', NZ: 'ANZ', AF: 'AF', AS: 'INR', EU: 'EU', NA: 'NA', WW: 'WW',
 };
 
 export default function SKUBuilder({ region, onSelect, onCancel }: SKUBuilderProps) {

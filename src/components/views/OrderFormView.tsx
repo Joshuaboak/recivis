@@ -525,8 +525,9 @@ export default function OrderFormView({ invoiceId }: { invoiceId?: string } = {}
       });
 
       // Map reseller region codes (AU, NZ) to SKU region codes (ANZ) for Zoho
+      // Asia is INR, not AS — a region suffix that happens to look like a currency.
       const REGION_MAP: Record<string, string> = {
-        AU: 'ANZ', NZ: 'ANZ', AF: 'AF', AS: 'AS', EU: 'EU', NA: 'NA', WW: 'WW',
+        AU: 'ANZ', NZ: 'ANZ', AF: 'AF', AS: 'INR', EU: 'EU', NA: 'NA', WW: 'WW',
       };
       const skuRegion = REGION_MAP[resellerRegion] || resellerRegion;
 

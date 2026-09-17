@@ -49,10 +49,11 @@ export const MONTHLY_PRODUCTS: MonthlyProduct[] = [
 
 /**
  * Reseller region code to SKU region segment. Matches SKUBuilder — New Zealand
- * buys on the ANZ price list, so both fold into ANZ.
+ * buys on the ANZ price list, so both fold into ANZ. Asia's segment is INR,
+ * which reads like a currency code but is the suffix on those products.
  */
 const SKU_REGION_MAP: Record<string, string> = {
-  AU: 'ANZ', NZ: 'ANZ', AF: 'AF', AS: 'AS', EU: 'EU', NA: 'NA', WW: 'WW',
+  AU: 'ANZ', NZ: 'ANZ', AF: 'AF', AS: 'INR', EU: 'EU', NA: 'NA', WW: 'WW',
 };
 
 /** The SKU region segment for a reseller region code. */
