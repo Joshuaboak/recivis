@@ -11,7 +11,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('@/lib/zoho', () => ({ searchAllPages: vi.fn(), executeZohoTool: vi.fn() }));
 vi.mock('@/lib/db', () => ({ query: vi.fn(), initDB: vi.fn() }));
 
-const { emailDomain, isMatchableDomain, accountOwnerForDomain } =
+const { emailDomain, isMatchableDomain, isGenericDomain, accountOwnerForDomain } =
   await import('@/lib/email-domain');
 const { searchAllPages } = await import('@/lib/zoho');
 
@@ -137,5 +137,31 @@ describe('accountOwnerForDomain', () => {
   it('lets a search failure through rather than answering none', async () => {
     vi.mocked(searchAllPages).mockRejectedValueOnce(new Error('zoho down'));
     await expect(accountOwnerForDomain(reseller, '@northbridge.example')).rejects.toThrow('zoho down');
+  });
+});
+
+describe('isGenericDomain', () => {
+  it('catches a free-mail domain however it is written', () => {
+    expect(isGenericDomain('@gmail.com')).toBe(true);
+    expect(isGenericDomain('gmail.com')).toBe(true);
+    expect(isGenericDomain('jane@Gmail.com ')).toBe(true);
+  });
+
+  it('catches the other providers on the list', () => {
+    expect(isGenericDomain('yahoo.com')).toBe(true);
+    expect(isGenericDomain('mail.com')).toBe(true);
+    expect(isGenericDomain('@bigpond.com')).toBe(true);
+  });
+
+  it('leaves a company domain alone', () => {
+    expect(isGenericDomain('@northbridge.example')).toBe(false);
+    expect(isGenericDomain('northbridge.example')).toBe(false);
+    expect(isGenericDomain('jane@northbridge.example')).toBe(false);
+  });
+
+  it('treats an absent value as nothing to refuse', () => {
+    expect(isGenericDomain('')).toBe(false);
+    expect(isGenericDomain(null)).toBe(false);
+    expect(isGenericDomain(undefined)).toBe(false);
   });
 });

@@ -399,6 +399,7 @@ The user can edit all fields before submitting. Do NOT add "(please provide)" or
 
 Then create BOTH the account AND the contact in one flow — no second confirmation needed.
 - New Account fields: Account_Name, Billing_Country, Reseller (lookup), Email_Domain (extracted from email)
+- **Email_Domain must be the company's own domain.** If the email is on a free/generic provider — gmail.com, yahoo.com, hotmail.com, outlook.com, live.com, icloud.com, aol.com, mail.com, proton.me, bigpond.com, optusnet.com.au, or any other public mail service — leave Email_Domain OFF the record entirely. Do not mention it, do not ask about it, just omit the field and carry on. Only if the user explicitly asks you to set the email domain to a generic one, tell them the portal does not allow a free-mail domain on an account and leave it blank.
 - New Contact fields: First_Name, Last_Name, Email, Account_Name (lookup)
 - After creating both, SET the contact as Primary_Contact on the account.
 

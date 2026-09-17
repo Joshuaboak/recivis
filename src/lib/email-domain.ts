@@ -107,3 +107,21 @@ export async function accountOwnerForDomain(
     },
   };
 }
+
+/**
+ * Whether a value names a free-mail domain, in whatever shape it arrived.
+ *
+ * `isMatchableDomain` answers the matching question and needs the `@`-prefixed
+ * form `emailDomain` produces. This one is the guard on *writing* a domain to
+ * an account, where the value can arrive as `gmail.com`, `@gmail.com` or a
+ * whole address, so it normalises before deciding. A generic domain on an
+ * account is worse than none: it never identifies the company, and it makes
+ * every later free-mail enquiry look like it belongs to that customer.
+ */
+export function isGenericDomain(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const trimmed = String(value).trim().toLowerCase();
+  if (!trimmed) return false;
+  const at = trimmed.lastIndexOf('@');
+  return PUBLIC_DOMAINS.has(`@${at >= 0 ? trimmed.slice(at + 1) : trimmed}`);
+}

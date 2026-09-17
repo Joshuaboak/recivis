@@ -5,6 +5,7 @@ import { log } from '@/lib/logger';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
 import type { AuthUser } from '@/lib/api-auth';
 import { MODULE_SCOPES, WRITABLE_MODULES, recordInScope, scopingAccountId } from '@/lib/tenant-scope';
+import { isGenericDomain } from '@/lib/email-domain';
 import {
   NOT_YOURS,
   accountIsVisible,
@@ -122,6 +123,16 @@ async function enforceToolRBAC(
     }
 
     for (const rec of records || []) {
+      // A free-mail domain on an account never identifies the company, and
+      // would claim every later gmail enquiry for it. Dropped rather than
+      // refused: the assistant fills this field on its own from whatever
+      // address it was given, so an error here would stall an order the
+      // partner never asked to have a domain on. The system prompt covers the
+      // one case the user asks for a generic domain outright.
+      if (moduleName === 'Accounts' && isGenericDomain(rec.Email_Domain as string | undefined)) {
+        delete rec.Email_Domain;
+      }
+
       // Changing an existing record means proving it is the caller's first —
       // otherwise any id would do.
       if (toolName === 'update_records') {

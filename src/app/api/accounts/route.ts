@@ -17,6 +17,7 @@ import { isDemoSession } from '@/lib/demo/guard';
 import { DEMO_ACCOUNTS } from '@/lib/demo/fixtures';
 import { requireAuth, isAdmin } from '@/lib/api-auth';
 import { filterToScope } from '@/lib/record-access';
+import { isGenericDomain } from '@/lib/email-domain';
 
 /**
  * GET /api/accounts?search=term&resellerId=id&resellerIds=id1,id2,id3
@@ -130,6 +131,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+
+    // Email_Domain is what ties a later enquiry to this company. A free-mail
+    // domain cannot do that — it would claim every gmail enquiry for whichever
+    // account saved it first — so it is refused rather than quietly dropped:
+    // somebody typed it here on purpose and should be told it will not hold.
+    if (isGenericDomain(body.Email_Domain as string | undefined)) {
+      return NextResponse.json(
+        { error: 'Email domain must be the company’s own domain, not a free email provider such as gmail.com.' },
+        { status: 400 }
+      );
+    }
 
     // The body reaches Zoho as written, so the partner on it has to be one the
     // caller may file under — otherwise a new account could be created in a
