@@ -122,7 +122,19 @@ export default function OrderFormView({ invoiceId }: { invoiceId?: string } = {}
   const resellerData = resellerOverride || inheritedReseller;
   const { options: resellerOptions, canChoose: canChooseReseller } = useAssignableResellers(user);
   const canPickReseller = canChooseReseller && resellerOptions.length > 1;
-  const [resellerRegion, setResellerRegion] = useState((newInvoiceContext?.region as string) || 'AU');
+  /**
+   * The partner's region, which comes off the Reseller record and nowhere else.
+   *
+   * This used to seed from `newInvoiceContext.region` and fall back to 'AU'.
+   * Accounts carry no Reseller_Region field, so that seed was always empty and
+   * the fallback always won — every order started life as an Australian one and
+   * stayed that way until the reseller fetch below landed. Zoho filters the
+   * line-item product lookup on this field, so an order saved while it still
+   * said AU had its products refused and the whole create rejected.
+   *
+   * Empty until the reseller is known. The save refuses rather than guess.
+   */
+  const [resellerRegion, setResellerRegion] = useState('');
   const ownerData = (isEdit
     ? (existing?.Owner as { name?: string; id?: string } | null)
     : (newInvoiceContext?.owner as { name?: string; id?: string } | null)) || null;
@@ -491,6 +503,15 @@ export default function OrderFormView({ invoiceId }: { invoiceId?: string } = {}
 
   const createInvoice = async () => {
     if (visibleLineItems.length === 0 || !account?.id) return;
+
+    // Guessing here is what broke Asian orders: Zoho filters the line-item
+    // product lookup on Reseller_Region, so a wrong one has the products
+    // refused and the create fails with nothing useful to show the partner.
+    if (!isEdit && !resellerRegion) {
+      setCreateError('Still loading the partner’s details. Try again in a moment.');
+      return;
+    }
+
     setSaving(true);
 
     try {

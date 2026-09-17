@@ -1194,7 +1194,6 @@ export default function LeadDetailView({
                   account: { name: account.Account_Name as string, id: leadId },
                   contact: primaryContact ? { name: primaryContact.name, id: primaryContact.id } : null,
                   reseller: reseller ? { name: reseller.name, id: reseller.id } : null,
-                  region: (account.Reseller_Region as string) || '',
                   currency: (account.Currency as string) || '',
                   owner: owner ? { name: owner.name, id: (account.Owner as { id?: string })?.id } : null,
                   billingCountry: account.Billing_Country as string || '',
