@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { query, initDB } from './db';
 import { setRequestContext } from './request-context';
+import { allowedResellerIdsFor } from './reseller-scope';
 import type { UserPermissions } from './types';
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -169,19 +170,15 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
     canAccessCrm: isSystemAdmin || rrCrm,
     };
 
-    // Compute allowed reseller IDs
+    // Compute allowed reseller IDs. Shared with the session builder in auth.ts
+    // — this is the copy that decides what data leaves the building, so the two
+    // must not be able to drift.
     let allowedResellerIds: string[] = [];
     if (!isSystemAdmin && row.reseller_id) {
-      allowedResellerIds = [row.reseller_id];
-      if (permissions.canViewChildRecords) {
-        const children = await query(
-          'SELECT id FROM resellers WHERE distributor_id = $1 AND is_active = true',
-          [row.reseller_id]
-        );
-        for (const child of children.rows) {
-          allowedResellerIds.push(child.id);
-        }
-      }
+      allowedResellerIds = await allowedResellerIdsFor(
+        row.reseller_id,
+        permissions.canViewChildRecords
+      );
     }
 
     return {

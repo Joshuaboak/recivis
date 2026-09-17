@@ -22,9 +22,7 @@ import { LOGIN_PATH } from './routes';
 import type { User, UserPermissions } from './types';
 import { getUserPreferences } from './preferences';
 import { log } from './logger';
-import { callMcpTool, parseMcpResult } from './zoho';
-import { cacheGet, cacheSet } from './cache';
-import { CSA_INTERNAL_ID, CSA_ZOHO_ID } from './constants';
+import { allowedResellerIdsFor } from './reseller-scope';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'recivis-dev-secret-change-in-production';
 const SALT_ROUNDS = 12;
@@ -165,62 +163,6 @@ export async function getUserById(userId: number): Promise<User | null> {
   return buildUserFromRow(result.rows[0]);
 }
 
-/**
- * The resellers Zoho says this distributor is above.
- *
- * The `resellers` table only holds partners someone registered in the portal,
- * because that is what a row is for: a login, a role, permission overrides. The
- * distributor relationship is a different thing entirely and lives in the CRM,
- * where it covers partners who will never have a portal account at all. Reading
- * children out of Postgres alone meant a distributor could not see the records
- * of any such partner - the account was there, correctly filed against the
- * child reseller, and simply invisible.
- *
- * Unioned with the Postgres children rather than replacing them, so a partner
- * registered in the portal but not yet linked in the CRM keeps working, and so
- * a Zoho outage degrades to the old behaviour instead of emptying somebody's
- * whole account list mid-session.
- *
- * Cached for five minutes, the same TTL /api/resellers uses, because this now
- * sits in the path of every session load.
- */
-async function zohoChildResellerIds(resellerId: string): Promise<string[]> {
-  // CSA's own partner row is keyed differently either side of the fence.
-  const zohoId = resellerId === CSA_INTERNAL_ID ? CSA_ZOHO_ID : resellerId;
-  const cacheKey = `scope:children:${zohoId}`;
-
-  const cached = await cacheGet<string[]>(cacheKey);
-  if (cached) return cached;
-
-  try {
-    const result = await callMcpTool('ZohoCRM_searchRecords', {
-      path_variables: { module: 'Resellers' },
-      query_params: {
-        criteria: `(Distributor:equals:${zohoId})`,
-        fields: 'Name,Record_Status__s',
-      },
-    });
-    const ids = parseMcpResult(result).data
-      .filter(r => r.Record_Status__s !== 'Trash')
-      .map(r => r.id as string)
-      .filter(Boolean)
-      // Map CSA back to the id the portal files records under.
-      .map(id => (id === CSA_ZOHO_ID ? CSA_INTERNAL_ID : id));
-
-    await cacheSet(cacheKey, ids, 300);
-    return ids;
-  } catch (err) {
-    // Widening the scope is what failed, so the safe answer is the narrower
-    // one. Logged rather than swallowed: silently showing a distributor less
-    // than they should see is the bug this function exists to fix.
-    log('warn', 'auth', 'Could not read child resellers from Zoho', {
-      resellerId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return [];
-  }
-}
-
 /** Map a USER_PROJECTION_SQL row to the `User` object returned to the client. */
 async function buildUserFromRow(row: UserProjectionRow): Promise<User> {
   // Effective permissions = user_role AND reseller_role (intersection).
@@ -291,21 +233,10 @@ async function buildUserFromRow(row: UserProjectionRow): Promise<User> {
   // Admins see everything; distributors see own + child resellers.
   let allowedResellerIds: string[] | undefined;
   if (!isSystemAdmin && row.reseller_id) {
-    allowedResellerIds = [row.reseller_id];
-    if (permissions.canViewChildRecords) {
-      const children = await query(
-        'SELECT id FROM resellers WHERE distributor_id = $1 AND is_active = true',
-        [row.reseller_id]
-      );
-      for (const child of children.rows) {
-        allowedResellerIds.push(child.id);
-      }
-      for (const childId of await zohoChildResellerIds(row.reseller_id)) {
-        if (!allowedResellerIds.includes(childId)) {
-          allowedResellerIds.push(childId);
-        }
-      }
-    }
+    allowedResellerIds = await allowedResellerIdsFor(
+      row.reseller_id,
+      permissions.canViewChildRecords
+    );
   }
 
   // Rides along with the session the portal already refreshes on every load,
