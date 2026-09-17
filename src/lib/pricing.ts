@@ -136,3 +136,26 @@ export const BILL_PRICE_AS_GIVEN = 0;
 export function contractTermYears(priceWasTypedByHand: boolean): number {
   return priceWasTypedByHand ? BILL_PRICE_AS_GIVEN : PRORATE_ACROSS_DATES;
 }
+
+/**
+ * The line's `Type`, a picklist added to Invoiced_Items on 12 Sep 2026.
+ *
+ * The transaction type used to live only on the order, which cannot describe an
+ * order that mixes a renewal with a new licence. It now lives on each line, and
+ * the two fields do not share a vocabulary: the order says "New Product" where
+ * the line says "New". Mapping between them is the whole reason this exists.
+ *
+ * A line aligned to an existing licence is a co-term whatever the order says —
+ * that is what aligning means — so it wins over the order-level type.
+ *
+ * "Discount" is in the picklist but the portal never raises one; those are
+ * added in the CRM.
+ */
+export type LineItemType = 'New' | 'Renewal' | 'Co-Term';
+
+export function lineItemType(orderType: string, alignedToLicence: boolean): LineItemType {
+  if (alignedToLicence) return 'Co-Term';
+  if (orderType === 'Renewal') return 'Renewal';
+  if (orderType === 'Co-Term') return 'Co-Term';
+  return 'New';
+}

@@ -37,7 +37,7 @@ import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
 import { CURRENCIES as SUPPORTED_CURRENCIES } from '@/lib/constants';
 import { recipientSentence } from '@/lib/order-recipients';
-import { orderLinePrice, rateFor } from '@/lib/pricing';
+import { orderLinePrice, rateFor, lineItemType } from '@/lib/pricing';
 import type { OrderAttachment } from '../invoice/InvoicePurchaseOrder';
 import { useTrackRecentItem } from '@/lib/useRecentItems';
 import { useAssignableResellers } from '@/lib/useAssignableResellers';
@@ -89,7 +89,10 @@ function lineItemFingerprint(items: Record<string, unknown>[]): string {
  * accepts. Extracted so the batch line-item edit and the full edit form send
  * exactly the same shape — there is one line-item editing model, not two.
  */
-function buildInvoicedItemsPayload(items: Record<string, unknown>[]): Record<string, unknown>[] {
+function buildInvoicedItemsPayload(
+  items: Record<string, unknown>[],
+  orderType: string
+): Record<string, unknown>[] {
   return items.map(li => {
     const isExisting = !!li.id;
 
@@ -118,6 +121,10 @@ function buildInvoicedItemsPayload(items: Record<string, unknown>[]): Record<str
     if (li.Description !== undefined) cleaned.Description = li.Description;
     if (li.Asset_Code) cleaned.Asset_Code = li.Asset_Code;
     if (li.Align_to) cleaned.Align_to = li.Align_to;
+    // Type moved onto the line in September. Whatever the line already carries
+    // is kept — somebody may have set it in the CRM — and only a line without
+    // one is filled in from the order.
+    cleaned.Type = (li.Type as string) || lineItemType(orderType, !!li.Align_to);
 
     return cleaned;
   }).filter(Boolean) as Record<string, unknown>[];
@@ -486,7 +493,7 @@ export default function InvoiceDetailView({
       })
     );
 
-    return buildInvoicedItemsPayload(priced);
+    return buildInvoicedItemsPayload(priced, (invoice?.Invoice_Type as string) || '');
   };
 
   const saveEdits = async () => {
@@ -497,7 +504,7 @@ export default function InvoiceDetailView({
       const body: Record<string, unknown> = {};
 
       // Build line items for Zoho — only send fields Zoho accepts
-      body.Invoiced_Items = buildInvoicedItemsPayload(editLineItems);
+      body.Invoiced_Items = buildInvoicedItemsPayload(editLineItems, (invoice?.Invoice_Type as string) || '');
 
       const res = await fetch(`/api/invoices/${invoiceId}`, {
         method: 'PATCH',
@@ -599,7 +606,7 @@ export default function InvoiceDetailView({
         if (repriced) body.Invoiced_Items = repriced;
       }
       if (lineItemFingerprint(editLineItems) !== lineItemFingerprint(lineItems)) {
-        body.Invoiced_Items = buildInvoicedItemsPayload(editLineItems);
+        body.Invoiced_Items = buildInvoicedItemsPayload(editLineItems, (invoice?.Invoice_Type as string) || '');
       }
     }
     if (canEditPO && formPO !== ((invoice?.Purchase_Order as string) || '')) {

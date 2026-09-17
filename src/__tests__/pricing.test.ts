@@ -12,6 +12,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
+  lineItemType,
   convertFromAud,
   applyResellerShare,
   orderLinePrice,
@@ -152,5 +153,25 @@ describe('contractTermYears', () => {
     });
     expect(discounted.price).not.toBe(discounted.listPrice);
     expect(contractTermYears(false)).toBe(1);
+  });
+});
+
+describe('lineItemType', () => {
+  // The order says "New Product" and the line says "New". Two vocabularies for
+  // one idea, which is the whole reason the mapping exists.
+  it('translates the order type onto the line', () => {
+    expect(lineItemType('New Product', false)).toBe('New');
+    expect(lineItemType('Renewal', false)).toBe('Renewal');
+    expect(lineItemType('Co-Term', false)).toBe('Co-Term');
+  });
+
+  it('makes an aligned line a co-term whatever the order says', () => {
+    expect(lineItemType('New Product', true)).toBe('Co-Term');
+    expect(lineItemType('Renewal', true)).toBe('Co-Term');
+  });
+
+  it('falls back to New rather than sending a value Zoho would reject', () => {
+    expect(lineItemType('', false)).toBe('New');
+    expect(lineItemType('Something Else', false)).toBe('New');
   });
 });

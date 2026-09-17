@@ -43,7 +43,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
 import { CURRENCIES as SUPPORTED_CURRENCIES } from '@/lib/constants';
-import { orderLinePrice, rateFor, contractTermYears } from '@/lib/pricing';
+import { orderLinePrice, rateFor, contractTermYears, lineItemType } from '@/lib/pricing';
 import { isRenewable, renewabilityOf } from '@/lib/renewal-eligibility';
 import InvoiceSendTo from '../invoice/InvoiceSendTo';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
@@ -521,6 +521,9 @@ export default function OrderFormView({ invoiceId }: { invoiceId?: string } = {}
         // the board. A discounted price is still a calculated one; only a price
         // somebody typed is final.
         item.Contract_Term_Years = contractTermYears(!!li._priceEditedByHand);
+        // The transaction type moved onto the line in September. An aligned
+        // line is a co-term whatever the order as a whole says.
+        item.Type = lineItemType(invoiceType, !!li._alignedTo);
         return item;
       });
 
