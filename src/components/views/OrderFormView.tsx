@@ -524,12 +524,18 @@ export default function OrderFormView({ invoiceId }: { invoiceId?: string } = {}
         return item;
       });
 
-      // Map reseller region codes (AU, NZ) to SKU region codes (ANZ) for Zoho
-      // Asia is INR, not AS — a region suffix that happens to look like a currency.
-      const REGION_MAP: Record<string, string> = {
-        AU: 'ANZ', NZ: 'ANZ', AF: 'AF', AS: 'INR', EU: 'EU', NA: 'NA', WW: 'WW',
+      /**
+       * The order's Reseller_Region, which is not the SKU suffix.
+       *
+       * Both fold AU and NZ into ANZ, which is why this was mistaken for the
+       * SKU map and briefly given the SKU's Asia value. It is a picklist on the
+       * Invoice and Zoho rejects anything outside it, so Asia stays AS here —
+       * only product codes end in INR.
+       */
+      const INVOICE_REGION_MAP: Record<string, string> = {
+        AU: 'ANZ', NZ: 'ANZ', AF: 'AF', AS: 'AS', EU: 'EU', NA: 'NA', WW: 'WW',
       };
-      const skuRegion = REGION_MAP[resellerRegion] || resellerRegion;
+      const invoiceRegion = INVOICE_REGION_MAP[resellerRegion] || resellerRegion;
 
       // What both modes write. An edit sends only these: the record already
       // has its subject, parties and status, and the PATCH route accepts a
@@ -547,7 +553,7 @@ export default function OrderFormView({ invoiceId }: { invoiceId?: string } = {}
         invoiceData.Account_Name = { id: account.id };
         invoiceData.Status = 'Draft';
         invoiceData.Invoice_Type = invoiceType;
-        invoiceData.Reseller_Region = skuRegion;
+        invoiceData.Reseller_Region = invoiceRegion;
         invoiceData.Send_Invoice = false;
         invoiceData.Don_t_Make_Keys = false;
         invoiceData.Automatically_Send_Email = false;
