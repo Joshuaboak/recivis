@@ -308,11 +308,9 @@ export default function InvoiceDetailView({
               const percentage = pct != null ? Number(pct) : null;
               setResellerPercentage(percentage);
 
-              // Reseller payment method flags
-              // Pay on Account = Zoho Can_Purchase_on_Credit → Process Order
-              // Pay on Card = PostgreSQL pay_on_card → Pay Now / Pay Later
-              setPayOnAccount(!!rData.reseller?.Can_Purchase_on_Credit);
-              setPayOnCard(!!rData.payOnCard);
+              // Payment methods deliberately do not come from here — see the
+              // effect below. This fetch is for pricing: the commission belongs
+              // to the reseller the order is filed against.
 
               // Calculate and store original (full) list prices
               // If invoice is currently in reseller mode, current prices ARE discounted
@@ -341,6 +339,43 @@ export default function InvoiceDetailView({
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [invoiceId, resellerReloadKey]);
+
+  /**
+   * Which payment methods this order can offer.
+   *
+   * The paying partner is whoever is logged in, not whoever the order is filed
+   * against. These used to come off the order's Reseller, which meant a
+   * distributor placing an order for a child partner was offered the child's
+   * payment methods — and a child with no portal account has none at all:
+   * Can_Purchase_on_Credit is false on the CRM record and pay_on_card lives in
+   * a Postgres row that does not exist. Both buttons simply vanished.
+   *
+   * CSA staff are unrestricted. They bypass every other gate in this view, and
+   * their own partner row is the internal one, whose flags mean nothing here.
+   */
+  useEffect(() => {
+    const isStaff = user?.role === 'admin' || user?.role === 'ibm';
+    if (isStaff) {
+      setPayOnAccount(true);
+      setPayOnCard(true);
+      return;
+    }
+    if (!user?.resellerId) return;
+
+    let cancelled = false;
+    fetch(`/api/resellers/${user.resellerId}`)
+      .then(r => r.json())
+      .then(rData => {
+        if (cancelled) return;
+        // Pay on Account = Zoho Can_Purchase_on_Credit → Process Order
+        // Pay on Card = PostgreSQL pay_on_card → Pay Now / Pay Later
+        setPayOnAccount(!!rData.reseller?.Can_Purchase_on_Credit);
+        setPayOnCard(!!rData.payOnCard);
+      })
+      .catch(() => { /* leaves both off, which is the safe way to be wrong */ });
+
+    return () => { cancelled = true; };
+  }, [user?.role, user?.resellerId]);
 
   // Feed the header's Recent Items menu once the record has loaded.
   useTrackRecentItem(invoice ? {
