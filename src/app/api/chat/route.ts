@@ -355,11 +355,10 @@ export async function POST(request: NextRequest) {
               'X-Title': 'ReCivis',
             },
             body: JSON.stringify({
-              model: 'anthropic/claude-opus-4.6:exacto',
+              model: '~anthropic/claude-opus-latest',
               messages: conversationMessages,
               tools,
               max_tokens: 4096,
-              temperature: 0.2,
             }),
           });
           const aiDuration = Date.now() - aiStart;

@@ -30,7 +30,7 @@ import { getRouteTitle } from '@/lib/routes';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 /** Answering "how do I" from fixed material does not need the largest model. */
-const SUPPORT_MODEL = 'anthropic/claude-sonnet-4.5';
+const SUPPORT_MODEL = '~anthropic/claude-sonnet-latest';
 
 /** Long enough for a thorough answer, short enough to stay a chat reply. */
 const MAX_TOKENS = 900;
@@ -202,7 +202,6 @@ export async function POST(request: NextRequest) {
         model: SUPPORT_MODEL,
         messages,
         max_tokens: MAX_TOKENS,
-        temperature: 0.3,
       }),
     });
 
