@@ -21,6 +21,7 @@ import { MAX_ZOHO_PAGES } from './constants';
 import { callZohoFunction } from './zoho-functions';
 import { DemoWriteBlockedError, isMutatingTool } from './demo/guard';
 import { currentRequestIsDemo } from './request-context';
+import { unwrapZohoEnvelope } from './mcp-envelope';
 
 // --- MCP Session State ---
 // These are module-level singletons — one active MCP session per server process.
@@ -182,7 +183,7 @@ export async function callMcpTool(
  */
 function assertToolSucceeded(toolName: string, result: unknown): unknown {
   const res = result as { isError?: boolean; content?: Array<{ text?: string }> } | null;
-  if (!res?.isError) return result;
+  if (!res?.isError) return unwrapZohoEnvelope(result);
 
   const detail = res.content?.map(c => c.text).filter(Boolean).join(' ').slice(0, 300) || 'no detail';
   log('error', 'mcp', `Tool ${toolName} reported an error`, { detail });
