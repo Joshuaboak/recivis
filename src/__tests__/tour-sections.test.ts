@@ -211,6 +211,27 @@ describe('sectionsFor', () => {
     expect(after).toContain('assets-subscriptions');
   });
 
+  it('keeps orders, coupons and analytics out of a leads-and-subscriptions partner', () => {
+    const p = permissions({ canConvertLeads: true, canMonthlySubscriptions: true });
+    const sections = sectionsFor(p);
+    const ids = sections.map(s => s.id);
+    for (const hidden of ['orders', 'order-detail', 'order-assistant', 'coupons', 'reports', 'partner-reports']) {
+      expect(ids).not.toContain(hidden);
+    }
+    const dashboard = sections.find(s => s.id === 'dashboard')?.steps.map(s => s.id) ?? [];
+    expect(dashboard).not.toContain('nav-orders');
+    const account = sections.find(s => s.id === 'account-detail')?.steps.map(s => s.id) ?? [];
+    expect(account).not.toContain('orders');
+    expect(account).toContain('subscriptions');
+  });
+
+  it('shows the orders menu to someone with either way in', () => {
+    for (const key of ['canViewOrders', 'canUseOrderAssistant'] as const) {
+      const dashboard = sectionsFor(permissions({ [key]: true })).find(s => s.id === 'dashboard');
+      expect(dashboard?.steps.map(s => s.id)).toContain('nav-orders');
+    }
+  });
+
   it('keeps the dashboard for everyone', () => {
     expect(sectionsFor(permissions()).map(s => s.id)).toContain('dashboard');
     expect(sectionsFor(null).map(s => s.id)).toContain('dashboard');

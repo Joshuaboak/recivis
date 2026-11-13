@@ -1182,6 +1182,7 @@ export default function LeadDetailView({
 
         <EmailHistory module="Accounts" recordId={leadId} />
 
+        {(user?.permissions?.canViewOrders || user?.permissions?.canUseOrderAssistant) && (
         <motion.div data-tour="prospect-orders" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
@@ -1258,6 +1259,7 @@ export default function LeadDetailView({
             <p className="text-sm text-text-muted py-4">No orders yet</p>
           )}
         </motion.div>
+        )}
 
         {activeAssets.length > 0 && (
           <motion.div data-tour="prospect-assets" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-8">

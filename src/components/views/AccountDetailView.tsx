@@ -1106,6 +1106,7 @@ export default function AccountDetailView({
         </motion.div>
 
         {/* Invoices */}
+        {(user?.permissions?.canViewOrders || user?.permissions?.canUseOrderAssistant) && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} data-tour="account-orders" className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
@@ -1193,6 +1194,7 @@ export default function AccountDetailView({
             <p className="text-sm text-text-muted py-4">No orders found</p>
           )}
         </motion.div>
+        )}
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <EmailHistory module="Contacts" contactIds={contacts.map(c => c.id as string)} />

@@ -87,6 +87,8 @@ export interface TourStep {
   onlyIfPresent?: boolean;
   /** Permissions this step's subject needs. Missing any one drops the step. */
   requires?: (keyof UserPermissions)[];
+  /** Holding any one of these is enough. Checked as well as `requires`. */
+  requiresAny?: (keyof UserPermissions)[];
 }
 
 export interface TourSection {
@@ -101,6 +103,8 @@ export interface TourSection {
    * disappear by having every one of its steps filtered out.
    */
   requires?: (keyof UserPermissions)[];
+  /** Holding any one of these is enough. Checked as well as `requires`. */
+  requiresAny?: (keyof UserPermissions)[];
   steps: TourStep[];
 }
 
@@ -126,7 +130,7 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'The menu, top to bottom',
         body:
           'Every part of the portal is in here. The menu options with arrows open up ' +
-          'to sub-menus underneath. The next few steps explain the four you will use ' +
+          'to sub-menus underneath. The next few steps explain the ones you will use ' +
           'most.',
       },
       {
@@ -151,8 +155,7 @@ export const ALL_SECTIONS: TourSection[] = [
         align: 'start',
         title: 'Accounts: customers',
         body:
-          'Everyone who has bought. Opens to Browse Accounts and Create Account. ' +
-          'Renewals and new orders are created from an account.',
+          'Everyone who has bought. Opens to Browse Accounts and Create Account.',
       },
       {
         id: 'nav-assets',
@@ -172,7 +175,8 @@ export const ALL_SECTIONS: TourSection[] = [
         title: 'Orders: new and renewal sales',
         body:
           'Browse Orders lists them. Order Assistant is a chatbot you can use to ' +
-          'place orders.',
+          'place orders. You see whichever of the two your account has.',
+        requiresAny: ['canViewOrders', 'canUseOrderAssistant'],
       },
       {
         id: 'collapse',
@@ -416,6 +420,7 @@ export const ALL_SECTIONS: TourSection[] = [
         body:
           'Every order raised for this prospect, drafts included, with its type, ' +
           'status and total. Click one to open it.',
+        requiresAny: ['canViewOrders', 'canUseOrderAssistant'],
       },
       {
         id: 'new-order',
@@ -532,6 +537,7 @@ export const ALL_SECTIONS: TourSection[] = [
         body:
           'Every order raised for this customer, including drafts. Type says whether ' +
           'it is New or a Renewal. Click a row to open it.',
+        requiresAny: ['canViewOrders', 'canUseOrderAssistant'],
       },
       {
         id: 'new-order',
@@ -605,6 +611,7 @@ export const ALL_SECTIONS: TourSection[] = [
     id: 'orders',
     title: 'Orders',
     path: buildPath('draft-invoices'),
+    requires: ['canViewOrders'],
     steps: [
       {
         id: 'search',
@@ -647,6 +654,7 @@ export const ALL_SECTIONS: TourSection[] = [
     id: 'order-detail',
     title: 'An order',
     path: routePattern('invoice-detail'),
+    requiresAny: ['canViewOrders', 'canUseOrderAssistant'],
     steps: [
       {
         id: 'shape',
@@ -889,6 +897,7 @@ export const ALL_SECTIONS: TourSection[] = [
     id: 'coupons',
     title: 'Coupons',
     path: buildPath('coupons'),
+    requires: ['canViewCoupons'],
     steps: [
       {
         id: 'finding',
@@ -924,6 +933,7 @@ export const ALL_SECTIONS: TourSection[] = [
     id: 'reports',
     title: 'Analytics',
     path: buildPath('reports-dashboard'),
+    requires: ['canViewReports'],
     steps: [
       {
         id: 'months',
@@ -955,7 +965,7 @@ export const ALL_SECTIONS: TourSection[] = [
         id: 'assistant',
         title: 'Or ask instead',
         body:
-          'AI Assistant, under Reports in the menu, is a chat over the records. Ask ' +
+          'Analytics Assistant, under Analytics in the menu, is a chat over the records. Ask ' +
           'it about expiring assets, orders or accounts. It does not do the monthly ' +
           'totals on this page.',
       },
@@ -1085,12 +1095,28 @@ export function sectionForPath(
  */
 export function sectionsFor(permissions?: UserPermissions | null): TourSection[] {
   return ALL_SECTIONS
-    .filter(section => holdsAll(section.requires, permissions))
+    .filter(section => allowed(section, permissions))
     .map(section => ({
       ...section,
-      steps: section.steps.filter(step => holdsAll(step.requires, permissions)),
+      steps: section.steps.filter(step => allowed(step, permissions)),
     }))
     .filter(section => section.steps.length > 0);
+}
+
+function allowed(
+  item: { requires?: (keyof UserPermissions)[]; requiresAny?: (keyof UserPermissions)[] },
+  permissions?: UserPermissions | null
+): boolean {
+  return holdsAll(item.requires, permissions) && holdsAny(item.requiresAny, permissions);
+}
+
+function holdsAny(
+  options: (keyof UserPermissions)[] | undefined,
+  permissions?: UserPermissions | null
+): boolean {
+  if (!options?.length) return true;
+  if (!permissions) return false;
+  return options.some(key => permissions[key] === true);
 }
 
 function holdsAll(
