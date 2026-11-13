@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { History, Building2, UserSearch, FileText, Ticket, Handshake } from 'lucide-react';
 import { GuardedLink } from '@/components/GuardedLink';
 import { useRecentItems, type RecentItemType } from '@/lib/useRecentItems';
+import { useAppStore } from '@/lib/store';
 
 const TYPE_CONFIG: Record<RecentItemType, { icon: typeof History; label: string; color: string; bgColor: string }> = {
   account: { icon: Building2,  label: 'Account', color: 'text-emerald-500',  bgColor: 'bg-emerald-500/15' },
@@ -32,7 +33,18 @@ function formatTimeAgo(ts: number) {
 }
 
 export default function RecentItems() {
-  const { items, clear } = useRecentItems();
+  const { items: allItems, clear } = useRecentItems();
+  const { user } = useAppStore();
+  // Drop records this user can no longer open, e.g. orders after View Orders
+  // was switched off. The history itself is left alone.
+  const p = user?.permissions;
+  const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
+  const items = allItems.filter(item =>
+    isAdmin
+    || (item.type === 'order' ? !!(p?.canViewOrders || p?.canUseOrderAssistant)
+      : item.type === 'coupon' ? !!p?.canViewCoupons
+      : true)
+  );
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 

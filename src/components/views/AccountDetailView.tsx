@@ -1119,6 +1119,7 @@ export default function AccountDetailView({
                   <Download size={14} />
                 </button>
               ) : null}
+              {user?.permissions?.canCreateInvoices && (
               <button
                 onClick={() => {
                   setNewInvoiceContext({
@@ -1137,6 +1138,7 @@ export default function AccountDetailView({
               <Plus size={13} />
               New Product Order
               </button>
+              )}
             </div>
           </div>
           {invoices.length > 0 ? (
@@ -1315,7 +1317,7 @@ export default function AccountDetailView({
                 {/* Everything else: raise a renewal invoice. Hidden entirely
                     for a monthly selection — a monthly licence on a renewal
                     invoice bills a year for something sold by the month. */}
-                {!selectionIsMixed && selectedNonMonthly.length > 0 && (
+                {!selectionIsMixed && selectedNonMonthly.length > 0 && user?.permissions?.canCreateRenewals && (
                 <div className="relative group">
                   <button
                     onClick={generateRenewal}

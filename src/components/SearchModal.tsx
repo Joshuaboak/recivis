@@ -72,9 +72,10 @@ export default function SearchModal({ onClose }: SearchModalProps) {
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
 
   // Filter Resellers from non-admin users
-  const availableModules = isAdmin
-    ? MODULE_FILTER_ORDER
-    : MODULE_FILTER_ORDER.filter(m => m !== 'Resellers');
+  const canSeeOrders = isAdmin || !!user?.permissions?.canViewOrders || !!user?.permissions?.canUseOrderAssistant;
+  const availableModules = MODULE_FILTER_ORDER
+    .filter(m => isAdmin || m !== 'Resellers')
+    .filter(m => canSeeOrders || m !== 'Invoices');
 
   useEffect(() => {
     inputRef.current?.focus();

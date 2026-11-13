@@ -129,6 +129,12 @@ export async function GET(request: NextRequest) {
     requestedModules = requestedModules.filter(m => m !== 'Resellers');
   }
 
+  // Orders only for partners who can open them.
+  const perms = user.permissions;
+  if (!userIsAdmin && !perms?.canViewOrders && !perms?.canUseOrderAssistant) {
+    requestedModules = requestedModules.filter(m => m !== 'Invoices');
+  }
+
   // Accounts and Prospects both come from the Accounts module
   const needAccounts = requestedModules.includes('Accounts') || requestedModules.includes('Prospects');
 

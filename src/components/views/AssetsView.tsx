@@ -215,7 +215,9 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
    * Subscriptions do not resolve it: an unresolved lookup is last year's
    * order as often as this year's, so the server sends null there.
    */
-  const showRenewalOrder = scope === 'renewals' || scope === 'expired';
+  // The renewal order link is no use to a partner who cannot open orders.
+  const canSeeOrders = !!(user?.permissions?.canViewOrders || user?.permissions?.canUseOrderAssistant);
+  const showRenewalOrder = (scope === 'renewals' || scope === 'expired') && canSeeOrders;
 
   const selectedIn = (accountId: string): Set<string> => selected[accountId] ?? EMPTY_SELECTION;
 

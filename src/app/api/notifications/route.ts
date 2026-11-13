@@ -240,7 +240,15 @@ export async function GET(request: NextRequest) {
     );
     const dismissedKeys = new Set(dismissedResult.rows.map(r => r.notification_key));
 
-    const visible = allNotifications.filter(n => !dismissedKeys.has(n.key));
+    // Order notifications only for partners who can open orders. The cache
+    // is shared per reseller set, so this filter runs per user.
+    const canSeeOrders = userIsAdmin
+      || !!user.permissions?.canViewOrders
+      || !!user.permissions?.canUseOrderAssistant;
+
+    const visible = allNotifications.filter(n =>
+      !dismissedKeys.has(n.key) && (canSeeOrders || n.type !== 'invoice')
+    );
 
     // Cleanup old dismissals (> 30 days)
     await query(

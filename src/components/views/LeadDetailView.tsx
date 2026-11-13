@@ -1189,6 +1189,7 @@ export default function LeadDetailView({
               <FileText size={18} className="text-csa-purple" />
               Orders ({invoices.length})
             </h2>
+            {user?.permissions?.canCreateInvoices && (
             <button
               onClick={() => {
                 setNewInvoiceContext({
@@ -1207,6 +1208,7 @@ export default function LeadDetailView({
               <Plus size={13} />
               New Product Order
             </button>
+            )}
           </div>
           {invoices.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-x-auto">

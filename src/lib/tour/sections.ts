@@ -588,7 +588,6 @@ export const ALL_SECTIONS: TourSection[] = [
           'Both Send Keys buttons open a confirmation naming the recipient: the ' +
           'primary contact and their email address, or the reseller. Confirm Send ' +
           'emails the keys for every ticked licence.',
-        requires: ['canCreateRenewals'],
       },
       {
         id: 'subscriptions',
