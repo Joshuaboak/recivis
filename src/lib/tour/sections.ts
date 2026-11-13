@@ -442,6 +442,17 @@ export const ALL_SECTIONS: TourSection[] = [
           'The licences they have bought, not their trials. Tick one to email its ' +
           'keys to the reseller or the customer.',
       },
+      {
+        id: 'subscriptions',
+        anchor: 'prospect-new-subscription',
+        onlyIfPresent: true,
+        side: 'left',
+        title: 'Monthly subscriptions',
+        body:
+          'Create Monthly Subscription issues a licence that runs 30 days and renews ' +
+          '30 at a time. Renew it from Assets, Monthly Subscriptions.',
+        requires: ['canMonthlySubscriptions'],
+      },
     ],
   },
 

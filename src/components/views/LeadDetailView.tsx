@@ -6,7 +6,7 @@ import {
   ArrowLeft, Building2, User, Package, Loader2, ExternalLink, Mail, Phone,
   MapPin, FileText, Star, Plus, X, Eye, Beaker, ArrowRightLeft, Check,
   AlertTriangle, Globe, Briefcase, Tag, Clock, MessageSquare,
-  Smartphone, Factory, Send, Pencil, Save, ChevronDown,
+  Smartphone, Factory, Send, Pencil, Save, ChevronDown, CalendarClock,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { buildPath } from '@/lib/routes';
@@ -18,6 +18,7 @@ import Pagination from '../Pagination';
 import AssetDetailModal from '../AssetDetailModal';
 import CreateEvaluationModal from '../CreateEvaluationModal';
 import CreateEvaluationButton from '../CreateEvaluationButton';
+import CreateMonthlySubscriptionModal from '../CreateMonthlySubscriptionModal';
 import EmailHistory from '../EmailHistory';
 import { InlineEditField, InlineEditFieldProvider } from '../InlineEditField';
 
@@ -191,6 +192,7 @@ export default function LeadDetailView({
   // Asset detail modal
   const [viewingAsset, setViewingAsset] = useState<Record<string, unknown> | null>(null);
   const [showEvalModal, setShowEvalModal] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
   // Asset selection & send keys
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
@@ -208,6 +210,7 @@ export default function LeadDetailView({
 
   const isAdmin = user?.role === 'admin' || user?.role === 'ibm';
   const canConvertLeads = !!user?.permissions?.canConvertLeads;
+  const canMonthly = !!user?.permissions?.canMonthlySubscriptions;
   const hasChildResellers = !!user?.permissions?.canViewChildRecords;
   const canEditReseller = isAdmin || hasChildResellers;
   /**
@@ -1263,13 +1266,23 @@ export default function LeadDetailView({
         </motion.div>
         )}
 
-        {activeAssets.length > 0 && (
+        {(activeAssets.length > 0 || canMonthly) && (
           <motion.div data-tour="prospect-assets" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-8">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
                 <Package size={18} className="text-success" />
                 Assets ({activeAssets.length})
               </h2>
+              {selectedAssets.size === 0 && canMonthly && (
+                <button
+                  data-tour="prospect-new-subscription"
+                  onClick={() => setShowSubscriptionModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer"
+                >
+                  <CalendarClock size={13} />
+                  Create Monthly Subscription
+                </button>
+              )}
               {selectedAssets.size > 0 && (
                 <div className="flex items-center gap-2">
                   <button
@@ -1289,6 +1302,7 @@ export default function LeadDetailView({
                 </div>
               )}
             </div>
+            {activeAssets.length > 0 ? (
             <div className="border border-border-subtle rounded-xl overflow-x-auto">
               <table className="w-full min-w-[800px]">
                 <thead><tr className="bg-surface-raised">
@@ -1353,6 +1367,9 @@ export default function LeadDetailView({
                 </tbody>
               </table>
             </div>
+            ) : (
+              <p className="text-sm text-text-muted py-4">No licences yet</p>
+            )}
           </motion.div>
         )}
       </div>
@@ -1402,6 +1419,31 @@ export default function LeadDetailView({
             }
           }}
           onClose={() => setShowEvalModal(false)}
+        />
+      )}
+
+      {/* Create Monthly Subscription Modal */}
+      {showSubscriptionModal && account && (
+        <CreateMonthlySubscriptionModal
+          accountId={leadId}
+          accountName={account.Account_Name as string}
+          onSuccess={(assetIds, warning) => {
+            setShowSubscriptionModal(false);
+            setSendKeysResult({
+              success: !warning,
+              message: warning ||
+                `${assetIds.length} monthly ${assetIds.length === 1 ? 'subscription' : 'subscriptions'} created.`,
+            });
+            setTimeout(() => setSendKeysResult(null), 5000);
+            fetch(`/api/leads/${leadId}?source=prospect`)
+              .then(res => res.json())
+              .then(data => {
+                setActiveAssets(data.activeAssets || []);
+                setArchivedAssets(data.archivedAssets || []);
+              })
+              .catch(() => {});
+          }}
+          onClose={() => setShowSubscriptionModal(false)}
         />
       )}
 
