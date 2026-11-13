@@ -19,7 +19,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Package, Loader2, Key, AlertCircle, Calendar, User, Shield, Monitor, Pencil, Save, ShieldOff, Copy, Check } from 'lucide-react';
+import { X, Package, Loader2, Key, AlertCircle, Calendar, User, Shield, Monitor, Pencil, Save, ShieldOff, Copy, Check, Send } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { AssetSubscriptionBadges } from '@/components/SubscriptionBadges';
 
@@ -83,6 +83,7 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
 
   const record = asset || assetData;
   const product = record.Product as { name?: string } | null;
+  const account = record.Account as { name?: string } | null;
   const upgradedTo = record.Upgraded_To_Key as string | null;
   const upgradedFrom = record.Upgraded_From as { name?: string } | string | null;
 
@@ -141,6 +142,31 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch { /* clipboard unavailable */ }
+  };
+
+  // Viewers can look but not send, matching /api/assets/send-keys.
+  const canSendKeys = user?.role !== 'viewer';
+  const [sendingTo, setSendingTo] = useState<'customer' | 'reseller' | null>(null);
+  const [confirmCustomerSend, setConfirmCustomerSend] = useState(false);
+  const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const sendKeys = async (to: 'customer' | 'reseller') => {
+    setSendingTo(to);
+    setSendResult(null);
+    try {
+      const res = await fetch('/api/assets/send-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetId, to }),
+      });
+      const data = await res.json();
+      setSendResult(res.ok
+        ? { ok: true, message: data.message }
+        : { ok: false, message: data.error || 'Failed to send keys' });
+    } catch {
+      setSendResult({ ok: false, message: 'Failed to send keys' });
+    }
+    setSendingTo(null);
   };
 
   const deactivateLicence = async () => {
@@ -213,6 +239,33 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
                   {copied ? 'Copied' : 'Copy'}
                 </button>
               </div>
+              {canSendKeys ? (
+                <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-border-subtle">
+                  <button
+                    onClick={() => sendKeys('reseller')}
+                    disabled={sendingTo !== null}
+                    title="Emails the licence keys to the reseller on this customer's account, which is usually you"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {sendingTo === 'reseller' ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                    {sendingTo === 'reseller' ? 'Sending...' : 'Send Licence Keys'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmCustomerSend(true)}
+                    disabled={sendingTo !== null}
+                    title="Emails the key to the customer's primary contact"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-warning bg-warning/10 border border-warning/30 rounded-xl hover:bg-warning/20 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {sendingTo === 'customer' ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                    {sendingTo === 'customer' ? 'Sending...' : 'Send Key to Customer'}
+                  </button>
+                  {sendResult ? (
+                    <span className={`text-xs ${sendResult.ok ? 'text-success' : 'text-error'}`}>
+                      {sendResult.message}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -357,6 +410,36 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
           )}
         </div>
       </div>
+
+      {/* Send to Customer Confirmation */}
+      {confirmCustomerSend ? (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onClick={() => setConfirmCustomerSend(false)}>
+          <div className="bg-csa-dark border-2 border-warning/30 rounded-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <Send size={20} className="text-warning" />
+              <h4 className="text-base font-bold text-text-primary">Send Key to Customer</h4>
+            </div>
+            <p className="text-sm text-text-secondary mb-5">
+              This emails the licence key to the primary contact on{' '}
+              <span className="font-semibold text-text-primary">{account?.name || 'this customer’s account'}</span>.
+            </p>
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={() => setConfirmCustomerSend(false)}
+                className="px-4 py-2 text-xs font-semibold text-text-muted bg-surface-raised border border-border-subtle rounded-xl hover:bg-surface-overlay transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setConfirmCustomerSend(false); sendKeys('customer'); }}
+                className="px-4 py-2 text-xs font-semibold text-warning bg-warning/10 border border-warning/30 rounded-xl hover:bg-warning/20 transition-colors cursor-pointer"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Deactivate Confirmation */}
       {showDeactivateConfirm ? (
