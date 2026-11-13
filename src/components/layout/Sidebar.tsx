@@ -417,7 +417,9 @@ export default function Sidebar() {
                 {sidebarOpen && partnerMenuOpen && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
                     <div className="ml-8 mt-1 space-y-0.5">
-                      <SubNavItem label="Manage Partners" href={PATHS.partners} active={inSection(pathname, PATHS.partners) && pathname !== PATHS.partnerReports} onClick={() => handleNavClick(PATHS.partners)} />
+                      {/* Only admins and distributors have other partners to manage; a single
+                          reseller's Partners page is just their own record. */}
+                      <SubNavItem label={user?.role === 'admin' || user?.role === 'ibm' || user?.permissions?.canViewChildRecords ? 'Manage Partners' : 'Our Information'} href={PATHS.partners} active={inSection(pathname, PATHS.partners) && pathname !== PATHS.partnerReports} onClick={() => handleNavClick(PATHS.partners)} />
                       {user?.permissions?.canViewReports && (
                         <SubNavItem label="Partner Reports" href={PATHS.partnerReports} active={pathname === PATHS.partnerReports} onClick={() => handleNavClick(PATHS.partnerReports)} />
                       )}

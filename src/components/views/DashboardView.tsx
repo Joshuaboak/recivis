@@ -3,7 +3,8 @@
  *
  * Features:
  * - Personalised greeting based on time of day
- * - 6 feature cards with navigation and "Learn more" links
+ * - Feature cards with navigation and "Learn more" links, each hidden when the
+ *   user lacks the permission for the page it opens
  *
  * Records the user has opened live in the header's Recent Items menu, not here.
  */
@@ -26,15 +27,22 @@ import { useAppStore } from '@/lib/store';
 import { explainOnArrival } from '@/lib/tour/progress';
 import { useGuardedRouter } from '@/lib/useGuardedRouter';
 import { buildPath } from '@/lib/routes';
+import type { UserPermissions } from '@/lib/types';
 
-const featureCards = [
+/** `requires`: the card only shows when the user holds this permission —
+ *  the same one that gates the page it opens. */
+const featureCards: Array<{
+  id: string; label: string; description: string; icon: typeof Users; color: string;
+  view: 'leads' | 'accounts' | 'draft-invoices' | 'reports-dashboard' | 'invoice' | 'reports';
+  requires?: keyof UserPermissions;
+}> = [
   {
     id: 'leads',
     label: 'Leads',
     description: 'View and manage your existing leads.',
     icon: Users,
     color: 'bg-amber-600',
-    view: 'leads' as const,
+    view: 'leads',
   },
   {
     id: 'accounts',
@@ -42,7 +50,7 @@ const featureCards = [
     description: 'Create, view, and manage new and renewal orders for existing accounts.',
     icon: Building2,
     color: 'bg-emerald-600',
-    view: 'accounts' as const,
+    view: 'accounts',
   },
   {
     id: 'invoices',
@@ -50,7 +58,8 @@ const featureCards = [
     description: 'View and manage your existing orders.',
     icon: FileText,
     color: 'bg-csa-accent',
-    view: 'draft-invoices' as const,
+    view: 'draft-invoices',
+    requires: 'canViewOrders',
   },
   {
     id: 'reports-dashboard',
@@ -58,7 +67,8 @@ const featureCards = [
     description: 'Check out your pre-made reports.',
     icon: BarChart3,
     color: 'bg-csa-purple',
-    view: 'reports-dashboard' as const,
+    view: 'reports-dashboard',
+    requires: 'canViewReports',
   },
   {
     id: 'invoice-assistant',
@@ -66,7 +76,8 @@ const featureCards = [
     description: 'Upload a PO or chat with our AI ordering agent to generate new and renewal orders.',
     icon: MessageSquare,
     color: 'bg-sky-600',
-    view: 'invoice' as const,
+    view: 'invoice',
+    requires: 'canUseOrderAssistant',
   },
   {
     id: 'reports-assistant',
@@ -74,7 +85,8 @@ const featureCards = [
     description: 'Chat with our reporting AI assistant to generate custom reports.',
     icon: Bot,
     color: 'bg-violet-600',
-    view: 'reports' as const,
+    view: 'reports',
+    requires: 'canViewReports',
   },
 ];
 
@@ -102,6 +114,15 @@ const item = {
 export default function DashboardView() {
   const { user, clearMessages } = useAppStore();
   const router = useGuardedRouter();
+
+  const perms = user?.permissions;
+  const canOrder = !!(perms?.canCreateInvoices || perms?.canCreateRenewals);
+  const visibleCards = featureCards
+    .filter(card => !card.requires || !!perms?.[card.requires])
+    // The Accounts blurb promises orders; drop that for partners who cannot raise any.
+    .map(card => card.id === 'accounts' && !canOrder
+      ? { ...card, description: 'Create, view, and manage your customer accounts.' }
+      : card);
 
   const timeOfDay = () => {
     const hour = new Date().getHours();
@@ -137,7 +158,7 @@ export default function DashboardView() {
           data-tour="dashboard-cards"
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10"
         >
-          {featureCards.map((card) => (
+          {visibleCards.map((card) => (
             <motion.div
               key={card.id}
               variants={item}

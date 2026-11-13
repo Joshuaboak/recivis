@@ -422,7 +422,7 @@ export const HELP_TOPICS: HelpTopic[] = [
   {
     id: 'partners-module',
     title: 'Managing your partner organisation and its users',
-    where: 'Partners → Manage Partners',
+    where: 'Partners → Manage Partners (called Our Information for a single reseller)',
     path: '/partners',
     requires: ['canManageUsers', 'canViewChildRecords'],
     body:
