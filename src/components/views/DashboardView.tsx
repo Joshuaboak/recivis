@@ -63,7 +63,7 @@ const featureCards: Array<{
   },
   {
     id: 'reports-dashboard',
-    label: 'Reports Dashboard',
+    label: 'Analytics Dashboard',
     description: 'Check out your pre-made reports.',
     icon: BarChart3,
     color: 'bg-csa-purple',
@@ -81,7 +81,7 @@ const featureCards: Array<{
   },
   {
     id: 'reports-assistant',
-    label: 'Reports Assistant',
+    label: 'Analytics Assistant',
     description: 'Chat with our reporting AI assistant to generate custom reports.',
     icon: Bot,
     color: 'bg-violet-600',

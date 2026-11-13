@@ -239,7 +239,7 @@ export default function ReportsDashboardView() {
       <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2"><BarChart3 size={24} className="text-csa-accent" /> Reports Dashboard</h1>
+          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2"><BarChart3 size={24} className="text-csa-accent" /> Analytics Dashboard</h1>
           <div className="flex flex-wrap items-center gap-2">
             {isAdminUser && (
               <>

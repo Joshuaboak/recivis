@@ -320,6 +320,24 @@ export async function initDB() {
           ALTER TABLE resellers ADD COLUMN perm_create_renewals BOOLEAN;
           UPDATE resellers SET perm_create_renewals = perm_create_invoices;
         END IF;
+
+        -- Financial reports (month-end statements), split out of View Reports
+        -- the same way: seeded once from it so access is unchanged on the day.
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'reseller_roles' AND column_name = 'can_view_financial_reports'
+        ) THEN
+          ALTER TABLE reseller_roles ADD COLUMN can_view_financial_reports BOOLEAN DEFAULT false;
+          UPDATE reseller_roles SET can_view_financial_reports = COALESCE(can_view_reports, false);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'resellers' AND column_name = 'perm_view_financial_reports'
+        ) THEN
+          ALTER TABLE resellers ADD COLUMN perm_view_financial_reports BOOLEAN;
+          UPDATE resellers SET perm_view_financial_reports = perm_view_reports;
+        END IF;
       END $$;
 
       -- Order Assistant (AI chat), viewing orders and viewing coupons. Everybody

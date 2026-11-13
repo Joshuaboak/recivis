@@ -32,7 +32,7 @@ export interface LinkablePage {
  */
 const GATED: Record<string, keyof UserPermissions> = {
   '/assets/subscriptions': 'canMonthlySubscriptions',
-  '/partners/reports': 'canViewReports',
+  '/partners/reports': 'canViewFinancialReports',
 };
 
 /**

@@ -91,9 +91,9 @@ export async function GET(request: NextRequest) {
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
 
-  // The permission the sidebar hides Reports behind. /api/partner-reports has
-  // always checked it; this one did not, so the numbers were still one fetch
-  // away from anybody who guessed the URL.
+  // The permission the sidebar hides Analytics behind. Without this check the
+  // numbers were still one fetch away from anybody who guessed the URL.
+  // (Financial reports have their own permission: see /api/partner-reports.)
   if (!user.permissions.canViewReports) {
     return NextResponse.json({ error: 'You do not have permission to view reports' }, { status: 403 });
   }

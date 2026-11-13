@@ -231,8 +231,8 @@ export const ALL_SECTIONS: TourSection[] = [
         side: 'top',
         title: 'Or start from here',
         body:
-          'Six shortcuts: Leads, Accounts, Orders, Reports Dashboard, Order Assistant ' +
-          'and Reports Assistant. They only take you there. Nothing is created from ' +
+          'Shortcuts to Leads, Accounts, Orders, Analytics Dashboard, Order Assistant ' +
+          'and Analytics Assistant — the ones you have access to. They only take you there. Nothing is created from ' +
           'this page.',
       },
       {
@@ -922,7 +922,7 @@ export const ALL_SECTIONS: TourSection[] = [
   // ── Reports and money ───────────────────────────────────────────────────
   {
     id: 'reports',
-    title: 'Reports',
+    title: 'Analytics',
     path: buildPath('reports-dashboard'),
     steps: [
       {
@@ -963,9 +963,9 @@ export const ALL_SECTIONS: TourSection[] = [
   },
   {
     id: 'partner-reports',
-    title: 'Partner Reports',
+    title: 'Financial Reports',
     path: buildPath('partner-reports'),
-    requires: ['canViewReports'],
+    requires: ['canViewFinancialReports'],
     steps: [
       {
         id: 'statement',

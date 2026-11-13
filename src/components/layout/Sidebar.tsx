@@ -349,7 +349,7 @@ export default function Sidebar() {
             <div>
               <GuardedLink
                 href={PATHS.reportsDashboard}
-                title={sidebarOpen ? undefined : 'Reports'}
+                title={sidebarOpen ? undefined : 'Analytics'}
                 onClick={(e) => {
                   if (sidebarOpen) {
                     setReportsMenuOpen(!reportsMenuOpen);
@@ -364,7 +364,7 @@ export default function Sidebar() {
                 {isReportsActive && <motion.div layoutId="nav-indicator-reports" className="absolute left-0 top-0 bottom-0 w-1 bg-csa-accent rounded-r" transition={{ duration: 0.2 }} />}
                 <BarChart3 size={20} className="flex-shrink-0" />
                 <AnimatePresence>
-                  {sidebarOpen && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">Reports</motion.span>}
+                  {sidebarOpen && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-left overflow-hidden whitespace-nowrap">Analytics</motion.span>}
                 </AnimatePresence>
                 {sidebarOpen && <ChevronDown size={14} className={`text-text-muted transition-transform ${reportsMenuOpen ? 'rotate-180' : ''}`} />}
               </GuardedLink>
@@ -420,8 +420,8 @@ export default function Sidebar() {
                       {/* Only admins and distributors have other partners to manage; a single
                           reseller's Partners page is just their own record. */}
                       <SubNavItem label={user?.role === 'admin' || user?.role === 'ibm' || user?.permissions?.canViewChildRecords ? 'Manage Partners' : 'Our Information'} href={PATHS.partners} active={inSection(pathname, PATHS.partners) && pathname !== PATHS.partnerReports} onClick={() => handleNavClick(PATHS.partners)} />
-                      {user?.permissions?.canViewReports && (
-                        <SubNavItem label="Partner Reports" href={PATHS.partnerReports} active={pathname === PATHS.partnerReports} onClick={() => handleNavClick(PATHS.partnerReports)} />
+                      {user?.permissions?.canViewFinancialReports && (
+                        <SubNavItem label="Financial Reports" href={PATHS.partnerReports} active={pathname === PATHS.partnerReports} onClick={() => handleNavClick(PATHS.partnerReports)} />
                       )}
                       <SubNavItem label="Partner Resources" href={PATHS.partnerResources} active={inSection(pathname, PATHS.partnerResources)} onClick={() => handleNavClick(PATHS.partnerResources)} />
                     </div>

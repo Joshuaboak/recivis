@@ -87,7 +87,8 @@ const PERMISSION_DEFS = [
   { key: 'can_view_child_records', label: 'View Child Records', desc: 'See records for child resellers (distributors)' },
   { key: 'can_modify_prices', label: 'Modify Prices', desc: 'Change line item prices on orders' },
   { key: 'can_upload_po', label: 'Upload PO', desc: 'Upload purchase order documents' },
-  { key: 'can_view_reports', label: 'View Reports', desc: 'Access the reports dashboard' },
+  { key: 'can_view_reports', label: 'View Analytics', desc: 'Access the analytics dashboard and AI assistant' },
+  { key: 'can_view_financial_reports', label: 'View Financial Reports', desc: 'Month-end statements and subscription schedule' },
   { key: 'can_export_data', label: 'Export Data', desc: 'Export data to Excel/CSV' },
   { key: 'can_create_evaluations', label: 'Create Evaluations', desc: 'Create evaluation licences for accounts' },
   { key: 'can_extend_evaluations', label: 'Extend Evaluations', desc: 'Extend evaluation licences beyond 30 days' },
@@ -115,6 +116,7 @@ interface RoleWithPerms {
   can_use_order_assistant: boolean;
   can_view_orders: boolean;
   can_view_coupons: boolean;
+  can_view_financial_reports: boolean;
 }
 
 const inputCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg";

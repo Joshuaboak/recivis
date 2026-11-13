@@ -33,6 +33,7 @@ function permissions(overrides: Partial<UserPermissions> = {}): UserPermissions 
     canUseOrderAssistant: false,
     canViewOrders: false,
     canViewCoupons: false,
+    canViewFinancialReports: false,
     ...overrides,
   };
 }

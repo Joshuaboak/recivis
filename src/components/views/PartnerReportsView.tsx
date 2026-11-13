@@ -164,7 +164,7 @@ export default function PartnerReportsView() {
         ]),
         [],
         ['Monthly subscriptions'],
-        ['Account', 'Product', 'Qty', 'Plan', 'Renewal', 'Monthly cost (USD)'],
+        ['Account', 'Product', 'Qty', 'Plan', 'Renewal', `Monthly cost (${statement.subscriptionCurrency})`],
         ...statement.subscriptions.map(s => [
           s.account, s.product, String(s.quantity),
           s.perpetualPlan ? 'Perpetual plan' : 'Standard',
@@ -176,7 +176,7 @@ export default function PartnerReportsView() {
       const rows: string[][] = [
         ['Subscription billing schedule', schedule.partner],
         [],
-        ['Account', 'Product', 'Qty', 'Plan', 'Next renewal', 'Monthly cost (USD)'],
+        ['Account', 'Product', 'Qty', 'Plan', 'Next renewal', `Monthly cost (${schedule.currency})`],
         ...schedule.subscriptions.map(s => [
           s.account, s.product, String(s.quantity),
           s.perpetualPlan ? 'Perpetual plan' : 'Standard',
@@ -194,7 +194,7 @@ export default function PartnerReportsView() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
             <FileText size={22} className="text-csa-accent" />
-            Partner Reports
+            Financial Reports
           </h1>
           {active && (
             <p className="text-sm text-text-muted mt-1">

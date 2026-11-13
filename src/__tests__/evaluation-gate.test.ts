@@ -24,6 +24,7 @@ function perms(over: Partial<UserPermissions>): UserPermissions {
     canUseOrderAssistant: false,
     canViewOrders: false,
     canViewCoupons: false,
+    canViewFinancialReports: false,
     ...over,
   };
 }

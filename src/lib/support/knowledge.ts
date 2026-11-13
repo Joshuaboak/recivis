@@ -61,7 +61,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     path: '/dashboard',
     body:
       'The landing page. Shortcut cards into Leads, Accounts, Orders, Order Assistant, ' +
-      'Reports Dashboard and the Reports Assistant, each with a line saying what it is ' +
+      'Analytics Dashboard and the Analytics Assistant, each with a line saying what it is ' +
       'for and a Learn more link. Nothing is created or changed from here — it is a ' +
       'starting point.',
   },
@@ -391,31 +391,32 @@ export const HELP_TOPICS: HelpTopic[] = [
   // ── Reports ─────────────────────────────────────────────────────────────
   {
     id: 'reports-module',
-    title: 'Reports on your own sales',
-    where: 'Reports',
+    title: 'Analytics on your own sales',
+    where: 'Analytics',
     path: '/reports/dashboard',
     requires: ['canExportData'],
     body:
-      'The Reports Dashboard is the numbers view: revenue, your commission or earnings, ' +
+      'The Analytics Dashboard is the numbers view: revenue, your commission or earnings, ' +
       'and counts of leads, prospects, customers and orders, filtered by month range, ' +
       'region and — for distributors — by partner. Amounts are shown in the original ' +
       'currency with an Australian dollar equivalent, and there is a breakdown by ' +
-      'currency underneath. It exports if you have the export permission. The Reports ' +
+      'currency underneath. It exports if you have the export permission. The Analytics ' +
       'Assistant is the same material as a conversation: ask it a question about your ' +
       'sales in plain English instead of working the filters yourself.',
   },
   {
     id: 'partner-reports',
     title: 'Working out what you owe',
-    where: 'Partners → Partner Reports',
+    where: 'Partners → Financial Reports',
     path: '/partners/reports',
-    requires: ['canViewReports'],
+    requires: ['canViewFinancialReports'],
     body:
       'The Monthly Statement is the month-end reconciliation: approved orders and active ' +
       'monthly subscriptions, netted against whoever you settle with. If you sit under a ' +
       'distributor you settle with them; if not, you settle with CSA. Distributors also ' +
       'get a per-reseller breakdown. The Billing Schedule is forward-looking: what your ' +
-      'active subscriptions cost per month and per year. Both export to a spreadsheet.',
+      'active subscriptions cost per month and per year. Amounts are in your home ' +
+      'currency. Both export to a spreadsheet.',
   },
 
   // ── Partners and account admin ──────────────────────────────────────────
@@ -507,6 +508,7 @@ const PERMISSION_LABELS: Record<keyof UserPermissions, string> = {
   canUseOrderAssistant: 'use the Order Assistant',
   canViewOrders: 'view orders',
   canViewCoupons: 'view coupons',
+  canViewFinancialReports: 'view financial reports',
   canAccessCrm: 'open records in Zoho CRM',
 };
 

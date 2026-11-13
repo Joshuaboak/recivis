@@ -61,6 +61,7 @@ function permissionSummary(user: AuthUser): string {
   note('use the Order Assistant', p.canUseOrderAssistant);
   note('view orders', p.canViewOrders);
   note('view coupons', p.canViewCoupons);
+  note('view financial reports', p.canViewFinancialReports);
   note('approve orders', p.canApproveInvoices);
   note('send orders', p.canSendInvoices);
   note('change prices on line items', p.canModifyPrices);
@@ -69,7 +70,7 @@ function permissionSummary(user: AuthUser): string {
   note('convert a lead to a prospect', p.canConvertLeads);
   note('create and renew monthly subscriptions', p.canMonthlySubscriptions);
   note('send orders straight to customers', p.canDirectCustomerComms);
-  note('view reports', p.canViewReports);
+  note('view analytics', p.canViewReports);
   note('export data', p.canExportData);
   note('manage users at their partner', p.canManageUsers);
   note('see records for child resellers', p.canViewChildRecords);

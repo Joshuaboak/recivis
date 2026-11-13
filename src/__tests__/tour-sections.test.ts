@@ -40,6 +40,7 @@ function permissions(overrides: Partial<UserPermissions> = {}): UserPermissions 
     canUseOrderAssistant: false,
     canViewOrders: false,
     canViewCoupons: false,
+    canViewFinancialReports: false,
     ...overrides,
   };
 }
@@ -64,6 +65,7 @@ const everything = permissions({
   canUseOrderAssistant: true,
   canViewOrders: true,
   canViewCoupons: true,
+  canViewFinancialReports: true,
 });
 
 describe('section definitions', () => {

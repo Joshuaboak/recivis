@@ -49,12 +49,12 @@ export const ROUTES = [
   { path: '/coupons/new', legacyViewId: 'create-coupon', title: 'Create Coupon', needsId: false },
   { path: '/coupons/[id]', legacyViewId: 'coupon-detail', title: 'Coupon', needsId: true },
   { path: '/coupons/[id]/edit', legacyViewId: 'coupon-edit', title: 'Edit Coupon', needsId: true },
-  { path: '/reports', legacyViewId: 'reports', title: 'AI Reports', needsId: false },
-  { path: '/reports/dashboard', legacyViewId: 'reports-dashboard', title: 'Reports Dashboard', needsId: false },
+  { path: '/reports', legacyViewId: 'reports', title: 'Analytics Assistant', needsId: false },
+  { path: '/reports/dashboard', legacyViewId: 'reports-dashboard', title: 'Analytics Dashboard', needsId: false },
   { path: '/partners', legacyViewId: 'resellers', title: 'Partners', needsId: false },
   { path: '/partners/[id]', legacyViewId: 'reseller-detail', title: 'Partner', needsId: true },
   { path: '/partners/[id]/edit', legacyViewId: 'reseller-edit-route', title: 'Edit Partner', needsId: true },
-  { path: '/partners/reports', legacyViewId: 'partner-reports', title: 'Partner Reports', needsId: false },
+  { path: '/partners/reports', legacyViewId: 'partner-reports', title: 'Financial Reports', needsId: false },
   { path: '/partner-resources', legacyViewId: 'partner-resources', title: 'Partner Resources', needsId: false },
 ] as const satisfies readonly RouteDef[];
 

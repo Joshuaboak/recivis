@@ -57,6 +57,9 @@ export interface UserPermissions {
   canViewOrders: boolean;
   /** Org-level only: may see coupons. */
   canViewCoupons: boolean;
+  /** Month-end statements and subscription schedule. Split from
+   *  canViewReports; still needs a user role that may view reports. */
+  canViewFinancialReports: boolean;
 }
 
 // --- Organisation Model ---

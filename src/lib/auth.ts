@@ -96,6 +96,7 @@ const USER_PROJECTION_SQL = `SELECT
        rr.can_convert_leads AS rr_convert,
        rr.can_create_renewals AS rr_renew, rr.can_use_order_assistant AS rr_assistant,
        rr.can_view_orders AS rr_orders, rr.can_view_coupons AS rr_coupons,
+       rr.can_view_financial_reports AS rr_financial,
        r.perm_create_invoices AS ro_create, r.perm_approve_invoices AS ro_approve,
        r.perm_send_invoices AS ro_send, r.perm_view_all_records AS ro_all,
        r.perm_view_child_records AS ro_child, r.perm_modify_prices AS ro_price,
@@ -108,7 +109,8 @@ const USER_PROJECTION_SQL = `SELECT
        r.perm_crm_access AS ro_crm,
        r.perm_convert_leads AS ro_convert,
        r.perm_create_renewals AS ro_renew, r.perm_use_order_assistant AS ro_assistant,
-       r.perm_view_orders AS ro_orders, r.perm_view_coupons AS ro_coupons
+       r.perm_view_orders AS ro_orders, r.perm_view_coupons AS ro_coupons,
+       r.perm_view_financial_reports AS ro_financial
      FROM users u
      LEFT JOIN user_roles ur ON ur.id = u.user_role_id
      LEFT JOIN resellers r ON r.id = u.reseller_id
@@ -200,6 +202,7 @@ async function buildUserFromRow(row: UserProjectionRow): Promise<User> {
   const rrAssistant = row.ro_assistant ?? row.rr_assistant ?? true;
   const rrOrders = row.ro_orders ?? row.rr_orders ?? true;
   const rrCoupons = row.ro_coupons ?? row.rr_coupons ?? true;
+  const rrFinancial = row.ro_financial ?? row.rr_financial ?? rrReports;
 
   const permissions: UserPermissions = {
     canCreateInvoices: isSystemAdmin || ((row.ur_create ?? false) && rrCreate),
@@ -241,6 +244,7 @@ async function buildUserFromRow(row: UserProjectionRow): Promise<User> {
     canUseOrderAssistant: isSystemAdmin || rrAssistant,
     canViewOrders: isSystemAdmin || rrOrders,
     canViewCoupons: isSystemAdmin || rrCoupons,
+    canViewFinancialReports: isSystemAdmin || ((row.ur_reports ?? false) && rrFinancial),
   };
 
   // Build the list of reseller IDs this user can see.

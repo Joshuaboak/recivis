@@ -66,7 +66,7 @@ export async function GET(
               can_create_evaluations, max_evaluations_per_account, can_extend_evaluations,
               can_direct_customer_comms, can_monthly_subscriptions, can_convert_leads,
               can_crm_access, can_create_renewals, can_use_order_assistant,
-              can_view_orders, can_view_coupons
+              can_view_orders, can_view_coupons, can_view_financial_reports
        FROM reseller_roles WHERE is_system_role = false ORDER BY id`
     );
 
@@ -80,7 +80,7 @@ export async function GET(
                 perm_create_evaluations, perm_max_evaluations_per_account, perm_extend_evaluations,
                 perm_direct_customer_comms, perm_monthly_subscriptions, perm_convert_leads,
                 perm_crm_access, perm_create_renewals, perm_use_order_assistant,
-                perm_view_orders, perm_view_coupons
+                perm_view_orders, perm_view_coupons, perm_view_financial_reports
          FROM resellers WHERE id IN (${dbPlaceholders}) LIMIT 1`,
         dbLookupIds
       );
@@ -237,6 +237,7 @@ export async function PATCH(
         ['perm_use_order_assistant', 'can_use_order_assistant'],
         ['perm_view_orders', 'can_view_orders'],
         ['perm_view_coupons', 'can_view_coupons'],
+        ['perm_view_financial_reports', 'can_view_financial_reports'],
       ];
       for (const [column, key] of PERM_OVERRIDES) {
         updates.push(`${column} = $${paramIdx++}`);
@@ -337,8 +338,8 @@ export async function POST(
       `INSERT INTO resellers (id, name, email, region, currency, partner_category, direct_customer_contact, distributor_id, reseller_role_id, is_active,
        perm_create_invoices, perm_approve_invoices, perm_send_invoices, perm_view_all_records, perm_view_child_records, perm_modify_prices, perm_upload_po, perm_view_reports, perm_export_data,
        perm_create_evaluations, perm_max_evaluations_per_account, perm_extend_evaluations, perm_direct_customer_comms, perm_monthly_subscriptions,
-       perm_convert_leads, perm_crm_access, perm_create_renewals, perm_use_order_assistant, perm_view_orders, perm_view_coupons)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)`,
+       perm_convert_leads, perm_crm_access, perm_create_renewals, perm_use_order_assistant, perm_view_orders, perm_view_coupons, perm_view_financial_reports)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)`,
       [
         id, name, email || null, region || null, currency || null, partner_category || null,
         !!direct_customer_contact, distributor_id || null, reseller_role_id,
@@ -364,6 +365,7 @@ export async function POST(
         toNullableBool(permOverrides.can_use_order_assistant),
         toNullableBool(permOverrides.can_view_orders),
         toNullableBool(permOverrides.can_view_coupons),
+        toNullableBool(permOverrides.can_view_financial_reports),
       ]
     );
 

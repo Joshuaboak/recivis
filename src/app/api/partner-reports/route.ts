@@ -18,7 +18,10 @@
  * Monthly subscriptions carry no invoice, so they are priced here from the
  * same USD list prices the create form quotes: each partner is charged list
  * less their own commission, and a distributor keeps the difference between
- * its rate and its reseller's.
+ * its rate and its reseller's. Those USD figures are converted into the
+ * partner's home currency at the CRM's exchange rates, so the whole report
+ * reads in one currency. If the rates cannot be loaded they stay in USD and
+ * are labelled as such rather than converted at a guess.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -33,6 +36,7 @@ import {
   monthlyListPrice,
   resellerPrice,
 } from '@/lib/subscriptions';
+import { getCurrencyRates, convertBetween, type CurrencyRate } from '@/lib/currency-rates';
 
 const CSA_BILLING_NAME = 'Civil Survey Applications';
 
@@ -67,9 +71,9 @@ interface SubscriptionRow {
   quantity: number;
   perpetualPlan: boolean;
   renewalDate: string | null;
-  /** USD the partner is charged per month. */
+  /** What the partner is charged per month, in the report's subscription currency. */
   monthlyCost: number;
-  /** USD the partner is recommended to charge the customer. */
+  /** What the partner is recommended to charge the customer, same currency. */
   monthlyList: number;
 }
 
@@ -148,8 +152,8 @@ export async function GET(request: NextRequest) {
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
 
-  if (!user.permissions.canViewReports) {
-    return NextResponse.json({ error: 'You do not have permission to view reports' }, { status: 403 });
+  if (!user.permissions.canViewFinancialReports) {
+    return NextResponse.json({ error: 'You do not have permission to view financial reports' }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -186,13 +190,14 @@ export async function GET(request: NextRequest) {
     }));
 
     const counterparty = partner.distributorName || CSA_BILLING_NAME;
+    const rates = await getCurrencyRates();
 
     if (report === 'schedule') {
-      const schedule = await buildSchedule(partner, children);
+      const schedule = await buildSchedule(partner, children, rates);
       return NextResponse.json({ report: 'schedule', partner: partner.name, counterparty, ...schedule });
     }
 
-    const statement = await buildStatement(partner, children, month);
+    const statement = await buildStatement(partner, children, month, rates);
     return NextResponse.json({
       report: 'statement',
       partner: partner.name,
@@ -212,7 +217,8 @@ export async function GET(request: NextRequest) {
 async function buildStatement(
   partner: PartnerInfo,
   children: Array<{ id: string; name: string; percentage: number }>,
-  month: string
+  month: string,
+  rates: CurrencyRate[] | null
 ) {
   const { start, end, label } = monthBounds(month);
 
@@ -246,10 +252,12 @@ async function buildStatement(
     });
   }
 
-  const subscriptions = await loadSubscriptions([partner.id], partner.percentage);
+  const { rows: subscriptions, currency: subscriptionCurrency } =
+    await loadSubscriptions([partner.id], partner.percentage, partner.currency, rates);
   const subscriptionCost = round(subscriptions.reduce((sum, s) => sum + s.monthlyCost * s.quantity, 0));
 
-  // Orders settle in the currency they were raised in; subscriptions are USD.
+  // Orders settle in the currency they were raised in — normally the partner's
+  // own; subscriptions are converted to the partner's currency above.
   const orderTotals: Record<string, { owedToYou: number; youOwe: number }> = {};
   for (const order of orders) {
     const slot = orderTotals[order.currency] ||= { owedToYou: 0, youOwe: 0 };
@@ -286,18 +294,23 @@ async function buildStatement(
       owedByDistributor = round(owedByDistributor + settled.owedToPartner);
     }
 
-    const childSubs = await loadSubscriptions([child.id], child.percentage);
+    // Priced in the currency this child's orders settle in, so the two add up.
+    const { rows: childSubs, currency: childSubCurrency } =
+      await loadSubscriptions([child.id], child.percentage, currency, rates);
     const childSubCost = round(childSubs.reduce((sum, s) => sum + s.monthlyCost * s.quantity, 0));
+    // Only add the two together when they really are in the same currency.
+    const sameCurrency = childSubCurrency === currency;
 
     childStatements.push({
       resellerId: child.id,
       resellerName: child.name,
       orderCount,
       currency,
-      owedToYou: round(owedToDistributor + childSubCost),
+      owedToYou: sameCurrency ? round(owedToDistributor + childSubCost) : owedToDistributor,
       youOweThem: owedByDistributor,
       subscriptionCount: childSubs.length,
       subscriptionCost: childSubCost,
+      subscriptionCurrency: childSubCurrency,
     });
   }
 
@@ -309,21 +322,23 @@ async function buildStatement(
     subscriptionCost,
     orderTotals,
     childStatements,
-    /** Subscriptions are billed in USD regardless of the order currency. */
-    subscriptionCurrency: 'USD',
+    /** The partner's currency, or USD if exchange rates were unavailable. */
+    subscriptionCurrency,
   };
 }
 
 /** Forward-looking view: what the active subscription base costs per month. */
 async function buildSchedule(
   partner: PartnerInfo,
-  children: Array<{ id: string; name: string; percentage: number }>
+  children: Array<{ id: string; name: string; percentage: number }>,
+  rates: CurrencyRate[] | null
 ) {
-  const own = await loadSubscriptions([partner.id], partner.percentage);
+  const { rows: own, currency } = await loadSubscriptions([partner.id], partner.percentage, partner.currency, rates);
 
   const childRows = [];
   for (const child of children) {
-    const subs = await loadSubscriptions([child.id], child.percentage);
+    // Child rows share the distributor's currency so the schedule adds up.
+    const { rows: subs } = await loadSubscriptions([child.id], child.percentage, currency, rates);
     if (subs.length === 0) continue;
     childRows.push({
       resellerId: child.id,
@@ -343,12 +358,26 @@ async function buildSchedule(
     /** What the base costs over a year at today's rate. */
     annualisedCost: round(monthlyCost * 12),
     childRows,
-    currency: 'USD',
+    currency,
   };
 }
 
-/** Active monthly subscription assets for one or more resellers, priced. */
-async function loadSubscriptions(resellerIds: string[], percentage: number): Promise<SubscriptionRow[]> {
+/**
+ * Active monthly subscription assets for one or more resellers, priced from
+ * USD list and converted to `targetCurrency`. Falls back to USD — and says so
+ * in the returned currency — when no rate is available.
+ */
+async function loadSubscriptions(
+  resellerIds: string[],
+  percentage: number,
+  targetCurrency: string,
+  rates: CurrencyRate[] | null
+): Promise<{ rows: SubscriptionRow[]; currency: string }> {
+  const canConvert = convertBetween(1, 'USD', targetCurrency, rates) !== null;
+  const currency = canConvert ? targetCurrency : 'USD';
+  const toTarget = (usd: number) =>
+    canConvert ? convertBetween(usd, 'USD', targetCurrency, rates) ?? usd : usd;
+
   const assets = await searchAllPages(
     'Assets1',
     `${resellerCriteria(resellerIds)}and(Status:equals:Active)`,
@@ -377,10 +406,10 @@ async function loadSubscriptions(resellerIds: string[], percentage: number): Pro
       quantity: Number(asset.Quantity) || 1,
       perpetualPlan,
       renewalDate: (asset.Renewal_Date as string) || null,
-      monthlyCost: resellerPrice(list, percentage),
-      monthlyList: list,
+      monthlyCost: toTarget(resellerPrice(list, percentage)),
+      monthlyList: toTarget(list),
     });
   }
 
-  return rows;
+  return { rows, currency };
 }
