@@ -74,6 +74,11 @@ export async function GET(request: NextRequest) {
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
 
+  // Admins hold every permission, so no separate isAdmin() check is needed.
+  if (!(user.permissions.canViewCoupons)) {
+    return NextResponse.json({ error: 'You do not have permission to view coupons' }, { status: 403 });
+  }
+
   try {
     // Fetch all coupons (cached 2 min), then filter by user permissions
     const cacheKey = 'coupons:all';

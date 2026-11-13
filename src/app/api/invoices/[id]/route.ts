@@ -105,6 +105,11 @@ export async function GET(
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
 
+  // Admins hold every permission, so no separate isAdmin() check is needed.
+  if (!(user.permissions.canViewOrders || user.permissions.canUseOrderAssistant)) {
+    return NextResponse.json({ error: 'You do not have permission to view orders' }, { status: 403 });
+  }
+
   const { id } = await params;
 
   // A practice session reads the demo order it just created, or one of the
@@ -217,6 +222,11 @@ export async function PATCH(
   const authResult = await requireAuth(request);
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
+
+  // Admins hold every permission, so no separate isAdmin() check is needed.
+  if (!(user.permissions.canViewOrders || user.permissions.canUseOrderAssistant)) {
+    return NextResponse.json({ error: 'You do not have permission to edit orders' }, { status: 403 });
+  }
 
   const { id } = await params;
 

@@ -64,6 +64,11 @@ export async function GET(
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
 
+  // Admins hold every permission, so no separate isAdmin() check is needed.
+  if (!(user.permissions.canViewCoupons)) {
+    return NextResponse.json({ error: 'You do not have permission to view coupons' }, { status: 403 });
+  }
+
   const { id } = await params;
   try {
     const result = await executeZohoTool('get_record', { module: 'Coupons', record_id: id });

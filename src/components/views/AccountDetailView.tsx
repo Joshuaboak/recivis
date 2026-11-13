@@ -343,7 +343,7 @@ export default function AccountDetailView({
         body: JSON.stringify({ asset_ids: Array.from(selectedAssets) }),
       });
       const data = await res.json();
-      // Renewals need canCreateInvoices, which is enforced on the server and
+      // Renewals need canCreateRenewals, which is enforced on the server and
       // not on this button. Without this branch a partner who lacks it saw the
       // spinner stop and nothing else — the failure was invisible.
       if (!res.ok) {

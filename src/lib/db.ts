@@ -300,7 +300,37 @@ export async function initDB() {
           -- Viewer is read-only by definition; converting writes.
           UPDATE user_roles SET can_convert_leads = false WHERE name = 'viewer';
         END IF;
+
+        -- Creating renewals, split out of Create Orders so a partner can have
+        -- one without the other. Seeded once from Create Orders — preset and
+        -- per-partner override alike — so nobody gains or loses anything on
+        -- the day this lands; after that the two are independent.
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'reseller_roles' AND column_name = 'can_create_renewals'
+        ) THEN
+          ALTER TABLE reseller_roles ADD COLUMN can_create_renewals BOOLEAN DEFAULT true;
+          UPDATE reseller_roles SET can_create_renewals = COALESCE(can_create_invoices, false);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'resellers' AND column_name = 'perm_create_renewals'
+        ) THEN
+          ALTER TABLE resellers ADD COLUMN perm_create_renewals BOOLEAN;
+          UPDATE resellers SET perm_create_renewals = perm_create_invoices;
+        END IF;
       END $$;
+
+      -- Order Assistant (AI chat), viewing orders and viewing coupons. Everybody
+      -- had all three before these existed, so presets default on (ADD COLUMN
+      -- with a DEFAULT fills existing rows) and an admin takes them away.
+      ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_use_order_assistant BOOLEAN DEFAULT true;
+      ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_view_orders BOOLEAN DEFAULT true;
+      ALTER TABLE reseller_roles ADD COLUMN IF NOT EXISTS can_view_coupons BOOLEAN DEFAULT true;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_use_order_assistant BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_view_orders BOOLEAN;
+      ALTER TABLE resellers ADD COLUMN IF NOT EXISTS perm_view_coupons BOOLEAN;
     `);
     dbInitialized = true;
   } finally {

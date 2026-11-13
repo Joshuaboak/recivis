@@ -48,6 +48,15 @@ export interface UserPermissions {
    * account, so the link was a dead end for them. Defaults off.
    */
   canAccessCrm: boolean;
+  /** Raise renewal orders from expiring/expired assets. Split from
+   *  canCreateInvoices; still needs a user role that may create. */
+  canCreateRenewals: boolean;
+  /** Org-level only: may use the AI Order Assistant. */
+  canUseOrderAssistant: boolean;
+  /** Org-level only: may see the Orders section. */
+  canViewOrders: boolean;
+  /** Org-level only: may see coupons. */
+  canViewCoupons: boolean;
 }
 
 // --- Organisation Model ---

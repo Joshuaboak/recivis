@@ -294,7 +294,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     title: 'The Order Assistant',
     where: 'Order Assistant',
     path: '/order-assistant',
-    requires: ['canCreateInvoices'],
+    requires: ['canUseOrderAssistant'],
     body:
       'A conversation that drafts an order for you. Tell it who the customer is and what ' +
       'they want and it finds the customer, picks the product, and builds a draft for ' +
@@ -326,7 +326,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     title: 'Renewing licences',
     where: 'Assets → Due for Renewal, or a customer record',
     path: '/assets/renewals',
-    requires: ['canCreateInvoices'],
+    requires: ['canCreateRenewals'],
     body:
       'Due for Renewal lists every licence across all your customers renewing in the ' +
       'next 60 days, soonest first and grouped by customer. Recently Expired does the ' +
@@ -503,6 +503,10 @@ const PERMISSION_LABELS: Record<keyof UserPermissions, string> = {
   canExtendEvaluations: 'extend evaluations',
   canDirectCustomerComms: 'send straight to customers',
   canMonthlySubscriptions: 'create and renew monthly subscriptions',
+  canCreateRenewals: 'create renewals',
+  canUseOrderAssistant: 'use the Order Assistant',
+  canViewOrders: 'view orders',
+  canViewCoupons: 'view coupons',
   canAccessCrm: 'open records in Zoho CRM',
 };
 

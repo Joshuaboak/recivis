@@ -29,6 +29,10 @@ function permissions(overrides: Partial<UserPermissions> = {}): UserPermissions 
     canDirectCustomerComms: false,
     canMonthlySubscriptions: false,
     canAccessCrm: false,
+    canCreateRenewals: false,
+    canUseOrderAssistant: false,
+    canViewOrders: false,
+    canViewCoupons: false,
     ...overrides,
   };
 }

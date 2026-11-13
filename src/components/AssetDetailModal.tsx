@@ -306,7 +306,7 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
                       <DetailField label="Licence Model" value={keyDetails.LicenseModel} icon={<Shield size={12} />} />
-                      <DetailField label="Version Activated" value={`${keyDetails.ProductName} v${keyDetails.MajorVersion}.${keyDetails.MinorVersion}`} icon={<Package size={12} />} />
+                      <DetailField label="Version Activated" value={keyDetails.ProductName ? `${keyDetails.ProductName} v${keyDetails.MajorVersion ?? '?'}.${keyDetails.MinorVersion ?? '?'}` : '—'} icon={<Package size={12} />} />
                       <DetailField label="Available Seats" value={keyDetails.AvailableLicenses} icon={<Monitor size={12} />} />
                       <DetailField label="Activations" value={keyDetails.ActivationCount} />
                       <DetailField label="Created" value={formatDateTime(keyDetails.CreationDate)} icon={<Calendar size={12} />} />

@@ -26,6 +26,11 @@ export async function GET(request: NextRequest) {
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
 
+  // Admins hold every permission, so no separate isAdmin() check is needed.
+  if (!(user.permissions.canViewOrders)) {
+    return NextResponse.json({ error: 'You do not have permission to view orders' }, { status: 403 });
+  }
+
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'Draft';
   const resellerId = searchParams.get('resellerId');

@@ -572,7 +572,7 @@ export const ALL_SECTIONS: TourSection[] = [
           'Renewal, Send Keys to Reseller and Send Keys to Customer. You can tick one ' +
           'that cannot be renewed; Generate Renewal then greys out, and hovering it ' +
           'lists why.',
-        requires: ['canCreateInvoices'],
+        requires: ['canCreateRenewals'],
       },
       {
         id: 'send-keys',
@@ -582,7 +582,7 @@ export const ALL_SECTIONS: TourSection[] = [
           'Both Send Keys buttons open a confirmation naming the recipient: the ' +
           'primary contact and their email address, or the reseller. Confirm Send ' +
           'emails the keys for every ticked licence.',
-        requires: ['canCreateInvoices'],
+        requires: ['canCreateRenewals'],
       },
       {
         id: 'subscriptions',
@@ -775,7 +775,7 @@ export const ALL_SECTIONS: TourSection[] = [
           'row, with the number ticked in the button. It creates the order and opens ' +
           'it. Licences that cannot be renewed cannot be ticked; hover the box to see ' +
           'why.',
-        requires: ['canCreateInvoices'],
+        requires: ['canCreateRenewals'],
       },
       {
         id: 'select-all',
@@ -785,7 +785,7 @@ export const ALL_SECTIONS: TourSection[] = [
         body:
           'The box in the column header ticks every licence under that customer that ' +
           'can be renewed, and skips the ones that cannot.',
-        requires: ['canCreateInvoices'],
+        requires: ['canCreateRenewals'],
       },
     ],
   },
@@ -810,7 +810,7 @@ export const ALL_SECTIONS: TourSection[] = [
           'Tick the licences under a customer and Generate Renewal appears on their ' +
           'row, with the number ticked in the button. It creates the order and opens ' +
           'it. Licences that cannot be renewed cannot be ticked.',
-        requires: ['canCreateInvoices'],
+        requires: ['canCreateRenewals'],
       },
     ],
   },
@@ -852,7 +852,7 @@ export const ALL_SECTIONS: TourSection[] = [
     id: 'order-assistant',
     title: 'Order Assistant',
     path: buildPath('invoice'),
-    requires: ['canCreateInvoices'],
+    requires: ['canUseOrderAssistant'],
     steps: [
       {
         id: 'po-upload',

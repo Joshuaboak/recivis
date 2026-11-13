@@ -85,6 +85,8 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
               rr.can_monthly_subscriptions AS rr_monthly_subs,
               rr.can_crm_access AS rr_crm,
               rr.can_convert_leads AS rr_convert,
+              rr.can_create_renewals AS rr_renew, rr.can_use_order_assistant AS rr_assistant,
+              rr.can_view_orders AS rr_orders, rr.can_view_coupons AS rr_coupons,
               r.perm_create_invoices AS ro_create, r.perm_approve_invoices AS ro_approve,
               r.perm_send_invoices AS ro_send, r.perm_view_all_records AS ro_all,
               r.perm_view_child_records AS ro_child, r.perm_modify_prices AS ro_price,
@@ -96,6 +98,8 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
               r.perm_monthly_subscriptions AS ro_monthly_subs,
               r.perm_crm_access AS ro_crm,
               r.perm_convert_leads AS ro_convert,
+              r.perm_create_renewals AS ro_renew, r.perm_use_order_assistant AS ro_assistant,
+              r.perm_view_orders AS ro_orders, r.perm_view_coupons AS ro_coupons,
               r.region AS reseller_region
        FROM users u
        LEFT JOIN user_roles ur ON ur.id = u.user_role_id
@@ -131,6 +135,11 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
   const rrCrm = row.ro_crm ?? row.rr_crm ?? false;
     // Defaults true — see auth.ts: ordinary partner work, granted unless taken.
     const rrConvert = row.ro_convert ?? row.rr_convert ?? true;
+    // Fallbacks match auth.ts / the column defaults in db.ts.
+    const rrRenew = row.ro_renew ?? row.rr_renew ?? rrCreate;
+    const rrAssistant = row.ro_assistant ?? row.rr_assistant ?? true;
+    const rrOrders = row.ro_orders ?? row.rr_orders ?? true;
+    const rrCoupons = row.ro_coupons ?? row.rr_coupons ?? true;
 
     const permissions: UserPermissions = {
       canCreateInvoices: isSystemAdmin || ((row.ur_create ?? false) && rrCreate),
@@ -168,6 +177,10 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
       canDirectCustomerComms: isSystemAdmin || rrDirectComms,
       canMonthlySubscriptions: isSystemAdmin || rrMonthlySubs,
     canAccessCrm: isSystemAdmin || rrCrm,
+      canCreateRenewals: isSystemAdmin || ((row.ur_create ?? false) && rrRenew),
+      canUseOrderAssistant: isSystemAdmin || rrAssistant,
+      canViewOrders: isSystemAdmin || rrOrders,
+      canViewCoupons: isSystemAdmin || rrCoupons,
     };
 
     // Compute allowed reseller IDs. Shared with the session builder in auth.ts

@@ -77,6 +77,10 @@ const PARTNER_CATEGORIES = ['Reseller', 'Distributor', 'Distributor/Reseller', '
 // Permission definitions for the toggle UI
 const PERMISSION_DEFS = [
   { key: 'can_create_invoices', label: 'Create Orders', desc: 'Create new orders in the portal' },
+  { key: 'can_create_renewals', label: 'Create Renewals', desc: 'Raise renewal orders for licences due or recently expired' },
+  { key: 'can_use_order_assistant', label: 'Order Assistant (AI)', desc: 'Use the AI Order Assistant' },
+  { key: 'can_view_orders', label: 'View Orders', desc: 'See the Orders section and browse orders' },
+  { key: 'can_view_coupons', label: 'View Coupons', desc: 'See coupons' },
   { key: 'can_approve_invoices', label: 'Approve Orders', desc: 'Approve orders and generate licence keys' },
   { key: 'can_send_invoices', label: 'Send Orders', desc: 'Send orders to customers or resellers' },
   { key: 'can_view_all_records', label: 'View All Records', desc: 'See all records across all resellers' },
@@ -107,6 +111,10 @@ interface RoleWithPerms {
   can_monthly_subscriptions: boolean;
   can_convert_leads: boolean;
   can_crm_access: boolean;
+  can_create_renewals: boolean;
+  can_use_order_assistant: boolean;
+  can_view_orders: boolean;
+  can_view_coupons: boolean;
 }
 
 const inputCls = "w-full bg-csa-dark border border-border-subtle px-3 py-2 text-sm text-text-primary placeholder-text-muted/40 outline-none focus:border-csa-accent transition-colors rounded-lg";
@@ -1290,7 +1298,9 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
                     overrideVal = (permissionOverrides as Record<string, boolean | null>)[dbKey] ?? null;
                   }
                   const effective = overrideVal ?? roleDefault;
-                  const isOverridden = overrideVal !== null;
+                  // Partners only see what they have; admins see the full matrix + override markers.
+                  if (!isAdmin && !effective) return null;
+                  const isOverridden = isAdmin && overrideVal !== null;
 
                   return (
                     <div key={key} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] ${
@@ -1305,14 +1315,18 @@ function ResellerDetailView({ resellerId, mode }: { resellerId: string; mode: 'v
                 {/* Payment method flags from Zoho */}
                 {reseller && (
                   <>
-                    <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] ${payOnCard ? 'text-success' : 'text-text-muted'}`}>
-                      <span>{payOnCard ? '✓' : '✕'}</span>
-                      <span className="font-semibold">Pay on Card</span>
-                    </div>
-                    <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] ${reseller.Can_Purchase_on_Credit ? 'text-success' : 'text-text-muted'}`}>
-                      <span>{reseller.Can_Purchase_on_Credit ? '✓' : '✕'}</span>
-                      <span className="font-semibold">Pay on Account</span>
-                    </div>
+                    {(isAdmin || payOnCard) && (
+                      <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] ${payOnCard ? 'text-success' : 'text-text-muted'}`}>
+                        <span>{payOnCard ? '✓' : '✕'}</span>
+                        <span className="font-semibold">Pay on Card</span>
+                      </div>
+                    )}
+                    {(isAdmin || reseller.Can_Purchase_on_Credit) && (
+                      <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] ${reseller.Can_Purchase_on_Credit ? 'text-success' : 'text-text-muted'}`}>
+                        <span>{reseller.Can_Purchase_on_Credit ? '✓' : '✕'}</span>
+                        <span className="font-semibold">Pay on Account</span>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

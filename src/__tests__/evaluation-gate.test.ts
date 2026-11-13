@@ -20,6 +20,10 @@ function perms(over: Partial<UserPermissions>): UserPermissions {
     maxEvaluationsPerAccount: 0, canExtendEvaluations: false,
     canDirectCustomerComms: false, canMonthlySubscriptions: false,
     canAccessCrm: false,
+    canCreateRenewals: false,
+    canUseOrderAssistant: false,
+    canViewOrders: false,
+    canViewCoupons: false,
     ...over,
   };
 }

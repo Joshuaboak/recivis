@@ -273,17 +273,21 @@ export default function Sidebar() {
           </AnimatePresence>
         </div>
 
-        {/* Invoices (with submenu) */}
+        {/* Invoices (with submenu) — shown when either entry is permitted. The
+            header lands on the Order Assistant, or Browse Orders without it. */}
+        {(user?.permissions?.canViewOrders || user?.permissions?.canUseOrderAssistant) && (() => {
+          const ordersHome = user?.permissions?.canUseOrderAssistant ? PATHS.orderAssistant : PATHS.orders;
+          return (
         <div data-tour="nav-orders">
           <GuardedLink
-            href={PATHS.orderAssistant}
+            href={ordersHome}
             title={sidebarOpen ? undefined : 'Orders'}
             onClick={(e) => {
               if (sidebarOpen) {
                 setInvoiceMenuOpen(!invoiceMenuOpen);
                 if (isInvoiceActive) { e.preventDefault(); return; }
               }
-              handleNavClick(PATHS.orderAssistant);
+              handleNavClick(ordersHome);
             }}
             className={`
               w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold
@@ -321,13 +325,19 @@ export default function Sidebar() {
                 className="overflow-hidden"
               >
                 <div className="ml-8 mt-1 space-y-0.5">
-                  <SubNavItem label="Browse Orders" href={PATHS.orders} active={inSection(pathname, PATHS.orders)} onClick={() => handleNavClick(PATHS.orders)} />
-                  <SubNavItem label="Order Assistant" href={PATHS.orderAssistant} active={pathname === PATHS.orderAssistant} onClick={() => handleNavClick(PATHS.orderAssistant)} />
+                  {user?.permissions?.canViewOrders && (
+                    <SubNavItem label="Browse Orders" href={PATHS.orders} active={inSection(pathname, PATHS.orders)} onClick={() => handleNavClick(PATHS.orders)} />
+                  )}
+                  {user?.permissions?.canUseOrderAssistant && (
+                    <SubNavItem label="Order Assistant" href={PATHS.orderAssistant} active={pathname === PATHS.orderAssistant} onClick={() => handleNavClick(PATHS.orderAssistant)} />
+                  )}
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
+          );
+        })()}
 
         {/* Reports (with submenu) — the whole section, submenu included, is
             behind the reports permission. It had no gate at all, so a partner
@@ -373,7 +383,9 @@ export default function Sidebar() {
         })()}
 
         {/* Coupons */}
-        <NavItem href={PATHS.coupons} label="Coupons" icon={Ticket} active={inSection(pathname, PATHS.coupons)} onClick={() => handleNavClick(PATHS.coupons)} open={sidebarOpen} />
+        {user?.permissions?.canViewCoupons && (
+          <NavItem href={PATHS.coupons} label="Coupons" icon={Ticket} active={inSection(pathname, PATHS.coupons)} onClick={() => handleNavClick(PATHS.coupons)} open={sidebarOpen} />
+        )}
 
         {/* Partners (with submenu) */}
         {(() => {

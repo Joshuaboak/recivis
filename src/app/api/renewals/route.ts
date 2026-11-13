@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   if (authResult instanceof NextResponse) return authResult;
   const user = authResult;
 
-  if (!user.permissions.canCreateInvoices && !isAdmin(user)) {
+  if (!user.permissions.canCreateRenewals && !isAdmin(user)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

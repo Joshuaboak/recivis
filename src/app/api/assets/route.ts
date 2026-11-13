@@ -93,18 +93,20 @@ export async function POST(request: NextRequest) {
     const res = await fetch(url, { method: 'POST' });
     const result = await res.json();
 
-    // The Deluge function returns key details as JSON in the last userMessage entry.
-    // Activation errors are returned as XML in the output field.
+    // The Deluge function's last `info` line (surfaced as the last userMessage entry)
+    // is `QLMActivationDetailsList` — a JSON *list* of key-detail maps, one per
+    // activation. Activation errors are returned as XML in the output field.
     let keyDetails: Record<string, string> | null = null;
     let activationError: string | null = null;
 
     if (result?.details?.userMessage) {
       const messages = result.details.userMessage as string[];
-      // Last message is the JSON object with all key details
       const lastMsg = messages[messages.length - 1];
       if (lastMsg) {
         try {
-          keyDetails = JSON.parse(lastMsg);
+          const parsed = JSON.parse(lastMsg);
+          const first = Array.isArray(parsed) ? parsed[0] : parsed;
+          if (first && typeof first === 'object') keyDetails = first;
         } catch { /* not JSON */ }
       }
     }

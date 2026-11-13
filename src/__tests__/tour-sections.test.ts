@@ -36,6 +36,10 @@ function permissions(overrides: Partial<UserPermissions> = {}): UserPermissions 
     canDirectCustomerComms: false,
     canMonthlySubscriptions: false,
     canAccessCrm: false,
+    canCreateRenewals: false,
+    canUseOrderAssistant: false,
+    canViewOrders: false,
+    canViewCoupons: false,
     ...overrides,
   };
 }
@@ -56,6 +60,10 @@ const everything = permissions({
   canExtendEvaluations: true,
   canDirectCustomerComms: true,
   canMonthlySubscriptions: true,
+  canCreateRenewals: true,
+  canUseOrderAssistant: true,
+  canViewOrders: true,
+  canViewCoupons: true,
 });
 
 describe('section definitions', () => {

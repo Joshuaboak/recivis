@@ -159,6 +159,10 @@ async function enforceToolRBAC(
       }
 
       if (moduleName === 'Invoices') {
+        // Same gate as POST /api/invoices — the assistant is not a way round it.
+        if (toolName === 'create_records' && !user.permissions.canCreateInvoices) {
+          return 'You do not have permission to create orders.';
+        }
         if (rec.Status === 'Approved' && !user.permissions.canApproveInvoices) {
           return 'You do not have permission to approve invoices.';
         }
@@ -191,6 +195,10 @@ async function enforceToolRBAC(
   // Renewal generation creates real invoices from asset ids, so every asset
   // must be shown to belong to the caller before the function runs.
   if (toolName === 'call_renewal_function') {
+    // Same gate as POST /api/renewals.
+    if (!user.permissions.canCreateRenewals) {
+      return 'You do not have permission to create renewals.';
+    }
     const assetIds = (args.asset_ids as string[] | undefined) || [];
     if (assetIds.length === 0) return 'No assets were given to renew.';
     if (assetIds.length > 20) return 'Too many assets in one renewal. Please do 20 or fewer at a time.';
@@ -292,6 +300,12 @@ export async function POST(request: NextRequest) {
   if (authResult instanceof NextResponse) return authResult;
   const authUser = authResult;
 
+  // The Order Assistant and the Reports AI Assistant both run on this route,
+  // so either permission opens it. Admins hold both.
+  if (!authUser.permissions.canUseOrderAssistant && !authUser.permissions.canViewReports) {
+    return NextResponse.json({ error: 'You do not have permission to use the AI assistant' }, { status: 403 });
+  }
+
   const encoder = new TextEncoder();
   const requestStart = Date.now();
 
@@ -326,7 +340,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Build user context from SERVER-SIDE auth (never trust client-provided user data)
-        const userContext = `\n\n## Current User\n- Email: ${authUser.email}\n- Name: ${authUser.name}\n- Role: ${authUser.role}\n- Reseller ID: ${authUser.resellerId || 'N/A'}\n- Allowed Reseller IDs: ${authUser.allowedResellerIds.length > 0 ? authUser.allowedResellerIds.join(', ') : 'ALL (admin)'}\n- Can Create Invoices: ${authUser.permissions.canCreateInvoices}\n- Can Approve Invoices: ${authUser.permissions.canApproveInvoices}\n- Can Send Invoices: ${authUser.permissions.canSendInvoices}\n- Can Modify Prices: ${authUser.permissions.canModifyPrices}
+        const userContext = `\n\n## Current User\n- Email: ${authUser.email}\n- Name: ${authUser.name}\n- Role: ${authUser.role}\n- Reseller ID: ${authUser.resellerId || 'N/A'}\n- Allowed Reseller IDs: ${authUser.allowedResellerIds.length > 0 ? authUser.allowedResellerIds.join(', ') : 'ALL (admin)'}\n- Can Create Invoices: ${authUser.permissions.canCreateInvoices}\n- Can Approve Invoices: ${authUser.permissions.canApproveInvoices}\n- Can Send Invoices: ${authUser.permissions.canSendInvoices}\n- Can Modify Prices: ${authUser.permissions.canModifyPrices}\n- Can Create Renewals: ${authUser.permissions.canCreateRenewals}
 - CRM Access: ${authUser.permissions.canAccessCrm}`;
 
         const systemMessage = {

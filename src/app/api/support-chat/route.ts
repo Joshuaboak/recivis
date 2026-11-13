@@ -57,6 +57,10 @@ function permissionSummary(user: AuthUser): string {
   const note = (label: string, value: boolean) => (value ? allowed : denied).push(label);
 
   note('create orders', p.canCreateInvoices);
+  note('create renewals', p.canCreateRenewals);
+  note('use the Order Assistant', p.canUseOrderAssistant);
+  note('view orders', p.canViewOrders);
+  note('view coupons', p.canViewCoupons);
   note('approve orders', p.canApproveInvoices);
   note('send orders', p.canSendInvoices);
   note('change prices on line items', p.canModifyPrices);

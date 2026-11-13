@@ -208,7 +208,7 @@ export default function AssetsView({ scope }: { scope: AssetScope }) {
    * there is noise; the customer page is the place for a one-off.
    */
   const canGenerateRenewals =
-    (scope === 'renewals' || scope === 'expired') && !!user?.permissions?.canCreateInvoices;
+    (scope === 'renewals' || scope === 'expired') && !!user?.permissions?.canCreateRenewals;
 
   /**
    * The Renewal Order column, on the two renewal views. All Assets and
