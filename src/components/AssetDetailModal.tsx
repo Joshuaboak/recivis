@@ -19,7 +19,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Package, Loader2, Key, AlertCircle, Calendar, User, Shield, Monitor, Pencil, Save, ShieldOff } from 'lucide-react';
+import { X, Package, Loader2, Key, AlertCircle, Calendar, User, Shield, Monitor, Pencil, Save, ShieldOff, Copy, Check } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { AssetSubscriptionBadges } from '@/components/SubscriptionBadges';
 
@@ -134,6 +134,15 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
     setSavingDate(false);
   };
 
+  const [copied, setCopied] = useState(false);
+  const copyKey = async () => {
+    try {
+      await navigator.clipboard.writeText(record.Serial_Key as string);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard unavailable */ }
+  };
+
   const deactivateLicence = async () => {
     setDeactivating(true);
     setDeactivateMessage(null);
@@ -165,9 +174,6 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
                 {product?.name || record.Name as string || 'Asset'}
                 <AssetSubscriptionBadges asset={record} />
               </h3>
-              {record.Serial_Key ? (
-                <p className="text-xs text-text-muted font-mono mt-0.5">{record.Serial_Key as string}</p>
-              ) : null}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -189,6 +195,27 @@ export default function AssetDetailModal({ assetId, assetData, onClose, onAssetU
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
+          {record.Serial_Key ? (
+            <div className="bg-surface border border-csa-accent/40 rounded-xl px-4 py-3 mb-5">
+              <div className="flex items-center gap-1 text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1">
+                <Key size={12} />
+                Licence Key
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-mono text-base font-semibold text-text-primary break-all select-all">
+                  {record.Serial_Key as string}
+                </span>
+                <button
+                  onClick={copyKey}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-csa-accent bg-csa-accent/10 border border-csa-accent/30 rounded-xl hover:bg-csa-accent/20 transition-colors cursor-pointer flex-shrink-0"
+                >
+                  {copied ? <Check size={13} /> : <Copy size={13} />}
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {loadingAsset ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 size={20} className="text-csa-accent animate-spin" />
